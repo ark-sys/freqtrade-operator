@@ -7,6 +7,7 @@ Custom resources are used to define the configuration and deployment of Freqtrad
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 
+
 ## Getting Started
 
 ### Prerequisites
