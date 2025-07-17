@@ -17,7 +17,7 @@ spec:
   
   # References to other resources
   exchangeRef: binance
-  pairlistsRef: default-pairlists
+  pairlistMethodsRef: default-pairlist-methods
   strategyRef: simple-strategy
   entryPricingRef: default-entry-pricing
   exitPricingRef: default-exit-pricing

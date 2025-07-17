@@ -104,14 +104,14 @@ type PairlistConfig struct {
 	Offset *int `json:"offset,omitempty"`
 }
 
-// PairlistsSpec defines the desired state of Pairlists
-type PairlistsSpec struct {
-	// Pairlists is an array of pairlist configurations
-	Pairlists []PairlistConfig `json:"pairlists"`
+// PairlistMethodsSpec defines the desired state of PairlistMethods
+type PairlistMethodsSpec struct {
+	// Methods is an array of pairlist configurations
+	Methods []PairlistConfig `json:"methods"`
 }
 
-// PairlistsStatus defines the observed state of Pairlists
-type PairlistsStatus struct {
+// PairlistMethodsStatus defines the observed state of PairlistMethods
+type PairlistMethodsStatus struct {
 	Phase   string `json:"phase,omitempty"`
 	Message string `json:"message,omitempty"`
 }
@@ -119,24 +119,24 @@ type PairlistsStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// Pairlists is the Schema for the pairlists API
-type Pairlists struct {
+// PairlistMethods is the Schema for the pairlist methods API
+type PairlistMethods struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PairlistsSpec   `json:"spec,omitempty"`
-	Status PairlistsStatus `json:"status,omitempty"`
+	Spec   PairlistMethodsSpec   `json:"spec,omitempty"`
+	Status PairlistMethodsStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// PairlistsList contains a list of Pairlists
-type PairlistsList struct {
+// PairlistMethodsList contains a list of PairlistMethods
+type PairlistMethodsList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Pairlists `json:"items"`
+	Items           []PairlistMethods `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Pairlists{}, &PairlistsList{})
+	SchemeBuilder.Register(&PairlistMethods{}, &PairlistMethodsList{})
 }

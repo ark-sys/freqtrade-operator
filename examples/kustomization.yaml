@@ -8,7 +8,7 @@ resources:
   - exchange-secret.yaml
   - notification-secret.yaml
   - exchange.yaml
-  - pairlists.yaml
+  - pairlist_methods.yaml
   - strategy.yaml
   - entrypricing.yaml
   - exitpricing.yaml

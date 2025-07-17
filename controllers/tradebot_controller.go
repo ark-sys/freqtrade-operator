@@ -167,14 +167,14 @@ func (r *TradeBotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Fetch Pairlists if specified
-	var pairlists *freqtradev1alpha1.Pairlists
-	if tradeBot.Spec.PairlistsRef != "" {
-		pl := &freqtradev1alpha1.Pairlists{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.PairlistsRef, Namespace: req.Namespace}, pl); err != nil {
-			logger.Error(err, "failed to fetch Pairlists")
+	var pairlistMethods *freqtradev1alpha1.PairlistMethods
+	if tradeBot.Spec.PairlistMethodsRef != "" {
+		pm := &freqtradev1alpha1.PairlistMethods{}
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.PairlistMethodsRef, Namespace: req.Namespace}, pm); err != nil {
+			logger.Error(err, "failed to fetch PairlistMethods")
 			return ctrl.Result{}, err
 		}
-		pairlists = pl
+		pairlistMethods = pm
 	}
 
 	// 3. Assemble config.json from TradeBot and referenced CRDs using configbuilder
@@ -182,7 +182,7 @@ func (r *TradeBotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		ctx, r.Client,
 		&tradeBot, &exchange, pairWhitelist, pairBlacklist,
 		entryPricing, exitPricing, orderTypes, riskManagement, notification, &strategy,
-		pairlists,
+		pairlistMethods,
 	)
 	if err != nil {
 		logger.Error(err, "failed to assemble config")
@@ -442,36 +442,24 @@ func (r *TradeBotReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return reqs
 			}),
 		).
-		// Watch PairList changes and enqueue TradeBots referencing them via Exchange
+		// Watch Pairlists changes and enqueue TradeBots referencing them
 		Watches(
-			&freqtradev1alpha1.PairList{},
+			&freqtradev1alpha1.PairlistMethods{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 				var reqs []reconcile.Request
-				var exchanges freqtradev1alpha1.ExchangeList
-				if err := mgr.GetClient().List(ctx, &exchanges); err != nil {
-					mgr.GetLogger().Error(err, "Failed to list Exchanges for PairList", "pairlist", obj.GetName())
+				var bots freqtradev1alpha1.TradeBotList
+				if err := mgr.GetClient().List(ctx, &bots); err != nil {
+					mgr.GetLogger().Error(err, "Failed to list TradeBots for PairlistMethods", "pairlistMethods", obj.GetName())
 					return nil
 				}
-
-				for _, ex := range exchanges.Items {
-					if (ex.Spec.WhitelistRef == obj.GetName() || ex.Spec.BlacklistRef == obj.GetName()) && ex.Namespace == obj.GetNamespace() {
-						var bots freqtradev1alpha1.TradeBotList
-						if err := mgr.GetClient().List(ctx, &bots, client.MatchingFields{
-							"spec.exchangeRef": ex.Name,
-						}); err != nil {
-							mgr.GetLogger().Error(err, "Failed to list TradeBots for Exchange", "exchange", ex.Name)
-							continue
-						}
-						for _, bot := range bots.Items {
-							if bot.Namespace == ex.Namespace {
-								reqs = append(reqs, reconcile.Request{
-									NamespacedName: types.NamespacedName{
-										Name:      bot.Name,
-										Namespace: bot.Namespace,
-									},
-								})
-							}
-						}
+				for _, bot := range bots.Items {
+					if bot.Spec.PairlistMethodsRef == obj.GetName() && bot.Namespace == obj.GetNamespace() {
+						reqs = append(reqs, reconcile.Request{
+							NamespacedName: types.NamespacedName{
+								Name:      bot.Name,
+								Namespace: bot.Namespace,
+							},
+						})
 					}
 				}
 				return reqs

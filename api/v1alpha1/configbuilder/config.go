@@ -25,7 +25,7 @@ func AssembleConfig(
 	riskManagement *v1alpha1.RiskManagement,
 	notification *v1alpha1.Notification,
 	strategy *v1alpha1.Strategy,
-	pairlists *v1alpha1.Pairlists,
+	pairlistMethods *v1alpha1.PairlistMethods,
 ) (map[string]string, string, error) {
 	// Create the main config map
 	config := make(map[string]interface{})
@@ -51,20 +51,8 @@ func AssembleConfig(
 	}
 
 	// Add pairlists configuration if specified
-	if pairlists != nil {
-		pairlistsConfig := BuildPairlistsConfig(pairlists)
-		if pairlistsConfig != nil {
-			for k, v := range pairlistsConfig {
-				config[k] = v
-			}
-		}
-	} else {
-		// Use the old pairlists configuration from the TradeBot
-		pairlistsConfig, err := BuildPairlists(ctx, k8sClient, tradeBot)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to build Pairlists config: %w", err)
-		}
-
+	if pairlistMethods != nil {
+		pairlistsConfig := BuildPairlistMethodsConfig(pairlistMethods)
 		if pairlistsConfig != nil {
 			for k, v := range pairlistsConfig {
 				config[k] = v

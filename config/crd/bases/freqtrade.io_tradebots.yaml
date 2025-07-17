@@ -70,10 +70,8 @@ spec:
                 type: string
               orderTypesRef:
                 type: string
-              pairListRef:
+              pairlistMethodsRef:
                 description: References to other resources
-                type: string
-              pairlistsRef:
                 type: string
               resources:
                 description: Resources for the freqtrade container
@@ -152,7 +150,6 @@ spec:
             required:
             - botName
             - exchangeRef
-            - pairListRef
             - strategyRef
             type: object
           status:

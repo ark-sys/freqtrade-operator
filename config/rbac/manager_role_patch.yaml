@@ -1,0 +1,99 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: freqtrade-operator-manager-role
+rules:
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - tradebots
+  - pairlistmethods
+  - strategies
+  - exchanges
+  - entrypricings
+  - exitpricings
+  - ordertypes
+  - riskmanagements
+  - notifications
+  - frequis
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - tradebots/status
+  - pairlistmethods/status
+  - strategies/status
+  - exchanges/status
+  - entrypricings/status
+  - exitpricings/status
+  - ordertypes/status
+  - riskmanagements/status
+  - notifications/status
+  - frequis/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - tradebots/finalizers
+  - pairlistmethods/finalizers
+  - strategies/finalizers
+  - exchanges/finalizers
+  - entrypricings/finalizers
+  - exitpricings/finalizers
+  - ordertypes/finalizers
+  - riskmanagements/finalizers
+  - notifications/finalizers
+  - frequis/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - services
+  - secrets
+  - configmaps
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

@@ -13,20 +13,19 @@ type TradeBotSpec struct {
 	DryRun              bool    `json:"dryRun,omitempty"`
 	DryRunWallet        float64 `json:"dryRunWallet,omitempty"`
 	StakeCurrency       string  `json:"stakeCurrency,omitempty"`
-	StakeAmount         string  `json:"stakeAmount,omitempty"` // can be "unlimited"
+	StakeAmount         string  `json:"stakeAmount,omitempty"`
 	MaxOpenTrades       int     `json:"maxOpenTrades,omitempty"`
 	FiatDisplayCurrency string  `json:"fiatDisplayCurrency,omitempty"`
 
 	// References to other resources
-	PairListRef       string `json:"pairListRef"`
-	PairlistsRef      string `json:"pairlistsRef,omitempty"`
-	ExchangeRef       string `json:"exchangeRef"`
-	EntryPricingRef   string `json:"entryPricingRef,omitempty"`
-	ExitPricingRef    string `json:"exitPricingRef,omitempty"`
-	OrderTypesRef     string `json:"orderTypesRef,omitempty"`
-	RiskManagementRef string `json:"riskManagementRef,omitempty"`
-	NotificationRef   string `json:"notificationRef,omitempty"`
-	StrategyRef       string `json:"strategyRef"`
+	PairlistMethodsRef string `json:"pairlistMethodsRef,omitempty"`
+	ExchangeRef        string `json:"exchangeRef"`
+	EntryPricingRef    string `json:"entryPricingRef,omitempty"`
+	ExitPricingRef     string `json:"exitPricingRef,omitempty"`
+	OrderTypesRef      string `json:"orderTypesRef,omitempty"`
+	RiskManagementRef  string `json:"riskManagementRef,omitempty"`
+	NotificationRef    string `json:"notificationRef,omitempty"`
+	StrategyRef        string `json:"strategyRef"`
 
 	// Deployment configuration
 	Image string `json:"image,omitempty"` // Docker image for freqtrade
