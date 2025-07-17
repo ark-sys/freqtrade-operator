@@ -13,8 +13,7 @@ type NotificationSpec struct {
 
 type NotificationTelegram struct {
 	Enabled             bool    `json:"enabled,omitempty"`
-	Token               string  `json:"token,omitempty"`
-	ChatID              string  `json:"chatId,omitempty"`
+	SecretRef           string  `json:"secretRef,omitempty"` // Reference to Secret containing Telegram credentials
 	BalanceDustLevel    float64 `json:"balanceDustLevel,omitempty"`
 	Reload              *bool   `json:"reload,omitempty"`
 	AllowCustomMessages *bool   `json:"allowCustomMessages,omitempty"`
@@ -38,9 +37,7 @@ type NotificationAPIServer struct {
 	ListenIP   string `json:"listenIpAddress,omitempty"`
 	ListenPort int    `json:"listenPort,omitempty"`
 	Verbosity  string `json:"verbosity,omitempty"`
-	Username   string `json:"username,omitempty"`
-	Password   string `json:"password,omitempty"`
-	WSToken    string `json:"wsToken,omitempty"`
+	SecretRef  string `json:"secretRef,omitempty"` // Reference to Secret containing API server credentials
 }
 
 type NotificationStatus struct {

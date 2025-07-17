@@ -1,7 +1,8 @@
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: OrderTypes
 metadata:
   name: default-ordertypes
+  namespace: freqtrade
 spec:
   entry: "limit"
   exit: "limit"

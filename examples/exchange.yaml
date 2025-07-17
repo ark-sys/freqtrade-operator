@@ -1,22 +1,16 @@
 # This file defines an Exchange resource that contains configuration for a cryptocurrency exchange, such as Binance. It includes API keys, CCXT configuration, and references to whitelists and blacklists for trading pairs.
 # Credentials for the exchange should be stored in a Kubernetes Secret
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: Exchange
 metadata:
   name: binance
+  namespace: freqtrade
 spec:
   name: binance
-  apiKey:
-    secretRef:
-      name: binance-credentials
-      key: apiKey
-  secret:
-    secretRef:
-      name: binance-credentials
-      key: secret
+  secretRef: binance-credentials
+  whitelistRef: crypto-whitelist
+  blacklistRef: crypto-blacklist
   ccxtConfig:
     enableRateLimit: true
-  whitelistRef:
-    name: whitelist
-  blacklistRef:
-    name: blacklist
+    options:
+      defaultType: spot

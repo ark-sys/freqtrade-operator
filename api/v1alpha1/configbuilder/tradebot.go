@@ -7,7 +7,7 @@ import (
 	"github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
 
-// GenerateJWTSecretKey generates a random JWT secret key if none is provided
+// GenerateJWTSecretKey generates a random JWT secret key
 func GenerateJWTSecretKey() (string, error) {
 	bytes := make([]byte, 32) // 256 bits
 	_, err := rand.Read(bytes)
@@ -18,9 +18,9 @@ func GenerateJWTSecretKey() (string, error) {
 }
 
 // BuildTradeBotConfig builds the base bot configuration for Freqtrade config.json
-func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot) map[string]interface{} {
+func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot) (map[string]interface{}, string, error) {
 	if tradeBot == nil {
-		return nil
+		return nil, "", nil
 	}
 
 	cfg := map[string]interface{}{}
@@ -54,17 +54,15 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot) map[string]interface{} {
 		cfg["fiat_display_currency"] = tradeBot.Spec.FiatDisplayCurrency
 	}
 
-	// Add API configuration if UI is enabled
-	if tradeBot.Spec.UI {
-		// Set JWT secret key
-		jwtSecretKey := tradeBot.Spec.JWTSecretKey
-		if jwtSecretKey == "" {
-			var err error
-			jwtSecretKey, err = GenerateJWTSecretKey()
-			if err != nil {
-				// If there's an error, use a fallback
-				jwtSecretKey = "somethingrandom"
-			}
+	// Add API configuration if API is enabled
+	jwtSecretKey := ""
+	if tradeBot.Spec.APIEnabled {
+		// Generate a new JWT secret key
+		var err error
+		jwtSecretKey, err = GenerateJWTSecretKey()
+		if err != nil {
+			// If there's an error, use a fallback
+			jwtSecretKey = "s0m3_s3cr3t_k3y"
 		}
 		cfg["jwt_secret_key"] = jwtSecretKey
 
@@ -74,5 +72,5 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot) map[string]interface{} {
 		}
 	}
 
-	return cfg
+	return cfg, jwtSecretKey, nil
 }

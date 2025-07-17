@@ -1,15 +1,17 @@
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
-kind: ExitPricing
+apiVersion: freqtrade.io/v1alpha1
+kind: EntryPricing
 metadata:
-  name: default-exitpricing
+  name: default-entrypricing
+  namespace: freqtrade
 spec:
   priceSide: "bid"
   useOrderBook: false
 ---
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: ExitPricing
 metadata:
   name: default-exitpricing
+  namespace: freqtrade
 spec:
   priceSide: "bid"
   useOrderBook: false

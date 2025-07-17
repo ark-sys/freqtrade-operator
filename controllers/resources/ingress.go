@@ -3,7 +3,6 @@ package resources
 import (
 	"context"
 
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,24 +10,32 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// BuildIngress creates an Ingress for the bot's UI
-func BuildIngress(tradeBot freqtradev1alpha1.TradeBot, serviceName string) networkingv1.Ingress {
+// IngressOptions defines options for creating an Ingress
+type IngressOptions struct {
+	Name               string
+	Namespace          string
+	ServiceName        string
+	Host               string
+	IngressAnnotations map[string]string
+	TLS                []networkingv1.IngressTLS
+	OwnerRef           *metav1.OwnerReference
+}
+
+// BuildIngress creates an Ingress for the service
+func BuildIngress(options IngressOptions) networkingv1.Ingress {
 	pathType := networkingv1.PathTypePrefix
 
 	// Default host if not specified
-	host := tradeBot.Name + "." + tradeBot.Namespace + ".svc.cluster.local"
-	if tradeBot.Spec.Host != "" {
-		host = tradeBot.Spec.Host
+	host := options.Name + "." + options.Namespace + ".svc.cluster.local"
+	if options.Host != "" {
+		host = options.Host
 	}
 
-	return networkingv1.Ingress{
+	ingress := networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      tradeBot.Name,
-			Namespace: tradeBot.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(&tradeBot, freqtradev1alpha1.GroupVersion.WithKind("TradeBot")),
-			},
-			Annotations: tradeBot.Spec.IngressAnnotations,
+			Name:        options.Name,
+			Namespace:   options.Namespace,
+			Annotations: options.IngressAnnotations,
 		},
 		Spec: networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
@@ -42,7 +49,7 @@ func BuildIngress(tradeBot freqtradev1alpha1.TradeBot, serviceName string) netwo
 									PathType: &pathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
-											Name: serviceName,
+											Name: options.ServiceName,
 											Port: networkingv1.ServiceBackendPort{
 												Number: 8080,
 											},
@@ -54,9 +61,16 @@ func BuildIngress(tradeBot freqtradev1alpha1.TradeBot, serviceName string) netwo
 					},
 				},
 			},
-			TLS: tradeBot.Spec.TLS,
+			TLS: options.TLS,
 		},
 	}
+
+	// Add owner reference if provided
+	if options.OwnerRef != nil {
+		ingress.OwnerReferences = []metav1.OwnerReference{*options.OwnerRef}
+	}
+
+	return ingress
 }
 
 // ApplyIngress creates or updates the Ingress

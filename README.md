@@ -1,140 +1,174 @@
-# freqtrade-operator
-// TODO(user): Add simple overview of use/purpose
+# FreqTrade Operator
 
-Purpose: This project is a Kubernetes Operator for managing Freqtrade instances, allowing users to deploy and manage Freqtrade trading bots on Kubernetes clusters. 
-Custom resources are used to define the configuration and deployment of Freqtrade instances.
+A Kubernetes operator for managing FreqTrade cryptocurrency trading bots.
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+## Overview
 
+The FreqTrade Operator provides a Kubernetes-native way to deploy and manage FreqTrade bots. It introduces custom resources for all FreqTrade components and handles the deployment and configuration of the bots.
 
-## Getting Started
+Key features:
+- Deploy FreqTrade bots with custom strategies
+- Manage exchange configurations securely using Kubernetes Secrets
+- Configure notifications, risk management, and order types
+- Deploy a central FreqUI instance for monitoring all bots
+- Automatically configure CORS and JWT for secure communication
+
+## Architecture
+
+The operator consists of the following components:
+
+1. **Custom Resource Definitions (CRDs)**:
+   - `TradeBot`: Main resource for deploying a FreqTrade bot
+   - `FreqUI`: Resource for deploying the FreqUI web interface
+   - Supporting resources: `Exchange`, `Strategy`, `PairList`, `EntryPricing`, `ExitPricing`, `OrderTypes`, `RiskManagement`, `Notification`
+
+2. **Controllers**:
+   - `TradeBotController`: Manages the lifecycle of TradeBot resources
+   - `FreqUIController`: Manages the lifecycle of FreqUI resources
+
+3. **ConfigBuilder**:
+   - Assembles FreqTrade configuration from Kubernetes resources
+   - Handles secret management for secure credentials
+
+## Prerequisites
+
+- Kubernetes cluster 1.19+
+- kubectl 1.19+
+- Helm 3+ (optional, for Helm chart installation)
+- Go 1.19+ (for building from source)
+
+## Installation
+
+### Using pre-built images
+
+```bash
+# Apply CRDs
+kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/crds.yaml
+
+# Deploy the operator
+kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/operator.yaml
+```
+
+### Building from source
+
+1. Clone the repository:
+```bash
+git clone https://github.com/ark-sys/freqtrade-operator.git
+cd freqtrade-operator
+```
+
+2. Build and deploy the operator:
+```bash
+# Build the operator image
+make docker-build IMG=your-registry/freqtrade-operator:latest
+
+# Push the image to your registry
+make docker-push IMG=your-registry/freqtrade-operator:latest
+
+# Deploy the operator to your cluster
+make deploy IMG=your-registry/freqtrade-operator:latest
+```
+
+## Usage
+
+### 1. Create a namespace for your trading bots
+
+```bash
+kubectl create namespace freqtrade
+```
+
+### 2. Create secrets for exchange API credentials
+
+```bash
+kubectl apply -f examples/exchange-secret.yaml
+```
+
+### 3. Create FreqUI deployment
+
+```bash
+kubectl apply -f examples/frequi.yaml
+```
+
+### 4. Deploy a TradeBot
+
+```bash
+# Apply supporting resources
+kubectl apply -f examples/exchange.yaml
+kubectl apply -f examples/pairlists.yaml
+kubectl apply -f examples/strategy.yaml
+kubectl apply -f examples/notification.yaml
+kubectl apply -f examples/riskmanagement.yaml
+
+# Deploy the bot
+kubectl apply -f examples/tradebot.yaml
+```
+
+### 5. Access FreqUI
+
+Get the FreqUI URL:
+```bash
+kubectl get frequi -n trading
+```
+
+## Examples
+
+The `examples/` directory contains example resources for deploying a complete FreqTrade setup:
+
+- `namespace.yaml`: Namespace for trading resources
+- `exchange-secret.yaml`: Secret for exchange API credentials
+- `notification-secret.yaml`: Secret for notification credentials
+- `exchange.yaml`: Exchange configuration
+- `pairlists.yaml`: Trading pair lists
+- `strategy.yaml`: Trading strategy
+- `entrypricing.yaml`: Entry pricing configuration
+- `exitpricing.yaml`: Exit pricing configuration
+- `ordertypes.yaml`: Order types configuration
+- `riskmanagement.yaml`: Risk management configuration
+- `notification.yaml`: Notification configuration
+- `tradebot.yaml`: TradeBot deployment
+- `frequi.yaml`: FreqUI deployment
+
+## Development
 
 ### Prerequisites
-- go version v1.24.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+- Go 1.19+
+- Docker
+- Kubernetes cluster (or minikube/kind)
+- Operator SDK
 
-```sh
-make docker-build docker-push IMG=<some-registry>/freqtrade-operator:tag
+### Setup Development Environment
+
+1. Install the required tools:
+```bash
+# Install controller-gen
+make controller-gen
+
+# Install kustomize
+make kustomize
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
-
-**Install the CRDs into the cluster:**
-
-```sh
-make install
+2. Generate manifests and code:
+```bash
+make manifests
+make generate
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
-
-```sh
-make deploy IMG=<some-registry>/freqtrade-operator:tag
+3. Run the operator locally:
+```bash
+make run
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+### Running Tests
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+```bash
+# Run unit tests
+make test
 
-```sh
-kubectl apply -k config/samples/
+# Run e2e tests
+make test-e2e
 ```
-
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
-```
-
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following the options to release and provide this solution to the users.
-
-### By providing a bundle with all YAML files
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/freqtrade-operator:tag
-```
-
-**NOTE:** The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without its
-dependencies.
-
-2. Using the installer
-
-Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
-the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/freqtrade-operator/<tag or branch>/dist/install.yaml
-```
-
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-operator-sdk edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## License
 
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-Kubernetes operator for freqtade as a Service
+This project is licensed under the Apache 2.0 License - see the LICENSE file for details.

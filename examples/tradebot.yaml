@@ -1,19 +1,45 @@
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: TradeBot
 metadata:
-  name: my-tradebot
+  name: btc-trader
+  namespace: freqtrade
+  annotations:
+    freqtrade.io/preserve-data: "true"
 spec:
-  exchangeRef:
-    name: binance
-  entryPricingRef:
-    name: default-entrypricing
-  exitPricingRef:
-    name: default-exitpricing
-  orderTypesRef:
-    name: default-ordertypes
-  riskManagementRef:
-    name: default-risk
-  notificationRef:
-    name: default-notification
-  strategyRef:
-    name: default-strategy
+  botName: BTC-Trader
+  tradingMode: spot
+  dryRun: true
+  dryRunWallet: 1000
+  stakeCurrency: USDT
+  stakeAmount: "unlimited"
+  maxOpenTrades: 5
+  fiatDisplayCurrency: USD
+  
+  # References to other resources
+  exchangeRef: binance
+  pairlistsRef: default-pairlists
+  strategyRef: simple-strategy
+  entryPricingRef: default-entry-pricing
+  exitPricingRef: default-exit-pricing
+  orderTypesRef: default-order-types
+  riskManagementRef: default-risk
+  notificationRef: telegram-notifications
+  
+  # Deployment configuration
+  image: freqtradeorg/freqtrade:stable
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+  
+  # Storage configuration
+  storageSize: "1Gi"
+  storageClassName: longhorn
+  
+  # API configuration
+  apiEnabled: true
+  corsOrigins:
+    - "http://freqtrade-ui.freqtrade.svc.cluster.local"

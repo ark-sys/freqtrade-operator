@@ -10,7 +10,6 @@ import (
 	"github.com/ark-sys/freqtrade-operator/controllers/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,8 +26,6 @@ import (
 const (
 	// TradeBotFinalizer is the finalizer name used for TradeBot resources
 	TradeBotFinalizer = "freqtrade.io/finalizer"
-	// FreqUIName is the name used for the FreqUI deployment
-	FreqUIName = "freqtrade-ui"
 )
 
 // TradeBotReconciler reconciles a TradeBot object
@@ -169,10 +166,23 @@ func (r *TradeBotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
+	// Fetch Pairlists if specified
+	var pairlists *freqtradev1alpha1.Pairlists
+	if tradeBot.Spec.PairlistsRef != "" {
+		pl := &freqtradev1alpha1.Pairlists{}
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.PairlistsRef, Namespace: req.Namespace}, pl); err != nil {
+			logger.Error(err, "failed to fetch Pairlists")
+			return ctrl.Result{}, err
+		}
+		pairlists = pl
+	}
+
 	// 3. Assemble config.json from TradeBot and referenced CRDs using configbuilder
-	configData, err := configbuilder.AssembleConfig(
+	configData, jwtSecretKey, err := configbuilder.AssembleConfig(
+		ctx, r.Client,
 		&tradeBot, &exchange, pairWhitelist, pairBlacklist,
 		entryPricing, exitPricing, orderTypes, riskManagement, notification, &strategy,
+		pairlists,
 	)
 	if err != nil {
 		logger.Error(err, "failed to assemble config")
@@ -214,17 +224,10 @@ func (r *TradeBotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
-	// 9. Deploy FreqUI if this is the first TradeBot with UI enabled
-	if tradeBot.Spec.UI {
-		if err := r.reconcileFreqUI(ctx, tradeBot.Namespace, tradeBot.Spec.Host, tradeBot.Spec.IngressAnnotations, tradeBot.Spec.TLS); err != nil {
-			logger.Error(err, "failed to reconcile FreqUI")
-			return ctrl.Result{}, err
-		}
-	}
-
-	// 10. Update status
+	// 9. Update status with JWT secret key
 	tradeBot.Status.Phase = "Running"
 	tradeBot.Status.Message = "Bot deployed successfully"
+	tradeBot.Status.JWTSecretKey = jwtSecretKey
 	if err := r.Status().Update(ctx, &tradeBot); err != nil {
 		logger.Error(err, "failed to update status")
 		return ctrl.Result{}, err
@@ -232,45 +235,6 @@ func (r *TradeBotReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	logger.Info("Reconciliation completed successfully")
 	return ctrl.Result{}, nil
-}
-
-// reconcileFreqUI deploys the FreqUI components
-func (r *TradeBotReconciler) reconcileFreqUI(ctx context.Context, namespace, host string, annotations map[string]string, tls []networkingv1.IngressTLS) error {
-	logger := log.FromContext(ctx)
-	logger.Info("Reconciling FreqUI")
-
-	options := resources.FreqUIOptions{
-		Name:               FreqUIName,
-		Namespace:          namespace,
-		Image:              "freqtradeorg/frequi:latest",
-		Host:               host,
-		IngressAnnotations: annotations,
-		TLS:                tls,
-	}
-
-	// Create or update FreqUI Deployment
-	deployment := resources.BuildFreqUIDeployment(options)
-	if err := resources.ApplyDeployment(ctx, r.Client, &deployment); err != nil {
-		logger.Error(err, "failed to apply FreqUI Deployment")
-		return err
-	}
-
-	// Create or update FreqUI Service
-	service := resources.BuildFreqUIService(options)
-	if err := resources.ApplyService(ctx, r.Client, &service); err != nil {
-		logger.Error(err, "failed to apply FreqUI Service")
-		return err
-	}
-
-	// Create or update FreqUI Ingress
-	ingress := resources.BuildFreqUIIngress(options)
-	if err := resources.ApplyIngress(ctx, r.Client, &ingress); err != nil {
-		logger.Error(err, "failed to apply FreqUI Ingress")
-		return err
-	}
-
-	logger.Info("FreqUI reconciled successfully")
-	return nil
 }
 
 // finalizeTradeBot performs cleanup operations when a TradeBot is being deleted
@@ -428,7 +392,6 @@ func (r *TradeBotReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&corev1.PersistentVolumeClaim{}).
 		Owns(&appsv1.StatefulSet{}).
-		Owns(&networkingv1.Ingress{}).
 		// Watch Exchange changes and enqueue TradeBots referencing them
 		Watches(
 			&freqtradev1alpha1.Exchange{},

@@ -36,6 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	"github.com/ark-sys/freqtrade-operator/controllers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -46,7 +49,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
+	utilruntime.Must(freqtradev1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -195,6 +198,24 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	// Setup TradeBot controller
+	if err = (&controllers.TradeBotReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TradeBot")
+		os.Exit(1)
+	}
+
+	// Setup FreqUI controller
+	if err = (&controllers.FreqUIReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "FreqUI")
 		os.Exit(1)
 	}
 

@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -20,6 +19,7 @@ type TradeBotSpec struct {
 
 	// References to other resources
 	PairListRef       string `json:"pairListRef"`
+	PairlistsRef      string `json:"pairlistsRef,omitempty"`
 	ExchangeRef       string `json:"exchangeRef"`
 	EntryPricingRef   string `json:"entryPricingRef,omitempty"`
 	ExitPricingRef    string `json:"exitPricingRef,omitempty"`
@@ -38,21 +38,18 @@ type TradeBotSpec struct {
 	StorageSize      string `json:"storageSize,omitempty"`      // Size of the PVC (e.g., "1Gi")
 	StorageClassName string `json:"storageClassName,omitempty"` // StorageClass to use for the PVC
 
-	// UI/API configuration
-	UI                 bool                      `json:"ui,omitempty"`                 // Whether to enable the UI
-	Host               string                    `json:"host,omitempty"`               // Host for the Ingress
-	IngressAnnotations map[string]string         `json:"ingressAnnotations,omitempty"` // Annotations for the Ingress
-	TLS                []networkingv1.IngressTLS `json:"tls,omitempty"`                // TLS configuration for the Ingress
+	// API configuration
+	APIEnabled bool `json:"apiEnabled,omitempty"` // Whether to enable the REST API
 
 	// CORS settings for API
-	JWTSecretKey string   `json:"jwtSecretKey,omitempty"` // JWT secret key for API authentication
-	CORSOrigins  []string `json:"corsOrigins,omitempty"`  // List of allowed origins for CORS
+	CORSOrigins []string `json:"corsOrigins,omitempty"` // List of allowed origins for CORS
 }
 
 // TradeBotStatus defines the observed state of TradeBot
 type TradeBotStatus struct {
-	Phase   string `json:"phase,omitempty"`
-	Message string `json:"message,omitempty"`
+	Phase        string `json:"phase,omitempty"`
+	Message      string `json:"message,omitempty"`
+	JWTSecretKey string `json:"jwtSecretKey,omitempty"` // Generated JWT secret key for API authentication
 }
 
 //+kubebuilder:object:root=true

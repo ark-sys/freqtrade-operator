@@ -1,0 +1,15 @@
+apiVersion: freqtrade.io/v1alpha1
+kind: FreqUI
+metadata:
+  name: freqtrade-ui
+  namespace: freqtrade
+spec:
+  image: freqtradeorg/frequi:latest
+  host: frequi.horizonscloud.ovh
+  ingressAnnotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+  tls:
+    - hosts:
+        - frequi.horizonscloud.ovh
+      secretName: frequi-tls 

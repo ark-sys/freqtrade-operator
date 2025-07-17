@@ -1,0 +1,146 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: pairlists.freqtrade.io
+spec:
+  group: freqtrade.io
+  names:
+    kind: Pairlists
+    listKind: PairlistsList
+    plural: pairlists
+    singular: pairlists
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Pairlists is the Schema for the pairlists API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PairlistsSpec defines the desired state of Pairlists
+            properties:
+              pairlists:
+                description: Pairlists is an array of pairlist configurations
+                items:
+                  description: PairlistConfig represents the configuration for a pairlist
+                    method
+                  properties:
+                    allow_inactive:
+                      description: StaticPairList specific options
+                      type: boolean
+                    bearer_token:
+                      type: string
+                    categories:
+                      items:
+                        type: string
+                      type: array
+                    keep_pairlist_on_failure:
+                      type: boolean
+                    lookback_days:
+                      type: integer
+                    lookback_days_range:
+                      description: RangeStabilityFilter specific options
+                      type: integer
+                    lookback_days_volatility:
+                      description: VolatilityFilter specific options
+                      type: integer
+                    lookback_period:
+                      type: integer
+                    lookback_timeframe:
+                      description: PercentChangePairList specific options
+                      type: string
+                    max_days_listed:
+                      type: integer
+                    max_price:
+                      type: number
+                    max_rank:
+                      description: MarketCapPairList specific options
+                      type: integer
+                    max_rate_of_change:
+                      type: number
+                    max_spread_ratio:
+                      description: SpreadFilter specific options
+                      type: number
+                    max_volatility:
+                      type: number
+                    method:
+                      description: Method is the pairlist method to use
+                      type: string
+                    min_change_rate:
+                      type: number
+                    min_days_listed:
+                      description: AgeFilter specific options
+                      type: integer
+                    min_price:
+                      description: PriceFilter specific options
+                      type: number
+                    min_rate_of_change:
+                      type: number
+                    min_volatility:
+                      type: number
+                    mode:
+                      description: RemotePairList specific options
+                      type: string
+                    number_assets:
+                      description: Common configuration options
+                      type: integer
+                    offset:
+                      description: OffsetFilter specific options
+                      type: integer
+                    pairlist_url:
+                      type: string
+                    processing_mode:
+                      type: string
+                    producer_name:
+                      description: ProducerPairList specific options
+                      type: string
+                    read_timeout:
+                      type: integer
+                    refresh_period:
+                      format: int64
+                      type: integer
+                    save_to_file:
+                      type: string
+                    sort_key:
+                      description: VolumePairList specific options
+                      type: string
+                  required:
+                  - method
+                  type: object
+                type: array
+            required:
+            - pairlists
+            type: object
+          status:
+            description: PairlistsStatus defines the observed state of Pairlists
+            properties:
+              message:
+                type: string
+              phase:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
