@@ -1,0 +1,132 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tradebots.freqtrade.io
+spec:
+  group: freqtrade.io
+  names:
+    kind: TradeBot
+    plural: tradebots
+    singular: tradebot
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                # Bot configuration
+                botName:
+                  type: string
+                  description: "Name of the bot"
+                tradingMode:
+                  type: string
+                  description: "Trading mode (spot, futures, etc.)"
+                dryRun:
+                  type: boolean
+                  description: "Whether to run in dry-run mode"
+                dryRunWallet:
+                  type: number
+                  description: "Initial wallet balance for dry-run mode"
+                stakeCurrency:
+                  type: string
+                  description: "Stake currency (e.g., BTC, ETH)"
+                stakeAmount:
+                  type: string
+                  description: "Stake amount (can be 'unlimited')"
+                maxOpenTrades:
+                  type: integer
+                  description: "Maximum number of open trades"
+                fiatDisplayCurrency:
+                  type: string
+                  description: "Fiat currency for displaying profits (e.g., USD)"
+
+                # References to other resources
+                pairListRef:
+                  type: string
+                  description: "Reference to a PairList resource"
+                exchangeRef:
+                  type: string
+                  description: "Reference to an Exchange resource"
+                entryPricingRef:
+                  type: string
+                  description: "Reference to an EntryPricing resource"
+                exitPricingRef:
+                  type: string
+                  description: "Reference to an ExitPricing resource"
+                orderTypesRef:
+                  type: string
+                  description: "Reference to an OrderTypes resource"
+                riskManagementRef:
+                  type: string
+                  description: "Reference to a RiskManagement resource"
+                notificationRef:
+                  type: string
+                  description: "Reference to a Notification resource"
+                strategyRef:
+                  type: string
+                  description: "Reference to a Strategy resource"
+
+                # Deployment configuration
+                image:
+                  type: string
+                  description: "Docker image for freqtrade"
+                
+                # Resources for the freqtrade container
+                resources:
+                  type: object
+                  description: "Resource requirements for the freqtrade container"
+                  properties:
+                    limits:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    requests:
+                      type: object
+                      additionalProperties:
+                        type: string
+
+                # Storage configuration
+                storageSize:
+                  type: string
+                  description: "Size of the PVC (e.g., '1Gi')"
+                storageClassName:
+                  type: string
+                  description: "StorageClass to use for the PVC"
+
+                # UI/API configuration
+                ui:
+                  type: boolean
+                  description: "Whether to enable the UI"
+                host:
+                  type: string
+                  description: "Host for the Ingress"
+                ingressAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: "Annotations for the Ingress"
+                tls:
+                  type: array
+                  description: "TLS configuration for the Ingress"
+                  items:
+                    type: object
+                    properties:
+                      hosts:
+                        type: array
+                        items:
+                          type: string
+                      secretName:
+                        type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                message:
+                  type: string

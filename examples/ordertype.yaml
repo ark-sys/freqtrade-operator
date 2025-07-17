@@ -1,0 +1,8 @@
+apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+kind: OrderTypes
+metadata:
+  name: default-ordertypes
+spec:
+  entry: "limit"
+  exit: "limit"
+  stoploss: "market"

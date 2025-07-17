@@ -1,0 +1,84 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: notifications.freqtrade.io
+spec:
+  group: freqtrade.io
+  names:
+    kind: Notification
+    plural: notifications
+    singular: notification
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                telegram:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    token:
+                      type: string
+                    chatId:
+                      type: string
+                    balanceDustLevel:
+                      type: number
+                    reload:
+                      type: boolean
+                    allowCustomMessages:
+                      type: boolean
+                webhook:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    url:
+                      type: string
+                    entry:
+                      type: string
+                    entryCancel:
+                      type: string
+                    entryFill:
+                      type: string
+                    exit:
+                      type: string
+                    exitCancel:
+                      type: string
+                    exitFill:
+                      type: string
+                    status:
+                      type: string
+                    allowCustomMessages:
+                      type: boolean
+                apiServer:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    listenIpAddress:
+                      type: string
+                    listenPort:
+                      type: integer
+                    verbosity:
+                      type: string
+                    username:
+                      type: string
+                    password:
+                      type: string
+                    wsToken:
+                      type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                message:
+                  type: string

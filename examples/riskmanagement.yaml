@@ -1,0 +1,13 @@
+apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+kind: RiskManagement
+metadata:
+  name: default-risk
+spec:
+  minimalROI:
+    "0": 0.1
+    "10": 0.05
+  stoploss: -0.2
+  trailingStop: true
+  trailingStopPositive: 0.01
+  trailingStopPositiveOffset: 0.02
+  trailingOnlyOffsetIsReached: true

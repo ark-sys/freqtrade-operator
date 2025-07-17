@@ -1,0 +1,6 @@
+apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+kind: Strategy
+metadata:
+  name: default-strategy
+spec:
+  name: "SampleStrategy"

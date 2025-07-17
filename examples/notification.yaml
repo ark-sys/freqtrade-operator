@@ -1,0 +1,9 @@
+apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+kind: Notification
+metadata:
+  name: default-notification
+spec:
+  telegram:
+    enabled: true
+    token: "<telegram-bot-token>"
+    chat_id: "<chat-id>"
