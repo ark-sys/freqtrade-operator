@@ -1,0 +1,19 @@
+apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+kind: TradeBot
+metadata:
+  name: my-tradebot
+spec:
+  exchangeRef:
+    name: binance
+  entryPricingRef:
+    name: default-entrypricing
+  exitPricingRef:
+    name: default-exitpricing
+  orderTypesRef:
+    name: default-ordertypes
+  riskManagementRef:
+    name: default-risk
+  notificationRef:
+    name: default-notification
+  strategyRef:
+    name: default-strategy
