@@ -8,8 +8,7 @@ import (
 // ExchangeSpec defines the desired state of Exchange
 type ExchangeSpec struct {
 	Name            string               `json:"name"`
-	ApiKey          string               `json:"apiKey"`
-	Secret          string               `json:"secret"`
+	SecretRef       string               `json:"secretRef"` // Reference to Secret containing API credentials
 	CcxtConfig      apiextensionsv1.JSON `json:"ccxtConfig,omitempty"`
 	CcxtAsyncConfig apiextensionsv1.JSON `json:"ccxtAsyncConfig,omitempty"`
 	WhitelistRef    string               `json:"whitelistRef,omitempty"` // Reference to PairList

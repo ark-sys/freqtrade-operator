@@ -1,14 +1,20 @@
 package configbuilder
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
 	"github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // AssembleConfig merges all configuration sections into a complete Freqtrade config
 func AssembleConfig(
+	ctx context.Context,
+	k8sClient client.Client,
 	tradeBot *v1alpha1.TradeBot,
 	exchange *v1alpha1.Exchange,
 	pairWhitelist *v1alpha1.PairList,
@@ -19,20 +25,40 @@ func AssembleConfig(
 	riskManagement *v1alpha1.RiskManagement,
 	notification *v1alpha1.Notification,
 	strategy *v1alpha1.Strategy,
-) (map[string]string, error) {
+	pairlistMethods *v1alpha1.PairlistMethods,
+	existingJWTKey string,
+) (map[string]string, string, error) {
 	// Create the main config map
 	config := make(map[string]interface{})
 
 	// Add bot-level configuration
-	botConfig := BuildTradeBotConfig(tradeBot)
+	botConfig, jwtSecretKey, err := BuildTradeBotConfig(tradeBot, existingJWTKey)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to build TradeBot config: %w", err)
+	}
+
 	for k, v := range botConfig {
 		config[k] = v
 	}
 
 	// Add exchange configuration
-	exchangeConfig := BuildExchangeConfig(exchange, pairWhitelist, pairBlacklist)
+	exchangeConfig, err := BuildExchangeConfig(ctx, k8sClient, exchange, pairWhitelist, pairBlacklist)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to build Exchange config: %w", err)
+	}
+
 	if exchangeConfig != nil {
 		config["exchange"] = exchangeConfig
+	}
+
+	// Add pairlists configuration if specified
+	if pairlistMethods != nil {
+		pairlistsConfig := BuildPairlistMethodsConfig(pairlistMethods)
+		if pairlistsConfig != nil {
+			for k, v := range pairlistsConfig {
+				config[k] = v
+			}
+		}
 	}
 
 	// Add entry pricing configuration
@@ -62,10 +88,34 @@ func AssembleConfig(
 	}
 
 	// Add notification configuration
-	notificationConfig := BuildNotificationConfig(notification)
+	notificationConfig, err := BuildNotificationConfig(ctx, k8sClient, notification)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to build Notification config: %w", err)
+	}
+
 	if notificationConfig != nil {
 		for k, v := range notificationConfig {
 			config[k] = v
+		}
+	}
+
+	// Merge API server configuration from notification if present
+	if notification != nil {
+		notificationAPIConfig, err := BuildAPIServerConfigFromNotification(ctx, k8sClient, notification)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to build API server config from notification: %w", err)
+		}
+
+		if notificationAPIConfig != nil && len(notificationAPIConfig) > 0 {
+			// Merge with existing api_server config
+			if existingAPIServer, exists := config["api_server"]; exists {
+				if apiServerMap, ok := existingAPIServer.(map[string]interface{}); ok {
+					// Merge notification API server settings into existing config
+					for k, v := range notificationAPIConfig {
+						apiServerMap[k] = v
+					}
+				}
+			}
 		}
 	}
 
@@ -80,8 +130,23 @@ func AssembleConfig(
 	// Marshal to JSON
 	configBytes, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config to JSON: %w", err)
+		return nil, "", fmt.Errorf("failed to marshal config to JSON: %w", err)
 	}
 
-	return map[string]string{"config.json": string(configBytes)}, nil
+	return map[string]string{"config.json": string(configBytes)}, jwtSecretKey, nil
+}
+
+// GetSecretData retrieves data from a Kubernetes Secret
+func GetSecretData(ctx context.Context, k8sClient client.Client, namespace, name string) (map[string][]byte, error) {
+	if name == "" {
+		return nil, nil
+	}
+
+	secret := &corev1.Secret{}
+	err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret %s/%s: %w", namespace, name, err)
+	}
+
+	return secret.Data, nil
 }

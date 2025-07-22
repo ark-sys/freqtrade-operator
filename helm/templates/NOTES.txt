@@ -1,0 +1,36 @@
+1. Get the application URL by running these commands:
+{{- if .Values.controllerManager.metrics.enabled }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "freqtrade-operator.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to access the metrics endpoint"
+  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+{{- else }}
+  The Freqtrade Operator has been deployed successfully!
+  
+  The controller manager is running and ready to manage Freqtrade resources.
+{{- end }}
+
+2. Check the status of your deployment:
+  kubectl get deployment {{ include "freqtrade-operator.fullname" . }}-controller-manager -n {{ .Release.Namespace }}
+
+3. View the controller manager logs:
+  kubectl logs -f deployment/{{ include "freqtrade-operator.fullname" . }}-controller-manager -n {{ .Release.Namespace }}
+
+4. The following Custom Resource Definitions have been installed:
+  - TradeBots (tradebots.freqtrade.io)
+  - PairLists (pairlists.freqtrade.io) [[memory:3563675]]
+  - PairListMethods (pairlistmethods.freqtrade.io)
+  - Strategies (strategies.freqtrade.io)
+  - Exchanges (exchanges.freqtrade.io)
+  - EntryPricings (entrypricings.freqtrade.io)
+  - ExitPricings (exitpricings.freqtrade.io)
+  - OrderTypes (ordertypes.freqtrade.io)
+  - RiskManagements (riskmanagements.freqtrade.io)
+  - Notifications (notifications.freqtrade.io)
+  - FreqUIs (frequis.freqtrade.io)
+
+5. You can now create Freqtrade resources using kubectl:
+  kubectl apply -f your-freqtrade-resources.yaml
+
+For more information about using the Freqtrade Operator, visit:
+https://github.com/freqtrade/freqtrade-operator

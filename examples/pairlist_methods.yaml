@@ -1,0 +1,22 @@
+kind: PairlistMethods
+apiVersion: freqtrade.io/v1alpha1
+metadata:
+  name: default-pairlist-methods
+spec:
+  methods:
+  - method: StaticPairList
+    number_assets: 20
+  - method: VolumePairList
+    number_assets: 10
+    sort_key: quoteVolume
+  - method: AgeFilter
+    min_days_listed: 10
+  - method: PriceFilter
+    min_price: 0.00000100
+  - method: SpreadFilter
+    max_spread_ratio: 0.005
+  - method: RangeStabilityFilter
+    lookback_days_range: 10
+  - method: VolatilityFilter
+    lookback_days_volatility: 10
+    min_volatility: 0.05 

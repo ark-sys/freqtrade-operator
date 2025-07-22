@@ -1,9 +1,18 @@
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: Notification
 metadata:
-  name: default-notification
+  name: telegram-notifications
+  namespace: freqtrade
 spec:
   telegram:
     enabled: true
-    token: "<telegram-bot-token>"
-    chat_id: "<chat-id>"
+    secretRef: telegram-credentials
+    balanceDustLevel: 0.01
+    reload: true
+    allowCustomMessages: true
+  apiServer:
+    enabled: true
+    listenIpAddress: "0.0.0.0"
+    listenPort: 8080
+    verbosity: "info"
+    secretRef: api-server-credentials

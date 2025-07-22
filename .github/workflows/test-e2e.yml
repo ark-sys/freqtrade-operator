@@ -2,7 +2,11 @@ name: E2E Tests
 
 on:
   push:
+    branches:
+      - staging
   pull_request:
+    branches:
+      - staging
 
 jobs:
   test-e2e:

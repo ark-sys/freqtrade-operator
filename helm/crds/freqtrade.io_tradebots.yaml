@@ -1,0 +1,242 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: tradebots.freqtrade.io
+spec:
+  group: freqtrade.io
+  names:
+    kind: TradeBot
+    listKind: TradeBotList
+    plural: tradebots
+    singular: tradebot
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TradeBotSpec defines the desired state of TradeBot
+            properties:
+              apiEnabled:
+                description: API configuration
+                type: boolean
+              apiServer:
+                description: API server configuration
+                properties:
+                  enableOpenapi:
+                    type: boolean
+                  listenIpAddress:
+                    type: string
+                  listenPort:
+                    type: integer
+                  password:
+                    type: string
+                  username:
+                    type: string
+                  verbosity:
+                    type: string
+                type: object
+              botName:
+                description: Bot configuration
+                type: string
+              cancelOpenOrdersOnExit:
+                type: boolean
+              corsOrigins:
+                description: CORS settings for API
+                items:
+                  type: string
+                type: array
+              dryRun:
+                type: boolean
+              dryRunWallet:
+                type: number
+              edge:
+                description: Edge configuration
+                properties:
+                  allowedRisk:
+                    type: number
+                  calculateSinceNumberOfDays:
+                    type: integer
+                  enabled:
+                    type: boolean
+                  maxTradeDurationMinute:
+                    type: integer
+                  minTradeNumber:
+                    type: integer
+                  minimumExpectancy:
+                    type: number
+                  minimumWinrate:
+                    type: number
+                  processThrottleSecs:
+                    type: integer
+                  removePumps:
+                    type: boolean
+                  stoplossRangeMax:
+                    type: number
+                  stoplossRangeMin:
+                    type: number
+                  stoplossRangeStep:
+                    type: number
+                type: object
+              entryPricingRef:
+                type: string
+              exchangeRef:
+                type: string
+              exitPricingRef:
+                type: string
+              fiatDisplayCurrency:
+                type: string
+              forceEntryEnable:
+                type: boolean
+              image:
+                description: Deployment configuration
+                type: string
+              initialState:
+                type: string
+              internals:
+                description: Internal processing configuration
+                properties:
+                  processThrottleSecs:
+                    type: integer
+                type: object
+              marginMode:
+                type: string
+              maxOpenTrades:
+                type: integer
+              notificationRef:
+                type: string
+              orderTypesRef:
+                type: string
+              pairlistMethodsRef:
+                description: References to other resources
+                type: string
+              resources:
+                description: Resources for the freqtrade container
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+                      This is an alpha field and requires enabling the
+                      DynamicResourceAllocation feature gate.
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
+              riskManagementRef:
+                type: string
+              stakeAmount:
+                type: string
+              stakeCurrency:
+                type: string
+              storageClassName:
+                type: string
+              storageSize:
+                description: Storage configuration
+                type: string
+              strategyRef:
+                type: string
+              tradableBalanceRatio:
+                description: Advanced trading configuration
+                type: number
+              tradingMode:
+                type: string
+              unfilledTimeout:
+                description: Timeout configuration
+                properties:
+                  entry:
+                    type: integer
+                  exit:
+                    type: integer
+                  exitTimeoutCount:
+                    type: integer
+                  unit:
+                    type: string
+                type: object
+            required:
+            - botName
+            - exchangeRef
+            - strategyRef
+            type: object
+          status:
+            description: TradeBotStatus defines the observed state of TradeBot
+            properties:
+              jwtSecretKey:
+                type: string
+              message:
+                type: string
+              phase:
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,9 +1,10 @@
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: RiskManagement
 metadata:
   name: default-risk
+  namespace: freqtrade
 spec:
-  minimalROI:
+  minimalRoi:
     "0": 0.1
     "10": 0.05
   stoploss: -0.2

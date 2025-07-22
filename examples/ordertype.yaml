@@ -1,8 +1,13 @@
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: OrderTypes
 metadata:
-  name: default-ordertypes
+  name: default-order-types
+  namespace: freqtrade
 spec:
   entry: "limit"
   exit: "limit"
   stoploss: "market"
+  forceEntry: "market"
+  forceExit: "market"
+  stoplossOnExchange: false
+  stoplossOnExchangeInterval: 60

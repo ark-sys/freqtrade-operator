@@ -1,0 +1,16 @@
+apiVersion: freqtrade.io/v1alpha1
+kind: PairList
+metadata:
+  name: crypto-whitelist
+  namespace: freqtrade
+spec:
+  pairs:
+    - "BTC/USDT"
+    - "ETH/USDT"
+    - "XRP/USDT"
+    - "LTC/USDT"
+    - "BCH/USDT"
+    - "ADA/USDT"
+    - "DOT/USDT"
+    - "LINK/USDT"
+    - "XLM/USDT"

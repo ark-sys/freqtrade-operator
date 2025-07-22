@@ -1,6 +1,100 @@
-apiVersion: freqtrade.ark-sys.github.io/v1alpha1
+apiVersion: freqtrade.io/v1alpha1
 kind: Strategy
 metadata:
   name: default-strategy
+  namespace: freqtrade
 spec:
-  name: "SampleStrategy"
+  name: "SimpleMovingAverageStrategy"
+  script: |
+    from freqtrade.strategy import IStrategy, IntParameter
+    from pandas import DataFrame
+    import talib.abstract as ta
+    import numpy as np
+    import logging
+    from datetime import datetime, timedelta
+    from freqtrade.persistence import Trade
+
+    class SimpleMovingAverageStrategy(IStrategy):
+        """
+        Simple moving average crossover strategy.
+        Buy when short SMA crosses above long SMA.
+        Sell when short SMA crosses below long SMA.
+        """
+    
+        # Strategy interface version
+        INTERFACE_VERSION = 3
+    
+        # Minimal ROI designed for the strategy
+        minimal_roi = {
+            "0": 0.05  # 5% profit is enough to sell
+        }
+    
+        # Optimal stoploss designed for the strategy
+        stoploss = -0.10  # 10% stop loss
+    
+    
+        # Optimal timeframe for the strategy
+        timeframe = '1h'
+    
+        # Run "populate_indicators" only for new candle
+        process_only_new_candles = True
+    
+        # Number of candles the strategy requires before producing valid signals
+        startup_candle_count: int = 30
+    
+        # Parameters for both timeframes
+        short_window = IntParameter(5, 20, default=10, space="buy")
+        long_window = IntParameter(20, 50, default=30, space="buy")
+
+        # Change these parameters
+        short_window = IntParameter(3, 15, default=5, space="buy")
+        long_window = IntParameter(15, 30, default=20, space="buy")
+    
+        # Add trailing stop
+        trailing_stop = True
+        trailing_stop_positive = 0.01
+        trailing_stop_positive_offset = 0.02
+    
+        def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+            """
+            Adds several indicators to the given DataFrame
+            """
+            # SMA indicators
+            dataframe['sma_short'] = ta.SMA(dataframe, timeperiod=self.short_window.value)
+            dataframe['sma_long'] = ta.SMA(dataframe, timeperiod=self.long_window.value)
+    
+            return dataframe
+
+        def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+            """
+            Based on TA indicators, populates the entry signal for the given dataframe
+            :param dataframe: DataFrame
+            :param metadata: Additional information, like the currently traded pair
+            :return: DataFrame with entry columns populated
+            """
+            dataframe.loc[
+                (
+                    (dataframe['sma_short'] > dataframe['sma_long']) &
+                    (dataframe['sma_short'].shift(1) <= dataframe['sma_long'].shift(1)) &
+                    (dataframe['volume'] > 0)  # Make sure Volume is not 0
+                ),
+                'enter_long'] = 1
+
+            return dataframe
+
+        def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+            """
+            Based on TA indicators, populates the exit signal for the given dataframe
+            :param dataframe: DataFrame
+            :param metadata: Additional information, like the currently traded pair
+            :return: DataFrame with exit columns populated
+            """
+            dataframe.loc[
+                (
+                    (dataframe['sma_short'] < dataframe['sma_long']) &
+                    (dataframe['sma_short'].shift(1) >= dataframe['sma_long'].shift(1)) &
+                    (dataframe['volume'] > 0)  # Make sure Volume is not 0
+                ),
+                'exit_long'] = 1
+    
+            return dataframe

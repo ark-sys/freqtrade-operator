@@ -62,6 +62,7 @@ spec:
         - /manager
         args:
           - --leader-elect
+          - --zap-log-level=debug
           - --health-probe-bind-address=:8081
         image: controller:latest
         name: manager
@@ -83,14 +84,12 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        # TODO(user): Configure the resources accordingly based on the project requirements.
-        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           limits:
             cpu: 500m
-            memory: 128Mi
+            memory: 512Mi
           requests:
-            cpu: 10m
+            cpu: 100m
             memory: 64Mi
         volumeMounts: []
       volumes: []
