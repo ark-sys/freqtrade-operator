@@ -15,15 +15,32 @@ spec:
   maxOpenTrades: 5
   fiatDisplayCurrency: USD
   
+  # Advanced trading configuration
+  tradableBalanceRatio: 0.99
+  cancelOpenOrdersOnExit: false
+  initialState: "running"
+  forceEntryEnable: false
+  
+  # Timeout configuration
+  unfilledTimeout:
+    entry: 10
+    exit: 10
+    exitTimeoutCount: 0
+    unit: "minutes"
+  
+  # Internal processing configuration
+  internals:
+    processThrottleSecs: 5
+  
   # References to other resources
   exchangeRef: binance
   pairlistMethodsRef: default-pairlist-methods
-  strategyRef: simple-strategy
+  strategyRef: default-strategy
   entryPricingRef: default-entry-pricing
   exitPricingRef: default-exit-pricing
   orderTypesRef: default-order-types
   riskManagementRef: default-risk
-  notificationRef: telegram-notifications
+#  notificationRef: telegram-notifications
   
   # Deployment configuration
   image: freqtradeorg/freqtrade:stable
@@ -41,5 +58,13 @@ spec:
   
   # API configuration
   apiEnabled: true
+  apiServer:  
+    listenIpAddress: "0.0.0.0"  # Custom IP (default: 0.0.0.0)
+    listenPort: 8080              # Custom port (default: 8080)
+    verbosity: "error"             # Custom verbosity (default: error)
+    enableOpenapi: true           # Enable OpenAPI docs (default: false)
+    username: "admin"             # API username (default: none)
+    password: "secret"            # API password (default: none)
   corsOrigins:
-    - "http://freqtrade-ui.freqtrade.svc.cluster.local"
+    - "https://frequi.horizonscloud.ovh"  # The FreqUI ingress URL  
+    - "https://btc-trader.frequi.horizonscloud.ovh"  # The bot's API subdomain

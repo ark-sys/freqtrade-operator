@@ -40,6 +40,8 @@ spec:
             properties:
               apiServer:
                 properties:
+                  enableOpenapi:
+                    type: boolean
                   enabled:
                     type: boolean
                   listenIpAddress:

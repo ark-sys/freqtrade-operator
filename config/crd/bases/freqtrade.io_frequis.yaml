@@ -77,6 +77,12 @@ spec:
                       type: string
                   type: object
                 type: array
+              tradeBotRefs:
+                description: TradeBotRefs is a list of TradeBot names that this FreqUI
+                  should manage
+                items:
+                  type: string
+                type: array
             type: object
           status:
             description: FreqUIStatus defines the observed state of FreqUI

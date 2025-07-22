@@ -7,6 +7,7 @@ rules:
   - freqtrade.io
   resources:
   - tradebots
+  - pairlists
   - pairlistmethods
   - strategies
   - exchanges
@@ -28,6 +29,7 @@ rules:
   - freqtrade.io
   resources:
   - tradebots/status
+  - pairlists/status
   - pairlistmethods/status
   - strategies/status
   - exchanges/status
@@ -45,6 +47,7 @@ rules:
   - freqtrade.io
   resources:
   - tradebots/finalizers
+  - pairlists/finalizers
   - pairlistmethods/finalizers
   - strategies/finalizers
   - exchanges/finalizers

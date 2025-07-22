@@ -99,40 +99,65 @@ func BuildNotificationConfig(
 		cfg["webhook"] = webhook
 	}
 
-	// API server configuration
-	if notification.Spec.APIServer != nil && notification.Spec.APIServer.Enabled {
-		apiServer := map[string]interface{}{
-			"enabled":           true,
-			"listen_ip_address": notification.Spec.APIServer.ListenIP,
-			"listen_port":       notification.Spec.APIServer.ListenPort,
-		}
-
-		if notification.Spec.APIServer.Verbosity != "" {
-			apiServer["verbosity"] = notification.Spec.APIServer.Verbosity
-		}
-
-		// Get API server credentials from Secret
-		if notification.Spec.APIServer.SecretRef != "" {
-			secretData, err := GetSecretData(ctx, k8sClient, notification.Namespace, notification.Spec.APIServer.SecretRef)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get api server secret: %w", err)
-			}
-
-			if username, ok := secretData["username"]; ok {
-				apiServer["username"] = string(username)
-			}
-
-			if password, ok := secretData["password"]; ok {
-				apiServer["password"] = string(password)
-			}
-
-			if wsToken, ok := secretData["ws-token"]; ok {
-				apiServer["ws_token"] = string(wsToken)
-			}
-		}
-
-		cfg["api_server"] = apiServer
-	}
+	// Note: API server configuration is now handled by TradeBot configuration
+	// If notification has API server config, we can return it separately for merging
+	// but the primary API server config should come from TradeBot
 
 	return cfg, nil
+}
+
+// BuildAPIServerConfigFromNotification builds API server configuration from notification spec
+// This is used to merge additional API server settings from notification into the main config
+func BuildAPIServerConfigFromNotification(
+	ctx context.Context,
+	k8sClient client.Client,
+	notification *v1alpha1.Notification,
+) (map[string]interface{}, error) {
+	if notification == nil || notification.Spec.APIServer == nil || !notification.Spec.APIServer.Enabled {
+		return nil, nil
+	}
+
+	apiServer := map[string]interface{}{}
+
+	// Override listen IP if specified
+	if notification.Spec.APIServer.ListenIP != "" {
+		apiServer["listen_ip_address"] = notification.Spec.APIServer.ListenIP
+	}
+
+	// Override listen port if specified
+	if notification.Spec.APIServer.ListenPort > 0 {
+		apiServer["listen_port"] = notification.Spec.APIServer.ListenPort
+	}
+
+	// Override verbosity if specified
+	if notification.Spec.APIServer.Verbosity != "" {
+		apiServer["verbosity"] = notification.Spec.APIServer.Verbosity
+	}
+
+	// Override enable_openapi if specified
+	if notification.Spec.APIServer.EnableOpenAPI != nil {
+		apiServer["enable_openapi"] = *notification.Spec.APIServer.EnableOpenAPI
+	}
+
+	// Get API server credentials from Secret
+	if notification.Spec.APIServer.SecretRef != "" {
+		secretData, err := GetSecretData(ctx, k8sClient, notification.Namespace, notification.Spec.APIServer.SecretRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get api server secret: %w", err)
+		}
+
+		if username, ok := secretData["username"]; ok {
+			apiServer["username"] = string(username)
+		}
+
+		if password, ok := secretData["password"]; ok {
+			apiServer["password"] = string(password)
+		}
+
+		if wsToken, ok := secretData["ws-token"]; ok {
+			apiServer["ws_token"] = string(wsToken)
+		}
+	}
+
+	return apiServer, nil
 }

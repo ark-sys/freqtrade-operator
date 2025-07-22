@@ -13,6 +13,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// TradeBotAPIRoute represents a TradeBot API route configuration
+type TradeBotAPIRoute struct {
+	Name        string
+	ServiceName string
+	PathPrefix  string
+}
+
 // FreqUIOptions defines options for FreqUI deployment
 type FreqUIOptions struct {
 	Name               string
@@ -21,6 +28,7 @@ type FreqUIOptions struct {
 	Host               string
 	IngressAnnotations map[string]string
 	TLS                []networkingv1.IngressTLS
+	TradeBotAPIRoutes  []TradeBotAPIRoute
 }
 
 // BuildFreqUIDeployment creates a Deployment for FreqUI
@@ -48,10 +56,15 @@ func BuildFreqUIDeployment(options FreqUIOptions) appsv1.Deployment {
 					Labels: map[string]string{"app": options.Name},
 				},
 				Spec: corev1.PodSpec{
+					RestartPolicy:                 corev1.RestartPolicyAlways,
+					TerminationGracePeriodSeconds: &[]int64{30}[0],
+					DNSPolicy:                     corev1.DNSClusterFirst,
+					SecurityContext:               &corev1.PodSecurityContext{},
 					Containers: []corev1.Container{
 						{
-							Name:  "frequi",
-							Image: image,
+							Name:            "frequi",
+							Image:           image,
+							ImagePullPolicy: corev1.PullAlways,
 							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 80,
@@ -84,78 +97,12 @@ func BuildFreqUIDeployment(options FreqUIOptions) appsv1.Deployment {
 								TimeoutSeconds:      5,
 								FailureThreshold:    3,
 							},
+							TerminationMessagePath:   "/dev/termination-log",
+							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 						},
 					},
 				},
 			},
-		},
-	}
-}
-
-// BuildFreqUIService creates a Service for FreqUI
-func BuildFreqUIService(options FreqUIOptions) corev1.Service {
-	return corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      options.Name,
-			Namespace: options.Namespace,
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{
-				"app": options.Name,
-			},
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "http",
-					Port:       80,
-					TargetPort: intstr.FromInt(80),
-					Protocol:   corev1.ProtocolTCP,
-				},
-			},
-		},
-	}
-}
-
-// BuildFreqUIIngress creates an Ingress for FreqUI
-func BuildFreqUIIngress(options FreqUIOptions) networkingv1.Ingress {
-	pathType := networkingv1.PathTypePrefix
-
-	// Default host if not specified
-	host := options.Name + "." + options.Namespace + ".svc.cluster.local"
-	if options.Host != "" {
-		host = options.Host
-	}
-
-	return networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        options.Name,
-			Namespace:   options.Namespace,
-			Annotations: options.IngressAnnotations,
-		},
-		Spec: networkingv1.IngressSpec{
-			Rules: []networkingv1.IngressRule{
-				{
-					Host: host,
-					IngressRuleValue: networkingv1.IngressRuleValue{
-						HTTP: &networkingv1.HTTPIngressRuleValue{
-							Paths: []networkingv1.HTTPIngressPath{
-								{
-									Path:     "/",
-									PathType: &pathType,
-									Backend: networkingv1.IngressBackend{
-										Service: &networkingv1.IngressServiceBackend{
-											Name: options.Name,
-											Port: networkingv1.ServiceBackendPort{
-												Number: 80,
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			TLS: options.TLS,
 		},
 	}
 }

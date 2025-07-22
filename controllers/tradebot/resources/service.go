@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,8 +46,32 @@ func ApplyService(ctx context.Context, c client.Client, svc *corev1.Service) err
 	} else if err != nil {
 		return err
 	}
-	svc.ResourceVersion = existing.ResourceVersion
-	// Preserve the cluster IP that was assigned
-	svc.Spec.ClusterIP = existing.Spec.ClusterIP
-	return c.Update(ctx, svc)
+
+	// Check if update is needed by comparing relevant fields
+	needsUpdate := false
+
+	// Compare ports
+	if !reflect.DeepEqual(existing.Spec.Ports, svc.Spec.Ports) {
+		needsUpdate = true
+	}
+
+	// Compare selector
+	if !reflect.DeepEqual(existing.Spec.Selector, svc.Spec.Selector) {
+		needsUpdate = true
+	}
+
+	// Compare type
+	if existing.Spec.Type != svc.Spec.Type {
+		needsUpdate = true
+	}
+
+	// Only update if there are actual changes
+	if needsUpdate {
+		svc.ResourceVersion = existing.ResourceVersion
+		// Preserve the cluster IP that was assigned
+		svc.Spec.ClusterIP = existing.Spec.ClusterIP
+		return c.Update(ctx, svc)
+	}
+
+	return nil
 }

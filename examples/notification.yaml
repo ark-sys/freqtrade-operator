@@ -12,7 +12,7 @@ spec:
     allowCustomMessages: true
   apiServer:
     enabled: true
-    listenIP: "0.0.0.0"
+    listenIpAddress: "0.0.0.0"
     listenPort: 8080
     verbosity: "info"
     secretRef: api-server-credentials

@@ -41,9 +41,27 @@ spec:
               apiEnabled:
                 description: API configuration
                 type: boolean
+              apiServer:
+                description: API server configuration
+                properties:
+                  enableOpenapi:
+                    type: boolean
+                  listenIpAddress:
+                    type: string
+                  listenPort:
+                    type: integer
+                  password:
+                    type: string
+                  username:
+                    type: string
+                  verbosity:
+                    type: string
+                type: object
               botName:
                 description: Bot configuration
                 type: string
+              cancelOpenOrdersOnExit:
+                type: boolean
               corsOrigins:
                 description: CORS settings for API
                 items:
@@ -53,6 +71,34 @@ spec:
                 type: boolean
               dryRunWallet:
                 type: number
+              edge:
+                description: Edge configuration
+                properties:
+                  allowedRisk:
+                    type: number
+                  calculateSinceNumberOfDays:
+                    type: integer
+                  enabled:
+                    type: boolean
+                  maxTradeDurationMinute:
+                    type: integer
+                  minTradeNumber:
+                    type: integer
+                  minimumExpectancy:
+                    type: number
+                  minimumWinrate:
+                    type: number
+                  processThrottleSecs:
+                    type: integer
+                  removePumps:
+                    type: boolean
+                  stoplossRangeMax:
+                    type: number
+                  stoplossRangeMin:
+                    type: number
+                  stoplossRangeStep:
+                    type: number
+                type: object
               entryPricingRef:
                 type: string
               exchangeRef:
@@ -61,8 +107,20 @@ spec:
                 type: string
               fiatDisplayCurrency:
                 type: string
+              forceEntryEnable:
+                type: boolean
               image:
                 description: Deployment configuration
+                type: string
+              initialState:
+                type: string
+              internals:
+                description: Internal processing configuration
+                properties:
+                  processThrottleSecs:
+                    type: integer
+                type: object
+              marginMode:
                 type: string
               maxOpenTrades:
                 type: integer
@@ -145,8 +203,23 @@ spec:
                 type: string
               strategyRef:
                 type: string
+              tradableBalanceRatio:
+                description: Advanced trading configuration
+                type: number
               tradingMode:
                 type: string
+              unfilledTimeout:
+                description: Timeout configuration
+                properties:
+                  entry:
+                    type: integer
+                  exit:
+                    type: integer
+                  exitTimeoutCount:
+                    type: integer
+                  unit:
+                    type: string
+                type: object
             required:
             - botName
             - exchangeRef

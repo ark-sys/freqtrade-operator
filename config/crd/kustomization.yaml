@@ -9,13 +9,14 @@ resources:
 - bases/freqtrade.io_notifications.yaml
 - bases/freqtrade.io_ordertypes.yaml
 - bases/freqtrade.io_pairlistmethods.yaml
+- bases/freqtrade.io_pairlists.yaml
 - bases/freqtrade.io_riskmanagements.yaml
 - bases/freqtrade.io_strategies.yaml
 - bases/freqtrade.io_tradebots.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 # This patch adds the webhook configurations to the CRDs
-patches:
+#patches:
 # - path: patches/webhook_in_entrypricings.yaml
 # - path: patches/webhook_in_exchanges.yaml
 # - path: patches/webhook_in_exitpricings.yaml
@@ -29,7 +30,7 @@ patches:
 # +kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # This patch adds the CA injection annotations to the CRDs
-patches:
+#patches:
 # - path: patches/cainjection_in_entrypricings.yaml
 # - path: patches/cainjection_in_exchanges.yaml
 # - path: patches/cainjection_in_exitpricings.yaml
@@ -43,7 +44,7 @@ patches:
 # +kubebuilder:scaffold:crdkustomizecainjectionpatch
 
 # This patch adds the conversion webhook configurations to the CRDs
-patches:
+#patches:
 # - path: patches/conversion_in_entrypricings.yaml
 # - path: patches/conversion_in_exchanges.yaml
 # - path: patches/conversion_in_exitpricings.yaml

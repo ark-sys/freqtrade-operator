@@ -26,12 +26,13 @@ func AssembleConfig(
 	notification *v1alpha1.Notification,
 	strategy *v1alpha1.Strategy,
 	pairlistMethods *v1alpha1.PairlistMethods,
+	existingJWTKey string,
 ) (map[string]string, string, error) {
 	// Create the main config map
 	config := make(map[string]interface{})
 
 	// Add bot-level configuration
-	botConfig, jwtSecretKey, err := BuildTradeBotConfig(tradeBot)
+	botConfig, jwtSecretKey, err := BuildTradeBotConfig(tradeBot, existingJWTKey)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to build TradeBot config: %w", err)
 	}
@@ -95,6 +96,26 @@ func AssembleConfig(
 	if notificationConfig != nil {
 		for k, v := range notificationConfig {
 			config[k] = v
+		}
+	}
+
+	// Merge API server configuration from notification if present
+	if notification != nil {
+		notificationAPIConfig, err := BuildAPIServerConfigFromNotification(ctx, k8sClient, notification)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to build API server config from notification: %w", err)
+		}
+
+		if notificationAPIConfig != nil && len(notificationAPIConfig) > 0 {
+			// Merge with existing api_server config
+			if existingAPIServer, exists := config["api_server"]; exists {
+				if apiServerMap, ok := existingAPIServer.(map[string]interface{}); ok {
+					// Merge notification API server settings into existing config
+					for k, v := range notificationAPIConfig {
+						apiServerMap[k] = v
+					}
+				}
+			}
 		}
 	}
 

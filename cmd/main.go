@@ -38,7 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
-	"github.com/ark-sys/freqtrade-operator/controllers"
+	"github.com/ark-sys/freqtrade-operator/controllers/frequi"
+	"github.com/ark-sys/freqtrade-operator/controllers/tradebot"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -202,7 +203,7 @@ func main() {
 	}
 
 	// Setup TradeBot controller
-	if err = (&controllers.TradeBotReconciler{
+	if err = (&tradebot.Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
@@ -211,7 +212,7 @@ func main() {
 	}
 
 	// Setup FreqUI controller
-	if err = (&controllers.FreqUIReconciler{
+	if err = (&frequi.Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {

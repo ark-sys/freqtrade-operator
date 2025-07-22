@@ -18,6 +18,9 @@ type FreqUISpec struct {
 
 	// TLS configuration for the FreqUI ingress
 	TLS []networkingv1.IngressTLS `json:"tls,omitempty"`
+
+	// TradeBotRefs is a list of TradeBot names that this FreqUI should manage
+	TradeBotRefs []string `json:"tradeBotRefs,omitempty"`
 }
 
 // FreqUIStatus defines the observed state of FreqUI

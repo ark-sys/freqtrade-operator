@@ -33,11 +33,12 @@ type NotificationWebhook struct {
 }
 
 type NotificationAPIServer struct {
-	Enabled    bool   `json:"enabled,omitempty"`
-	ListenIP   string `json:"listenIpAddress,omitempty"`
-	ListenPort int    `json:"listenPort,omitempty"`
-	Verbosity  string `json:"verbosity,omitempty"`
-	SecretRef  string `json:"secretRef,omitempty"` // Reference to Secret containing API server credentials
+	Enabled       bool   `json:"enabled,omitempty"`
+	ListenIP      string `json:"listenIpAddress,omitempty"`
+	ListenPort    int    `json:"listenPort,omitempty"`
+	Verbosity     string `json:"verbosity,omitempty"`
+	EnableOpenAPI *bool  `json:"enableOpenapi,omitempty"` // Enable OpenAPI documentation
+	SecretRef     string `json:"secretRef,omitempty"`     // Reference to Secret containing API server credentials
 }
 
 type NotificationStatus struct {

@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -50,6 +51,25 @@ func ApplyConfigMap(ctx context.Context, c client.Client, cm *corev1.ConfigMap) 
 	} else if err != nil {
 		return err
 	}
-	cm.ResourceVersion = existing.ResourceVersion
-	return c.Update(ctx, cm)
+
+	// Check if update is needed by comparing data
+	needsUpdate := false
+
+	// Compare data fields
+	if !reflect.DeepEqual(existing.Data, cm.Data) {
+		needsUpdate = true
+	}
+
+	// Compare binary data if present
+	if !reflect.DeepEqual(existing.BinaryData, cm.BinaryData) {
+		needsUpdate = true
+	}
+
+	// Only update if there are actual changes
+	if needsUpdate {
+		cm.ResourceVersion = existing.ResourceVersion
+		return c.Update(ctx, cm)
+	}
+
+	return nil
 }

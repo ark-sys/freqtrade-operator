@@ -2,7 +2,7 @@ package resources
 
 import (
 	"context"
-	"path/filepath"
+	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -15,9 +15,21 @@ import (
 )
 
 // BuildStatefulSet creates a StatefulSet for the bot
-func BuildStatefulSet(tradeBot freqtradev1alpha1.TradeBot, configMapName, strategyConfigMapName, pvcName string) appsv1.StatefulSet {
+func BuildStatefulSet(ctx context.Context, c client.Client, tradeBot freqtradev1alpha1.TradeBot, configMapName, strategyConfigMapName, pvcName string) appsv1.StatefulSet {
 	replicas := int32(1)
-	strategyName := filepath.Base(tradeBot.Spec.StrategyRef)
+
+	// Fetch the referenced Strategy resource
+	var strategy freqtradev1alpha1.Strategy
+	err := c.Get(ctx, types.NamespacedName{Namespace: tradeBot.Namespace, Name: tradeBot.Spec.StrategyRef}, &strategy)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Strategy not found, return an error
+			return appsv1.StatefulSet{}
+		}
+		// Other error occurred, return it
+		panic(err)
+	}
+	strategyName := strategy.Spec.Name
 
 	// Set default image if not specified
 	image := "freqtradeorg/freqtrade:stable"
@@ -34,6 +46,15 @@ func BuildStatefulSet(tradeBot freqtradev1alpha1.TradeBot, configMapName, strate
 		"--db-url", "sqlite:////freqtrade/user_data/tradesv3.sqlite",
 		"--logfile", "/freqtrade/user_data/logs/freqtrade.log",
 	}
+
+	// Set security context for running as non-root
+	runAsUser := int64(1000)
+	runAsGroup := int64(1000)
+	fsGroup := int64(1000)
+
+	// Set security context for running init container as root
+	runAsRoot := int64(0)
+	runAsRootGroup := int64(0)
 
 	return appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -54,10 +75,38 @@ func BuildStatefulSet(tradeBot freqtradev1alpha1.TradeBot, configMapName, strate
 					Labels: map[string]string{"app": tradeBot.Name},
 				},
 				Spec: corev1.PodSpec{
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsUser:  &runAsUser,
+						RunAsGroup: &runAsGroup,
+						FSGroup:    &fsGroup,
+					},
+					InitContainers: []corev1.Container{
+						{
+							Name:            "init-user-data",
+							Image:           "busybox:latest",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							SecurityContext: &corev1.SecurityContext{
+								RunAsUser:  &runAsRoot,
+								RunAsGroup: &runAsRootGroup,
+							},
+							Command: []string{
+								"sh",
+								"-c",
+								"mkdir -p /freqtrade/user_data/logs /freqtrade/user_data/data && chmod -R 775 /freqtrade/user_data && chown -R 1000:1000 /freqtrade/user_data",
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "user-data",
+									MountPath: "/freqtrade/user_data",
+								},
+							},
+						},
+					},
 					Containers: []corev1.Container{
 						{
-							Name:  "freqtrade",
-							Image: image,
+							Name:            "freqtrade",
+							Image:           image,
+							ImagePullPolicy: corev1.PullAlways,
 							Command: []string{
 								"freqtrade",
 							},
@@ -158,6 +207,28 @@ func ApplyStatefulSet(ctx context.Context, c client.Client, sts *appsv1.Stateful
 	} else if err != nil {
 		return err
 	}
-	sts.ResourceVersion = existing.ResourceVersion
-	return c.Update(ctx, sts)
+
+	// Check if update is needed by comparing relevant fields
+	needsUpdate := false
+
+	// Compare spec fields that matter
+	if !reflect.DeepEqual(existing.Spec.Template.Spec, sts.Spec.Template.Spec) {
+		needsUpdate = true
+	}
+
+	if !reflect.DeepEqual(existing.Spec.Selector, sts.Spec.Selector) {
+		needsUpdate = true
+	}
+
+	if existing.Spec.Replicas == nil || sts.Spec.Replicas == nil || *existing.Spec.Replicas != *sts.Spec.Replicas {
+		needsUpdate = true
+	}
+
+	// Only update if there are actual changes
+	if needsUpdate {
+		sts.ResourceVersion = existing.ResourceVersion
+		return c.Update(ctx, sts)
+	}
+
+	return nil
 }
