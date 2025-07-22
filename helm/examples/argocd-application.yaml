@@ -1,0 +1,79 @@
+# ArgoCD Application example for freqtrade-operator
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: freqtrade-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  # Source configuration - using Helm repository
+  source:
+    repoURL: https://freqtrade.github.io/freqtrade-operator/
+    chart: freqtrade-operator
+    targetRevision: "0.1.0"  # Use specific version or "latest"
+    helm:
+      # Custom values for the deployment
+      values: |
+        controllerManager:
+          # Use specific image tag
+          image:
+            repository: registry.horizonscloud.ovh/freqtrade-operator
+            tag: "latest"
+          
+          # Adjust resources based on cluster size
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
+              cpu: 200m
+              memory: 128Mi
+          
+          # Enable metrics for monitoring
+          metrics:
+            enabled: true
+          
+          # Set log level
+          logLevel: info
+        
+        # Node selection (optional)
+        nodeSelector:
+          kubernetes.io/os: linux
+        
+        # Tolerations for dedicated nodes (optional)
+        tolerations: []
+        
+        # Affinity rules (optional)
+        affinity: {}
+
+  # Destination cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: freqtrade-operator-system
+
+  # Sync policy
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences in certain fields (optional)
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      managedFieldsManagers:
+        - kube-controller-manager 

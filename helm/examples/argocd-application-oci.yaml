@@ -1,0 +1,118 @@
+# ArgoCD Application example using OCI registry for freqtrade-operator
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: freqtrade-operator-oci
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  # Source configuration - using OCI registry
+  source:
+    repoURL: ghcr.io/freqtrade
+    chart: freqtrade-operator
+    targetRevision: "0.1.0"  # Use specific version
+    helm:
+      # Custom values for the deployment
+      values: |
+        controllerManager:
+          # Use specific image tag
+          image:
+            repository: registry.horizonscloud.ovh/freqtrade-operator
+            tag: "latest"
+          
+          # Production-ready resources
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 256Mi
+          
+          # Enable metrics for monitoring
+          metrics:
+            enabled: true
+          
+          # Set log level to info for production
+          logLevel: info
+          
+          # Additional arguments for production
+          extraArgs:
+            - --metrics-bind-address=:8080
+            - --leader-elect-lease-duration=15s
+            - --leader-elect-renew-deadline=10s
+        
+        # Production security context
+        podSecurityContext:
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          fsGroup: 65534
+          seccompProfile:
+            type: RuntimeDefault
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          capabilities:
+            drop:
+            - "ALL"
+        
+        # Node affinity for production workloads
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
+                      - arm64
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                    - freqtrade-operator
+                topologyKey: kubernetes.io/hostname
+
+  # Destination cluster and namespace
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: freqtrade-operator-system
+
+  # Sync policy for production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 10m
+
+  # Health checks
+  revisionHistoryLimit: 10 
