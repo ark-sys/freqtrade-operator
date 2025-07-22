@@ -48,9 +48,9 @@ func BuildFreqUIIngress(options FreqUIOptions) networkingv1.Ingress {
 	})
 
 	// Add API subdomain rules for each TradeBot
+	// This simplifies the configuration for multiple bots under the same UI
 	for _, apiRoute := range options.TradeBotAPIRoutes {
-		// Create subdomain of the FreqUI host (e.g., "btc-trader.frequi.horizonscloud.ovh")
-		apiHost := apiRoute.Name + "." + host // e.g., "btc-trader.frequi.horizonscloud.ovh"
+		apiHost := apiRoute.Name + "." + host
 
 		rules = append(rules, networkingv1.IngressRule{
 			Host: apiHost,

@@ -66,5 +66,5 @@ spec:
     username: "admin"             # API username (default: none)
     password: "secret"            # API password (default: none)
   corsOrigins:
-    - "https://frequi.horizonscloud.ovh"  # The FreqUI ingress URL  
-    - "https://btc-trader.frequi.horizonscloud.ovh"  # The bot's API subdomain
+    - "https://frequi.example.com"
+    - "https://btc-trader.frequi.example.com"

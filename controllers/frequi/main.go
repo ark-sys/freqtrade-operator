@@ -516,8 +516,8 @@ func (r *Reconciler) buildFreqUIIngress(ctx context.Context, frequi *freqtradev1
 		if err == nil && tradeBot.Spec.APIEnabled {
 			apiRoutes = append(apiRoutes, resources.TradeBotAPIRoute{
 				Name:        tradeBotRef,
-				ServiceName: tradeBotRef, // Service name matches TradeBot name
-				PathPrefix:  tradeBotRef, // Used for subdomain: btc-trader.frequi.horizonscloud.ovh
+				ServiceName: tradeBotRef,
+				PathPrefix:  tradeBotRef,
 			})
 		}
 	}
