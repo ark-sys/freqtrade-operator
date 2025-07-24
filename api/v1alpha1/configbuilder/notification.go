@@ -40,6 +40,13 @@ func BuildNotificationConfig(
 			if chatID, ok := secretData["chat-id"]; ok {
 				telegram["chat_id"] = string(chatID)
 			}
+		} else {
+			if notification.Spec.Telegram.Token != "" {
+				telegram["token"] = notification.Spec.Telegram.Token
+			}
+			if notification.Spec.Telegram.ChatID != "" {
+				telegram["chat_id"] = notification.Spec.Telegram.ChatID
+			}
 		}
 
 		if notification.Spec.Telegram.BalanceDustLevel > 0 {
@@ -52,6 +59,52 @@ func BuildNotificationConfig(
 
 		if notification.Spec.Telegram.AllowCustomMessages != nil {
 			telegram["allow_custom_messages"] = *notification.Spec.Telegram.AllowCustomMessages
+		}
+
+		if notification.Spec.Telegram.TopicID != "" {
+			telegram["topic_id"] = notification.Spec.Telegram.TopicID
+		}
+
+		if len(notification.Spec.Telegram.AuthorizedUsers) > 0 {
+			telegram["authorized_users"] = notification.Spec.Telegram.AuthorizedUsers
+		}
+
+		if notification.Spec.Telegram.Settings != nil {
+			settings := map[string]interface{}{}
+			if notification.Spec.Telegram.Settings.Status != "" {
+				settings["status"] = notification.Spec.Telegram.Settings.Status
+			}
+			if notification.Spec.Telegram.Settings.Warning != "" {
+				settings["warning"] = notification.Spec.Telegram.Settings.Warning
+			}
+			if notification.Spec.Telegram.Settings.Startup != "" {
+				settings["startup"] = notification.Spec.Telegram.Settings.Startup
+			}
+			if notification.Spec.Telegram.Settings.Entry != "" {
+				settings["entry"] = notification.Spec.Telegram.Settings.Entry
+			}
+			if notification.Spec.Telegram.Settings.EntryFill != "" {
+				settings["entry_fill"] = notification.Spec.Telegram.Settings.EntryFill
+			}
+			if notification.Spec.Telegram.Settings.EntryCancel != "" {
+				settings["entry_cancel"] = notification.Spec.Telegram.Settings.EntryCancel
+			}
+			if notification.Spec.Telegram.Settings.Exit != "" {
+				settings["exit"] = notification.Spec.Telegram.Settings.Exit
+			}
+			if notification.Spec.Telegram.Settings.ExitFill != "" {
+				settings["exit_fill"] = notification.Spec.Telegram.Settings.ExitFill
+			}
+			if notification.Spec.Telegram.Settings.ExitCancel != "" {
+				settings["exit_cancel"] = notification.Spec.Telegram.Settings.ExitCancel
+			}
+			if notification.Spec.Telegram.Settings.ProtectionTrigger != "" {
+				settings["protection_trigger"] = notification.Spec.Telegram.Settings.ProtectionTrigger
+			}
+			if notification.Spec.Telegram.Settings.ProtectionTriggerGlobal != "" {
+				settings["protection_trigger_global"] = notification.Spec.Telegram.Settings.ProtectionTriggerGlobal
+			}
+			telegram["settings"] = settings
 		}
 
 		cfg["telegram"] = telegram
@@ -77,7 +130,7 @@ func BuildNotificationConfig(
 		}
 
 		if notification.Spec.Webhook.Exit != "" {
-			webhook["webhookentryfill"] = notification.Spec.Webhook.Exit
+			webhook["webhookexit"] = notification.Spec.Webhook.Exit
 		}
 
 		if notification.Spec.Webhook.ExitCancel != "" {
@@ -99,65 +152,26 @@ func BuildNotificationConfig(
 		cfg["webhook"] = webhook
 	}
 
-	// Note: API server configuration is now handled by TradeBot configuration
-	// If notification has API server config, we can return it separately for merging
-	// but the primary API server config should come from TradeBot
+	// Discord configuration
+	if notification.Spec.Discord != nil && notification.Spec.Discord.Enabled {
+		discord := map[string]interface{}{
+			"enabled": true,
+		}
+
+		if notification.Spec.Discord.WebhookURL != "" {
+			discord["webhook_url"] = notification.Spec.Discord.WebhookURL
+		}
+
+		if len(notification.Spec.Discord.EntryFill) > 0 {
+			discord["entry_fill"] = notification.Spec.Discord.EntryFill
+		}
+
+		if len(notification.Spec.Discord.ExitFill) > 0 {
+			discord["exit_fill"] = notification.Spec.Discord.ExitFill
+		}
+
+		cfg["discord"] = discord
+	}
 
 	return cfg, nil
-}
-
-// BuildAPIServerConfigFromNotification builds API server configuration from notification spec
-// This is used to merge additional API server settings from notification into the main config
-func BuildAPIServerConfigFromNotification(
-	ctx context.Context,
-	k8sClient client.Client,
-	notification *v1alpha1.Notification,
-) (map[string]interface{}, error) {
-	if notification == nil || notification.Spec.APIServer == nil || !notification.Spec.APIServer.Enabled {
-		return nil, nil
-	}
-
-	apiServer := map[string]interface{}{}
-
-	// Override listen IP if specified
-	if notification.Spec.APIServer.ListenIP != "" {
-		apiServer["listen_ip_address"] = notification.Spec.APIServer.ListenIP
-	}
-
-	// Override listen port if specified
-	if notification.Spec.APIServer.ListenPort > 0 {
-		apiServer["listen_port"] = notification.Spec.APIServer.ListenPort
-	}
-
-	// Override verbosity if specified
-	if notification.Spec.APIServer.Verbosity != "" {
-		apiServer["verbosity"] = notification.Spec.APIServer.Verbosity
-	}
-
-	// Override enable_openapi if specified
-	if notification.Spec.APIServer.EnableOpenAPI != nil {
-		apiServer["enable_openapi"] = *notification.Spec.APIServer.EnableOpenAPI
-	}
-
-	// Get API server credentials from Secret
-	if notification.Spec.APIServer.SecretRef != "" {
-		secretData, err := GetSecretData(ctx, k8sClient, notification.Namespace, notification.Spec.APIServer.SecretRef)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get api server secret: %w", err)
-		}
-
-		if username, ok := secretData["username"]; ok {
-			apiServer["username"] = string(username)
-		}
-
-		if password, ok := secretData["password"]; ok {
-			apiServer["password"] = string(password)
-		}
-
-		if wsToken, ok := secretData["ws-token"]; ok {
-			apiServer["ws_token"] = string(wsToken)
-		}
-	}
-
-	return apiServer, nil
 }

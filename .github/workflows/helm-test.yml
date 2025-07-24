@@ -1,0 +1,106 @@
+name: Helm Chart Tests
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - 'helm/**'
+      - '.github/workflows/helm-test.yml'
+  pull_request:
+    branches:
+      - staging
+      - main
+    paths:
+      - 'helm/**'
+      - '.github/workflows/helm-test.yml'
+
+jobs:
+  helm-test:
+    name: Test Helm Chart
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.14.0'
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.28.0'
+
+      - name: Lint Helm Chart
+        run: |
+          helm lint helm/
+
+      - name: Template Helm Chart
+        run: |
+          helm template freqtrade-operator helm/ --debug > /tmp/rendered-manifests.yaml
+          echo "Generated manifests:"
+          cat /tmp/rendered-manifests.yaml
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubectl --dry-run=client apply -f /tmp/rendered-manifests.yaml
+
+      - name: Test with different values
+        run: |
+          # Test with metrics disabled
+          helm template freqtrade-operator helm/ \
+            --set controllerManager.metrics.enabled=false \
+            --debug > /tmp/no-metrics.yaml
+          kubectl --dry-run=client apply -f /tmp/no-metrics.yaml
+          
+          # Test with custom image
+          helm template freqtrade-operator helm/ \
+            --set controllerManager.image.repository=custom/freqtrade-operator \
+            --set controllerManager.image.tag=custom-tag \
+            --debug > /tmp/custom-image.yaml
+          kubectl --dry-run=client apply -f /tmp/custom-image.yaml
+          
+          # Test with RBAC disabled
+          helm template freqtrade-operator helm/ \
+            --set rbac.create=false \
+            --set serviceAccount.create=false \
+            --debug > /tmp/no-rbac.yaml
+          kubectl --dry-run=client apply -f /tmp/no-rbac.yaml
+
+      - name: Check CRDs are present
+        run: |
+          # Verify that CRDs are in the crds directory
+          ls -la helm/crds/
+          echo "CRD files found:"
+          find helm/crds/ -name "*.yaml" -exec basename {} \;
+          
+          # Count CRDs
+          CRD_COUNT=$(find helm/crds/ -name "*.yaml" | wc -l)
+          echo "Total CRDs: $CRD_COUNT"
+          if [ "$CRD_COUNT" -lt 11 ]; then
+            echo "Error: Expected at least 11 CRDs, found $CRD_COUNT"
+            exit 1
+          fi
+
+      - name: Verify Chart metadata
+        run: |
+          # Check Chart.yaml has required fields
+          helm show chart helm/ | grep -E "^(name|version|appVersion|description):"
+          
+          # Verify chart name matches directory
+          CHART_NAME=$(helm show chart helm/ | grep "^name:" | cut -d' ' -f2)
+          if [ "$CHART_NAME" != "freqtrade-operator" ]; then
+            echo "Error: Chart name should be 'freqtrade-operator', got '$CHART_NAME'"
+            exit 1
+          fi
+
+      - name: Test Helm install (dry-run)
+        run: |
+          helm install freqtrade-operator helm/ \
+            --dry-run \
+            --debug \
+            --namespace freqtrade-operator-system \
+            --create-namespace 

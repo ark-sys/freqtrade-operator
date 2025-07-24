@@ -12,24 +12,32 @@ func BuildRiskManagementConfig(riskManagement *v1alpha1.RiskManagement) map[stri
 
 	cfg := map[string]interface{}{}
 
-	// Set minimal ROI
-	if len(riskManagement.Spec.MinimalROI) > 0 {
-		roi := make(map[string]interface{})
-		for timeStr, value := range riskManagement.Spec.MinimalROI {
-			roi[timeStr] = value
-		}
-		cfg["minimal_roi"] = roi
+	if riskManagement.Spec.MinimalROI >= 0.0 {
+
+		cfg["minimal_roi"] = riskManagement.Spec.MinimalROI
 	}
 
-	// Set stoploss
-	cfg["stoploss"] = riskManagement.Spec.Stoploss
+	if riskManagement.Spec.Stoploss >= 0.0 {
+		cfg["stoploss"] = riskManagement.Spec.Stoploss
+	}
+
+	// TODO: provide missing params
 
 	// Set trailing stop settings
 	if riskManagement.Spec.TrailingStop {
 		cfg["trailing_stop"] = true
-		cfg["trailing_stop_positive"] = riskManagement.Spec.TrailingStopPositive
-		cfg["trailing_stop_positive_offset"] = riskManagement.Spec.TrailingStopPositiveOffset
-		cfg["trailing_only_offset_is_reached"] = riskManagement.Spec.TrailingOnlyOffsetIsReached
+		if riskManagement.Spec.TrailingStopPositive != nil {
+
+			cfg["trailing_stop_positive"] = riskManagement.Spec.TrailingStopPositive
+		}
+		if riskManagement.Spec.TrailingStopPositiveOffset != nil {
+
+			cfg["trailing_stop_positive_offset"] = riskManagement.Spec.TrailingStopPositiveOffset
+		}
+		if riskManagement.Spec.TrailingOnlyOffsetIsReached != nil {
+
+			cfg["trailing_only_offset_is_reached"] = riskManagement.Spec.TrailingOnlyOffsetIsReached
+		}
 	}
 
 	return cfg

@@ -38,197 +38,237 @@ spec:
           spec:
             description: TradeBotSpec defines the desired state of TradeBot
             properties:
-              apiEnabled:
-                description: API configuration
-                type: boolean
-              apiServer:
-                description: API server configuration
+              advanced:
                 properties:
-                  enableOpenapi:
+                  cancel_open_orders_on_exit:
                     type: boolean
-                  listenIpAddress:
+                  force_entry_enable:
+                    type: boolean
+                  initial_state:
                     type: string
-                  listenPort:
+                  margin_mode:
+                    type: string
+                  tradable_balance_ratio:
+                    description: Advanced trading configuration
+                    type: number
+                type: object
+              apiServer:
+                properties:
+                  cors_origins:
+                    items:
+                      type: string
+                    type: array
+                  enable_openapi:
+                    type: boolean
+                  enabled:
+                    type: boolean
+                  listen_ip_address:
+                    type: string
+                  listen_port:
                     type: integer
                   password:
+                    type: string
+                  secretRef:
+                    description: jwtSecretKey string `json:"jwtSecretKey,omitempty"`
                     type: string
                   username:
                     type: string
                   verbosity:
                     type: string
                 type: object
-              botName:
-                description: Bot configuration
-                type: string
-              cancelOpenOrdersOnExit:
-                type: boolean
-              corsOrigins:
-                description: CORS settings for API
-                items:
-                  type: string
-                type: array
-              dryRun:
-                type: boolean
-              dryRunWallet:
-                type: number
-              edge:
-                description: Edge configuration
+              bot:
                 properties:
-                  allowedRisk:
-                    type: number
-                  calculateSinceNumberOfDays:
-                    type: integer
-                  enabled:
+                  bot_name:
+                    description: Bot configuration
+                    type: string
+                  db_url:
+                    type: string
+                  disable_dataframe_checks:
                     type: boolean
-                  maxTradeDurationMinute:
-                    type: integer
-                  minTradeNumber:
-                    type: integer
-                  minimumExpectancy:
-                    type: number
-                  minimumWinrate:
-                    type: number
-                  processThrottleSecs:
-                    type: integer
-                  removePumps:
+                  disable_param_export:
                     type: boolean
-                  stoplossRangeMax:
+                  dry_run:
+                    type: boolean
+                  dry_run_wallet:
                     type: number
-                  stoplossRangeMin:
-                    type: number
-                  stoplossRangeStep:
-                    type: number
+                  export:
+                    type: string
+                  fiat_display_currency:
+                    type: string
+                  max_open_trades:
+                    type: integer
+                  stake_amount:
+                    type: string
+                  stake_currency:
+                    type: string
+                  trading_mode:
+                    type: string
+                required:
+                - bot_name
                 type: object
-              entryPricingRef:
-                type: string
-              exchangeRef:
-                type: string
-              exitPricingRef:
-                type: string
-              fiatDisplayCurrency:
-                type: string
-              forceEntryEnable:
-                type: boolean
-              image:
-                description: Deployment configuration
-                type: string
-              initialState:
-                type: string
+              data:
+                properties:
+                  amend_last_stake_amount:
+                    type: boolean
+                  amount_reserve_percent:
+                    type: number
+                  available_capital:
+                    type: number
+                  custom_price_max_distance_ratio:
+                    type: number
+                  dataformat_ohlcv:
+                    type: string
+                  dataformat_trades:
+                    type: string
+                  download_trades:
+                    type: boolean
+                  last_stake_amount_min_ratio:
+                    type: number
+                  max_entry_position_adjustment:
+                    type: number
+                  new_pairs_days_ago:
+                    type: integer
+                  position_adjustment:
+                    type: string
+                  process_only_new_candles:
+                    type: boolean
+                  reduce_df_footprint:
+                    type: boolean
+                type: object
+              deployment:
+                properties:
+                  image:
+                    description: Deployment configuration
+                    type: string
+                  resources:
+                    description: ResourceRequirements describes the compute resource
+                      requirements.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This is an alpha field and requires enabling the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                  storage_class_name:
+                    type: string
+                  storage_size:
+                    type: string
+                type: object
+              experimental:
+                properties:
+                  block_bad_exchanges:
+                    type: boolean
+                type: object
               internals:
-                description: Internal processing configuration
+                description: InternalsConfig defines internal processing configuration
                 properties:
-                  processThrottleSecs:
+                  interval:
+                    type: integer
+                  process_throttle_secs:
+                    type: integer
+                  sd_notify:
+                    type: boolean
+                type: object
+              logging:
+                properties:
+                  version:
                     type: integer
                 type: object
-              marginMode:
-                type: string
-              maxOpenTrades:
-                type: integer
-              notificationRef:
-                type: string
-              orderTypesRef:
-                type: string
-              pairlistMethodsRef:
-                description: References to other resources
-                type: string
-              resources:
-                description: Resources for the freqtrade container
+              references:
                 properties:
-                  claims:
-                    description: |-
-                      Claims lists the names of resources, defined in spec.resourceClaims,
-                      that are used by this container.
-
-                      This is an alpha field and requires enabling the
-                      DynamicResourceAllocation feature gate.
-
-                      This field is immutable. It can only be set for containers.
-                    items:
-                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
-                      properties:
-                        name:
-                          description: |-
-                            Name must match the name of one entry in pod.spec.resourceClaims of
-                            the Pod where this field is used. It makes that resource available
-                            inside a container.
-                          type: string
-                        request:
-                          description: |-
-                            Request is the name chosen for a request in the referenced claim.
-                            If empty, everything from the claim is made available, otherwise
-                            only the result of this request.
-                          type: string
-                      required:
-                      - name
-                      type: object
-                    type: array
-                    x-kubernetes-list-map-keys:
-                    - name
-                    x-kubernetes-list-type: map
-                  limits:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: |-
-                      Limits describes the maximum amount of compute resources allowed.
-                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-                    type: object
-                  requests:
-                    additionalProperties:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    description: |-
-                      Requests describes the minimum amount of compute resources required.
-                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
-                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
-                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-                    type: object
+                  entryPricingRef:
+                    type: string
+                  exchangeRef:
+                    type: string
+                  exitPricingRef:
+                    type: string
+                  notificationRef:
+                    type: string
+                  orderTypesRef:
+                    type: string
+                  pairlistMethodsRef:
+                    description: References to other resources
+                    type: string
+                  riskManagementRef:
+                    type: string
+                  strategyRef:
+                    type: string
+                required:
+                - exchangeRef
+                - strategyRef
                 type: object
-              riskManagementRef:
-                type: string
-              stakeAmount:
-                type: string
-              stakeCurrency:
-                type: string
-              storageClassName:
-                type: string
-              storageSize:
-                description: Storage configuration
-                type: string
-              strategyRef:
-                type: string
-              tradableBalanceRatio:
-                description: Advanced trading configuration
-                type: number
-              tradingMode:
-                type: string
-              unfilledTimeout:
-                description: Timeout configuration
+              timeout:
+                description: UnfilledTimeoutConfig defines timeout settings for unfilled
+                  orders
                 properties:
                   entry:
                     type: integer
                   exit:
                     type: integer
-                  exitTimeoutCount:
+                  exit_timeout_count:
                     type: integer
                   unit:
                     type: string
                 type: object
             required:
-            - botName
-            - exchangeRef
-            - strategyRef
+            - bot
+            - references
             type: object
           status:
             description: TradeBotStatus defines the observed state of TradeBot
             properties:
-              jwtSecretKey:
+              jwt_secret_key:
                 type: string
               message:
                 type: string

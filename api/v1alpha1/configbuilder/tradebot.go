@@ -25,209 +25,188 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 
 	cfg := map[string]interface{}{}
 
-	// Set basic bot configuration
-	cfg["bot_name"] = tradeBot.Spec.BotName
-
-	if tradeBot.Spec.TradingMode != "" {
-		cfg["trading_mode"] = tradeBot.Spec.TradingMode
+	// BotConfig
+	bot := tradeBot.Spec.Bot
+	cfg["bot_name"] = bot.BotName
+	if bot.TradingMode != "" {
+		cfg["trading_mode"] = bot.TradingMode
+	}
+	cfg["dry_run"] = bot.DryRun
+	if bot.DryRunWallet > 0 {
+		cfg["dry_run_wallet"] = bot.DryRunWallet
+	}
+	if bot.StakeCurrency != "" {
+		cfg["stake_currency"] = bot.StakeCurrency
+	}
+	if bot.StakeAmount != "" {
+		cfg["stake_amount"] = bot.StakeAmount
+	}
+	if bot.MaxOpenTrades > 0 {
+		cfg["max_open_trades"] = bot.MaxOpenTrades
+	}
+	if bot.FiatDisplayCurrency != "" {
+		cfg["fiat_display_currency"] = bot.FiatDisplayCurrency
+	}
+	if bot.DBUrl != "" {
+		cfg["db_url"] = bot.DBUrl
+	}
+	if bot.Export != "" {
+		cfg["export"] = bot.Export
+	}
+	if bot.DisableParamExport {
+		cfg["disable_param_export"] = bot.DisableParamExport
+	}
+	if bot.DisableDataframeChecks {
+		cfg["disable_dataframe_checks"] = bot.DisableDataframeChecks
 	}
 
-	cfg["dry_run"] = tradeBot.Spec.DryRun
-
-	if tradeBot.Spec.DryRunWallet > 0 {
-		cfg["dry_run_wallet"] = tradeBot.Spec.DryRunWallet
+	// DataConfig
+	data := tradeBot.Spec.Data
+	if data.DataformatOHLCV != "" {
+		cfg["dataformat_ohlcv"] = data.DataformatOHLCV
+	}
+	if data.DataformatTrades != "" {
+		cfg["dataformat_trades"] = data.DataformatTrades
+	}
+	if data.PositionAdjustment != "" {
+		cfg["position_adjustment"] = data.PositionAdjustment
+	}
+	if data.NewPairsDaysAgo > 0 {
+		cfg["new_pairs_days_ago"] = data.NewPairsDaysAgo
+	}
+	if data.DownloadTrades {
+		cfg["download_trades"] = data.DownloadTrades
+	}
+	if data.MaxEntryPositionAdjustment > 0 {
+		cfg["max_entry_position_adjustment"] = data.MaxEntryPositionAdjustment
+	}
+	if data.AvailableCapital > 0 {
+		cfg["available_capital"] = data.AvailableCapital
+	}
+	if data.AmendLastStakeAmount {
+		cfg["amend_last_stake_amount"] = data.AmendLastStakeAmount
+	}
+	if data.LastStakeAmountMinRatio > 0 {
+		cfg["last_stake_amount_min_ratio"] = data.LastStakeAmountMinRatio
+	}
+	if data.ProcessOnlyNewCandles {
+		cfg["process_only_new_candles"] = data.ProcessOnlyNewCandles
+	}
+	if data.AmountReservePercent > 0 {
+		cfg["amount_reserve_percent"] = data.AmountReservePercent
+	}
+	if data.ReduceDfFootprint {
+		cfg["reduce_df_footprint"] = data.ReduceDfFootprint
+	}
+	if data.CustomPriceMaxDistanceRatio > 0 {
+		cfg["custom_price_max_distance_ratio"] = data.CustomPriceMaxDistanceRatio
 	}
 
-	if tradeBot.Spec.StakeCurrency != "" {
-		cfg["stake_currency"] = tradeBot.Spec.StakeCurrency
+	// AdvancedConfig
+	adv := tradeBot.Spec.Advanced
+	if adv.TradableBalanceRatio != nil {
+		cfg["tradable_balance_ratio"] = *adv.TradableBalanceRatio
+	}
+	if adv.CancelOpenOrdersOnExit != nil {
+		cfg["cancel_open_orders_on_exit"] = *adv.CancelOpenOrdersOnExit
+	}
+	if adv.MarginMode != "" {
+		cfg["margin_mode"] = adv.MarginMode
+	}
+	if adv.InitialState != "" {
+		cfg["initial_state"] = adv.InitialState
+	}
+	if adv.ForceEntryEnable != nil {
+		cfg["force_entry_enable"] = *adv.ForceEntryEnable
 	}
 
-	if tradeBot.Spec.StakeAmount != "" {
-		cfg["stake_amount"] = tradeBot.Spec.StakeAmount
-	}
-
-	if tradeBot.Spec.MaxOpenTrades > 0 {
-		cfg["max_open_trades"] = tradeBot.Spec.MaxOpenTrades
-	}
-
-	if tradeBot.Spec.FiatDisplayCurrency != "" {
-		cfg["fiat_display_currency"] = tradeBot.Spec.FiatDisplayCurrency
-	}
-
-	// Add advanced trading configuration from TradeBotSpec
-	if tradeBot.Spec.TradableBalanceRatio != nil {
-		cfg["tradable_balance_ratio"] = *tradeBot.Spec.TradableBalanceRatio
-	}
-
-	if tradeBot.Spec.CancelOpenOrdersOnExit != nil {
-		cfg["cancel_open_orders_on_exit"] = *tradeBot.Spec.CancelOpenOrdersOnExit
-	}
-
-	if tradeBot.Spec.InitialState != "" {
-		cfg["initial_state"] = tradeBot.Spec.InitialState
-	}
-
-	if tradeBot.Spec.ForceEntryEnable != nil {
-		cfg["force_entry_enable"] = *tradeBot.Spec.ForceEntryEnable
-	}
-
-	// Add margin_mode for futures trading
-	if tradeBot.Spec.MarginMode != "" {
-		cfg["margin_mode"] = tradeBot.Spec.MarginMode
-	}
-
-	// Add unfilledtimeout configuration from TradeBotSpec
-	if tradeBot.Spec.UnfilledTimeout != nil {
+	// UnfilledTimeoutConfig
+	if tradeBot.Spec.Timeout != nil {
 		timeoutConfig := map[string]interface{}{}
-
-		if tradeBot.Spec.UnfilledTimeout.Entry > 0 {
-			timeoutConfig["entry"] = tradeBot.Spec.UnfilledTimeout.Entry
+		if tradeBot.Spec.Timeout.Entry > 0 {
+			timeoutConfig["entry"] = tradeBot.Spec.Timeout.Entry
 		}
-
-		if tradeBot.Spec.UnfilledTimeout.Exit > 0 {
-			timeoutConfig["exit"] = tradeBot.Spec.UnfilledTimeout.Exit
+		if tradeBot.Spec.Timeout.Exit > 0 {
+			timeoutConfig["exit"] = tradeBot.Spec.Timeout.Exit
 		}
-
-		if tradeBot.Spec.UnfilledTimeout.ExitTimeoutCount > 0 {
-			timeoutConfig["exit_timeout_count"] = tradeBot.Spec.UnfilledTimeout.ExitTimeoutCount
+		if tradeBot.Spec.Timeout.ExitTimeoutCount > 0 {
+			timeoutConfig["exit_timeout_count"] = tradeBot.Spec.Timeout.ExitTimeoutCount
 		}
-
-		if tradeBot.Spec.UnfilledTimeout.Unit != "" {
-			timeoutConfig["unit"] = tradeBot.Spec.UnfilledTimeout.Unit
+		if tradeBot.Spec.Timeout.Unit != "" {
+			timeoutConfig["unit"] = tradeBot.Spec.Timeout.Unit
 		}
-
 		if len(timeoutConfig) > 0 {
 			cfg["unfilledtimeout"] = timeoutConfig
 		}
 	}
 
-	// Add edge configuration from TradeBotSpec
-	if tradeBot.Spec.Edge != nil {
-		edgeConfig := map[string]interface{}{}
-
-		if tradeBot.Spec.Edge.Enabled != nil {
-			edgeConfig["enabled"] = *tradeBot.Spec.Edge.Enabled
-		}
-
-		if tradeBot.Spec.Edge.ProcessThrottleSecs > 0 {
-			edgeConfig["process_throttle_secs"] = tradeBot.Spec.Edge.ProcessThrottleSecs
-		}
-
-		if tradeBot.Spec.Edge.CalculateSinceNumberOfDays > 0 {
-			edgeConfig["calculate_since_number_of_days"] = tradeBot.Spec.Edge.CalculateSinceNumberOfDays
-		}
-
-		if tradeBot.Spec.Edge.AllowedRisk > 0 {
-			edgeConfig["allowed_risk"] = tradeBot.Spec.Edge.AllowedRisk
-		}
-
-		if tradeBot.Spec.Edge.StoplossRangeMin != 0 {
-			edgeConfig["stoploss_range_min"] = tradeBot.Spec.Edge.StoplossRangeMin
-		}
-
-		if tradeBot.Spec.Edge.StoplossRangeMax != 0 {
-			edgeConfig["stoploss_range_max"] = tradeBot.Spec.Edge.StoplossRangeMax
-		}
-
-		if tradeBot.Spec.Edge.StoplossRangeStep != 0 {
-			edgeConfig["stoploss_range_step"] = tradeBot.Spec.Edge.StoplossRangeStep
-		}
-
-		if tradeBot.Spec.Edge.MinimumWinrate > 0 {
-			edgeConfig["minimum_winrate"] = tradeBot.Spec.Edge.MinimumWinrate
-		}
-
-		if tradeBot.Spec.Edge.MinimumExpectancy > 0 {
-			edgeConfig["minimum_expectancy"] = tradeBot.Spec.Edge.MinimumExpectancy
-		}
-
-		if tradeBot.Spec.Edge.MinTradeNumber > 0 {
-			edgeConfig["min_trade_number"] = tradeBot.Spec.Edge.MinTradeNumber
-		}
-
-		if tradeBot.Spec.Edge.MaxTradeDurationMinute > 0 {
-			edgeConfig["max_trade_duration_minute"] = tradeBot.Spec.Edge.MaxTradeDurationMinute
-		}
-
-		if tradeBot.Spec.Edge.RemovePumps != nil {
-			edgeConfig["remove_pumps"] = *tradeBot.Spec.Edge.RemovePumps
-		}
-
-		if len(edgeConfig) > 0 {
-			cfg["edge"] = edgeConfig
-		}
-	}
-
-	// Add internals configuration from TradeBotSpec
+	// InternalsConfig
 	if tradeBot.Spec.Internals != nil {
 		internalsConfig := map[string]interface{}{}
-
 		if tradeBot.Spec.Internals.ProcessThrottleSecs > 0 {
 			internalsConfig["process_throttle_secs"] = tradeBot.Spec.Internals.ProcessThrottleSecs
 		}
-
+		if tradeBot.Spec.Internals.Interval > 0 {
+			internalsConfig["interval"] = tradeBot.Spec.Internals.Interval
+		}
+		if tradeBot.Spec.Internals.SdNotify != nil {
+			internalsConfig["sd_notify"] = *tradeBot.Spec.Internals.SdNotify
+		}
 		if len(internalsConfig) > 0 {
 			cfg["internals"] = internalsConfig
 		}
 	}
 
-	// Build API server configuration if API is enabled
+	// API Server
 	jwtSecretKey := existingJWTKey
-	if tradeBot.Spec.APIEnabled {
-		// Use existing JWT key or generate a new one if none exists
+	if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.Enabled {
 		if jwtSecretKey == "" {
 			var err error
 			jwtSecretKey, err = GenerateJWTSecretKey()
 			if err != nil {
-				// If there's an error, use a fallback
 				jwtSecretKey = "1ewq2r3t4y5u6i7o8p9asdfghjklzxcvbnm1234567890"
 			}
 		}
-
-		// Build api_server section with only configured values
 		apiServer := map[string]interface{}{
 			"enabled":        true,
 			"jwt_secret_key": jwtSecretKey,
 		}
-
-		// Set listen IP address only if specified
-		if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.ListenIP != "" {
+		if tradeBot.Spec.APIServer.ListenIP != "" {
 			apiServer["listen_ip_address"] = tradeBot.Spec.APIServer.ListenIP
 		}
-
-		// Set listen port only if specified
-		if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.ListenPort > 0 {
+		if tradeBot.Spec.APIServer.ListenPort > 0 {
 			apiServer["listen_port"] = tradeBot.Spec.APIServer.ListenPort
 		}
-
-		// Set verbosity only if specified
-		if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.Verbosity != "" {
+		if tradeBot.Spec.APIServer.Verbosity != "" {
 			apiServer["verbosity"] = tradeBot.Spec.APIServer.Verbosity
 		}
-
-		// Set enable_openapi only if specified
-		if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.EnableOpenAPI != nil {
+		if tradeBot.Spec.APIServer.EnableOpenAPI != nil {
 			apiServer["enable_openapi"] = *tradeBot.Spec.APIServer.EnableOpenAPI
 		}
-
-		// Set username only if specified
-		if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.Username != "" {
+		if tradeBot.Spec.APIServer.Username != "" {
 			apiServer["username"] = tradeBot.Spec.APIServer.Username
 		}
-
-		// Set password only if specified
-		if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.Password != "" {
+		if tradeBot.Spec.APIServer.Password != "" {
 			apiServer["password"] = tradeBot.Spec.APIServer.Password
 		}
-
-		// Set CORS origins
-		if len(tradeBot.Spec.CORSOrigins) > 0 {
-			apiServer["CORS_origins"] = tradeBot.Spec.CORSOrigins
+		if len(tradeBot.Spec.APIServer.CORSOrigins) > 0 {
+			apiServer["CORS_origins"] = tradeBot.Spec.APIServer.CORSOrigins
 		} else {
 			apiServer["CORS_origins"] = []string{}
 		}
-
 		cfg["api_server"] = apiServer
+	}
+
+	// ExperimentalConfig
+	if tradeBot.Spec.Experimental != nil && tradeBot.Spec.Experimental.BlockBadExchanges != nil {
+		cfg["block_bad_exchanges"] = *tradeBot.Spec.Experimental.BlockBadExchanges
+	}
+
+	// LoggingConfig
+	if tradeBot.Spec.Logging != nil && tradeBot.Spec.Logging.Version > 0 {
+		cfg["logging"] = map[string]interface{}{
+			"version": tradeBot.Spec.Logging.Version,
+		}
 	}
 
 	return cfg, jwtSecretKey, nil

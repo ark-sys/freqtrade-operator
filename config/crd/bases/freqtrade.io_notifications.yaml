@@ -38,51 +38,90 @@ spec:
           spec:
             description: NotificationSpec defines the desired state of Notification
             properties:
-              apiServer:
+              discord:
                 properties:
-                  enableOpenapi:
-                    type: boolean
                   enabled:
                     type: boolean
-                  listenIpAddress:
-                    type: string
-                  listenPort:
-                    type: integer
-                  secretRef:
-                    type: string
-                  verbosity:
+                  entry_fill:
+                    items:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    type: array
+                  exit_fill:
+                    items:
+                      additionalProperties:
+                        type: string
+                      type: object
+                    type: array
+                  webhook_url:
                     type: string
                 type: object
               telegram:
                 properties:
-                  allowCustomMessages:
+                  allow_custom_messages:
                     type: boolean
-                  balanceDustLevel:
+                  authorized_users:
+                    items:
+                      type: string
+                    type: array
+                  balance_dust_level:
                     type: number
+                  chat_id:
+                    type: string
                   enabled:
                     type: boolean
                   reload:
                     type: boolean
                   secretRef:
                     type: string
+                  settings:
+                    properties:
+                      entry:
+                        type: string
+                      entry_cancel:
+                        type: string
+                      entry_fill:
+                        type: string
+                      exit:
+                        type: string
+                      exit_cancel:
+                        type: string
+                      exit_fill:
+                        type: string
+                      protection_trigger:
+                        type: string
+                      protection_trigger_global:
+                        type: string
+                      startup:
+                        type: string
+                      status:
+                        type: string
+                      warning:
+                        type: string
+                    type: object
+                  token:
+                    type: string
+                  topic_id:
+                    type: string
                 type: object
               webhook:
                 properties:
-                  allowCustomMessages:
+                  allow_custom_messages:
                     type: boolean
                   enabled:
                     type: boolean
                   entry:
                     type: string
-                  entryCancel:
+                  entry_cancel:
                     type: string
-                  entryFill:
+                  entry_fill:
                     type: string
                   exit:
                     type: string
-                  exitCancel:
+                  exit_cancel:
                     type: string
-                  exitFill:
+                  exit_fill:
                     type: string
                   status:
                     type: string
