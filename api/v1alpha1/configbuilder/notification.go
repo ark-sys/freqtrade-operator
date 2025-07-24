@@ -107,6 +107,52 @@ func BuildNotificationConfig(
 			telegram["settings"] = settings
 		}
 
+		if notification.Spec.Telegram.TopicID != "" {
+			telegram["topic_id"] = notification.Spec.Telegram.TopicID
+		}
+
+		if len(notification.Spec.Telegram.AuthorizedUsers) > 0 {
+			telegram["authorized_users"] = notification.Spec.Telegram.AuthorizedUsers
+		}
+
+		if notification.Spec.Telegram.Settings != nil {
+			settings := map[string]interface{}{}
+			if notification.Spec.Telegram.Settings.Status != "" {
+				settings["status"] = notification.Spec.Telegram.Settings.Status
+			}
+			if notification.Spec.Telegram.Settings.Warning != "" {
+				settings["warning"] = notification.Spec.Telegram.Settings.Warning
+			}
+			if notification.Spec.Telegram.Settings.Startup != "" {
+				settings["startup"] = notification.Spec.Telegram.Settings.Startup
+			}
+			if notification.Spec.Telegram.Settings.Entry != "" {
+				settings["entry"] = notification.Spec.Telegram.Settings.Entry
+			}
+			if notification.Spec.Telegram.Settings.EntryFill != "" {
+				settings["entry_fill"] = notification.Spec.Telegram.Settings.EntryFill
+			}
+			if notification.Spec.Telegram.Settings.EntryCancel != "" {
+				settings["entry_cancel"] = notification.Spec.Telegram.Settings.EntryCancel
+			}
+			if notification.Spec.Telegram.Settings.Exit != "" {
+				settings["exit"] = notification.Spec.Telegram.Settings.Exit
+			}
+			if notification.Spec.Telegram.Settings.ExitFill != "" {
+				settings["exit_fill"] = notification.Spec.Telegram.Settings.ExitFill
+			}
+			if notification.Spec.Telegram.Settings.ExitCancel != "" {
+				settings["exit_cancel"] = notification.Spec.Telegram.Settings.ExitCancel
+			}
+			if notification.Spec.Telegram.Settings.ProtectionTrigger != "" {
+				settings["protection_trigger"] = notification.Spec.Telegram.Settings.ProtectionTrigger
+			}
+			if notification.Spec.Telegram.Settings.ProtectionTriggerGlobal != "" {
+				settings["protection_trigger_global"] = notification.Spec.Telegram.Settings.ProtectionTriggerGlobal
+			}
+			telegram["settings"] = settings
+		}
+
 		cfg["telegram"] = telegram
 	}
 
