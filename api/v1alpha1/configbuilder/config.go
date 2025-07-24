@@ -19,9 +19,9 @@ func AssembleConfig(
 	exchange *v1alpha1.Exchange,
 	pairWhitelist *v1alpha1.PairList,
 	pairBlacklist *v1alpha1.PairList,
-	entryPricing *v1alpha1.EntryPricing,
-	exitPricing *v1alpha1.ExitPricing,
-	orderTypes *v1alpha1.OrderTypes,
+	entryPricing *v1alpha1.Pricing,
+	exitPricing *v1alpha1.Pricing,
+	orderTypes *v1alpha1.Order,
 	riskManagement *v1alpha1.RiskManagement,
 	notification *v1alpha1.Notification,
 	strategy *v1alpha1.Strategy,
@@ -42,7 +42,7 @@ func AssembleConfig(
 	}
 
 	// Add exchange configuration
-	exchangeConfig, err := BuildExchangeConfig(ctx, k8sClient, exchange, pairWhitelist, pairBlacklist)
+	exchangeConfig, err := BuildExchangeConfig(ctx, k8sClient, exchange)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to build Exchange config: %w", err)
 	}
@@ -62,13 +62,13 @@ func AssembleConfig(
 	}
 
 	// Add entry pricing configuration
-	entryPricingConfig := BuildEntryPricingConfig(entryPricing)
+	entryPricingConfig := BuildPricingConfig(entryPricing)
 	if entryPricingConfig != nil {
 		config["entry_pricing"] = entryPricingConfig
 	}
 
 	// Add exit pricing configuration
-	exitPricingConfig := BuildExitPricingConfig(exitPricing)
+	exitPricingConfig := BuildPricingConfig(exitPricing)
 	if exitPricingConfig != nil {
 		config["exit_pricing"] = exitPricingConfig
 	}
@@ -77,6 +77,18 @@ func AssembleConfig(
 	orderTypesConfig := BuildOrderTypesConfig(orderTypes)
 	if orderTypesConfig != nil {
 		config["order_types"] = orderTypesConfig
+	}
+
+	// Add order time in force configuration
+	orderTimeInForceConfig := BuildOrderTimeInForceConfig(orderTypes)
+	if orderTimeInForceConfig != nil {
+		config["order_time_in_force"] = orderTimeInForceConfig
+	}
+
+	// Add orderflow configuration
+	orderflowConfig := BuildOrderflowConfig(orderTypes)
+	if orderflowConfig != nil {
+		config["orderflow"] = orderflowConfig
 	}
 
 	// Add risk management configuration
@@ -96,26 +108,6 @@ func AssembleConfig(
 	if notificationConfig != nil {
 		for k, v := range notificationConfig {
 			config[k] = v
-		}
-	}
-
-	// Merge API server configuration from notification if present
-	if notification != nil {
-		notificationAPIConfig, err := BuildAPIServerConfigFromNotification(ctx, k8sClient, notification)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to build API server config from notification: %w", err)
-		}
-
-		if notificationAPIConfig != nil && len(notificationAPIConfig) > 0 {
-			// Merge with existing api_server config
-			if existingAPIServer, exists := config["api_server"]; exists {
-				if apiServerMap, ok := existingAPIServer.(map[string]interface{}); ok {
-					// Merge notification API server settings into existing config
-					for k, v := range notificationAPIConfig {
-						apiServerMap[k] = v
-					}
-				}
-			}
 		}
 	}
 

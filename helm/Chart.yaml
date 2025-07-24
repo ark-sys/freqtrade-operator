@@ -23,13 +23,13 @@ version: 0.1.0
 # It is recommended to use it with quotes.
 appVersion: "latest"
 
-home: https://github.com/freqtrade/freqtrade-operator
+home: https://github.com/ark-sys/freqtrade-operator
 sources:
-  - https://github.com/freqtrade/freqtrade-operator
+  - https://github.com/ark-sys/freqtrade-operator
 
 maintainers:
-  - name: Freqtrade Team
-    url: https://github.com/freqtrade
+  - name: Khaled Arsalane
+    url: https://github.com/ark-sys
 
 keywords:
   - freqtrade

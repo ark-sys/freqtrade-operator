@@ -10,7 +10,7 @@ spec:
   secretRef: binance-credentials
   whitelistRef: crypto-whitelist
   blacklistRef: crypto-blacklist
-  ccxtConfig:
+  ccxt_config:
     enableRateLimit: true
     options:
       defaultType: spot

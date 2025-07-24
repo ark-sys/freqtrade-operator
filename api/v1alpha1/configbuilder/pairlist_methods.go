@@ -29,7 +29,7 @@ func BuildPairlistMethodsConfig(pairlistMethods *freqtradev1alpha1.PairlistMetho
 		switch method.Method {
 		case freqtradev1alpha1.StaticPairList:
 			if method.AllowInactive != nil {
-				methodMap["allow_inactive"] = *method.AllowInactive
+				methodMap["allow_inactive"] = method.AllowInactive
 			}
 
 		case freqtradev1alpha1.VolumePairList:
@@ -67,7 +67,7 @@ func BuildPairlistMethodsConfig(pairlistMethods *freqtradev1alpha1.PairlistMetho
 				methodMap["pairlist_url"] = method.PairlistURL
 			}
 			if method.KeepPairlistOnFailure != nil {
-				methodMap["keep_pairlist_on_failure"] = *method.KeepPairlistOnFailure
+				methodMap["keep_pairlist_on_failure"] = method.KeepPairlistOnFailure
 			}
 			if method.ReadTimeout != nil {
 				methodMap["read_timeout"] = *method.ReadTimeout

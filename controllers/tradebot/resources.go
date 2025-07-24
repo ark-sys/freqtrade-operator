@@ -15,9 +15,9 @@ type referencedResources struct {
 	exchange        *freqtradev1alpha1.Exchange
 	pairWhitelist   *freqtradev1alpha1.PairList
 	pairBlacklist   *freqtradev1alpha1.PairList
-	entryPricing    *freqtradev1alpha1.EntryPricing
-	exitPricing     *freqtradev1alpha1.ExitPricing
-	orderTypes      *freqtradev1alpha1.OrderTypes
+	entryPricing    *freqtradev1alpha1.Pricing
+	exitPricing     *freqtradev1alpha1.Pricing
+	order           *freqtradev1alpha1.Order
 	riskManagement  *freqtradev1alpha1.RiskManagement
 	notification    *freqtradev1alpha1.Notification
 	strategy        *freqtradev1alpha1.Strategy
@@ -62,7 +62,7 @@ func (r *Reconciler) fetchReferencedResources(
 
 	// Fetch EntryPricing
 	if tradeBot.Spec.EntryPricingRef != "" {
-		ep := &freqtradev1alpha1.EntryPricing{}
+		ep := &freqtradev1alpha1.Pricing{}
 		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.EntryPricingRef, Namespace: namespace}, ep); err != nil {
 			logger.Error(err, "Failed to fetch EntryPricing")
 			return nil, err
@@ -72,7 +72,7 @@ func (r *Reconciler) fetchReferencedResources(
 
 	// Fetch ExitPricing
 	if tradeBot.Spec.ExitPricingRef != "" {
-		ep := &freqtradev1alpha1.ExitPricing{}
+		ep := &freqtradev1alpha1.Pricing{}
 		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.ExitPricingRef, Namespace: namespace}, ep); err != nil {
 			logger.Error(err, "Failed to fetch ExitPricing")
 			return nil, err
@@ -82,12 +82,12 @@ func (r *Reconciler) fetchReferencedResources(
 
 	// Fetch OrderTypes
 	if tradeBot.Spec.OrderTypesRef != "" {
-		ot := &freqtradev1alpha1.OrderTypes{}
+		ot := &freqtradev1alpha1.Order{}
 		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.OrderTypesRef, Namespace: namespace}, ot); err != nil {
 			logger.Error(err, "Failed to fetch OrderTypes")
 			return nil, err
 		}
-		result.orderTypes = ot
+		result.order = ot
 	}
 
 	// Fetch RiskManagement

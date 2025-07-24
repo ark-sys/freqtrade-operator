@@ -7,32 +7,77 @@ import (
 
 // TradeBotSpec defines the desired state of TradeBot
 type TradeBotSpec struct {
+	// NOTE: Base schema configuration reference is at https://schema.freqtrade.io/schema.json
+
+	Bot          *BotConfig             `json:"bot"`
+	Data         *DataConfig            `json:"data,omitempty"`
+	Advanced     *AdvancedConfig        `json:"advanced,omitempty"`
+	Timeout      *UnfilledTimeoutConfig `json:"timeout,omitempty"`
+	Internals    *InternalsConfig       `json:"internals,omitempty"`
+	References   *References            `json:"references"`
+	Deployment   *DeploymentConfig      `json:"deployment,omitempty"`
+	APIServer    *APIServerConfig       `json:"apiServer,omitempty"`
+	Experimental *ExperimentalConfig    `json:"experimental,omitempty"`
+	Logging      *LoggingConfig         `json:"logging,omitempty"`
+}
+
+type BotConfig struct {
 	// Bot configuration
-	BotName             string  `json:"botName"`
-	TradingMode         string  `json:"tradingMode,omitempty"` // spot, futures, etc.
-	DryRun              bool    `json:"dryRun,omitempty"`
-	DryRunWallet        float64 `json:"dryRunWallet,omitempty"`
-	StakeCurrency       string  `json:"stakeCurrency,omitempty"`
-	StakeAmount         string  `json:"stakeAmount,omitempty"`
-	MaxOpenTrades       int     `json:"maxOpenTrades,omitempty"`
-	FiatDisplayCurrency string  `json:"fiatDisplayCurrency,omitempty"`
+	BotName                string   `json:"bot_name"`
+	TradingMode            string   `json:"trading_mode,omitempty"`
+	DryRun                 bool     `json:"dry_run,omitempty"`
+	DryRunWallet           *float64 `json:"dry_run_wallet,omitempty"`
+	StakeCurrency          string   `json:"stake_currency,omitempty"`
+	StakeAmount            string   `json:"stake_amount,omitempty"`
+	MaxOpenTrades          *int     `json:"max_open_trades,omitempty"`
+	FiatDisplayCurrency    string   `json:"fiat_display_currency,omitempty"`
+	DBUrl                  string   `json:"db_url,omitempty"`
+	Export                 string   `json:"export,omitempty"`
+	DisableParamExport     bool     `json:"disable_param_export,omitempty"`
+	DisableDataframeChecks bool     `json:"disable_dataframe_checks,omitempty"`
+}
 
+type DataConfig struct {
+	DataformatOHLCV             string   `json:"dataformat_ohlcv,omitempty"`
+	DataformatTrades            string   `json:"dataformat_trades,omitempty"`
+	PositionAdjustment          string   `json:"position_adjustment,omitempty"`
+	NewPairsDaysAgo             *int     `json:"new_pairs_days_ago,omitempty"`
+	DownloadTrades              bool     `json:"download_trades,omitempty"`
+	MaxEntryPositionAdjustment  *float64 `json:"max_entry_position_adjustment,omitempty"`
+	AvailableCapital            *float64 `json:"available_capital,omitempty"`               // Available capital for trading
+	AmendLastStakeAmount        bool     `json:"amend_last_stake_amount,omitempty"`         // Whether to amend the last stake amount
+	LastStakeAmountMinRatio     *float64 `json:"last_stake_amount_min_ratio,omitempty"`     // Minimum ratio for the last stake amount
+	ProcessOnlyNewCandles       bool     `json:"process_only_new_candles,omitempty"`        // Process only new candles
+	AmountReservePercent        *float64 `json:"amount_reserve_percent,omitempty"`          // Percentage of amount to reserve
+	ReduceDfFootprint           bool     `json:"reduce_df_footprint,omitempty"`             // Reduce DataFrame footprint
+	CustomPriceMaxDistanceRatio *float64 `json:"custom_price_max_distance_ratio,omitempty"` // Maximum distance ratio for custom price
+}
+
+type AdvancedConfig struct {
 	// Advanced trading configuration
-	TradableBalanceRatio   *float64 `json:"tradableBalanceRatio,omitempty"`   // Ratio of available balance to use for trading
-	CancelOpenOrdersOnExit *bool    `json:"cancelOpenOrdersOnExit,omitempty"` // Cancel open orders when bot exits
-	MarginMode             string   `json:"marginMode,omitempty"`             // isolated, cross (for futures)
-	InitialState           string   `json:"initialState,omitempty"`           // running, stopped
-	ForceEntryEnable       *bool    `json:"forceEntryEnable,omitempty"`       // Allow force entry via API
+	TradableBalanceRatio   *float64 `json:"tradable_balance_ratio,omitempty"`
+	CancelOpenOrdersOnExit bool     `json:"cancel_open_orders_on_exit,omitempty"`
+	MarginMode             string   `json:"margin_mode,omitempty"`
+	InitialState           string   `json:"initial_state,omitempty"`
+	ForceEntryEnable       bool     `json:"force_entry_enable,omitempty"`
+}
 
-	// Timeout configuration
-	UnfilledTimeout *UnfilledTimeoutConfig `json:"unfilledTimeout,omitempty"`
+// UnfilledTimeoutConfig defines timeout settings for unfilled orders
+type UnfilledTimeoutConfig struct {
+	Entry            *int   `json:"entry,omitempty"`
+	Exit             *int   `json:"exit,omitempty"`
+	ExitTimeoutCount *int   `json:"exit_timeout_count,omitempty"`
+	Unit             string `json:"unit,omitempty"`
+}
 
-	// Edge configuration
-	Edge *EdgeConfig `json:"edge,omitempty"`
+// InternalsConfig defines internal processing configuration
+type InternalsConfig struct {
+	ProcessThrottleSecs *int `json:"process_throttle_secs,omitempty"`
+	Interval            *int `json:"interval,omitempty"`  // Interval in seconds for internal processing
+	SdNotify            bool `json:"sd_notify,omitempty"` // Enable systemd notification
+}
 
-	// Internal processing configuration
-	Internals *InternalsConfig `json:"internals,omitempty"`
-
+type References struct {
 	// References to other resources
 	PairlistMethodsRef string `json:"pairlistMethodsRef,omitempty"`
 	ExchangeRef        string `json:"exchangeRef"`
@@ -42,71 +87,45 @@ type TradeBotSpec struct {
 	RiskManagementRef  string `json:"riskManagementRef,omitempty"`
 	NotificationRef    string `json:"notificationRef,omitempty"`
 	StrategyRef        string `json:"strategyRef"`
+}
 
+type DeploymentConfig struct {
 	// Deployment configuration
-	Image string `json:"image,omitempty"` // Docker image for freqtrade
-
-	// Resources for the freqtrade container
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
-
-	// Storage configuration
-	StorageSize      string `json:"storageSize,omitempty"`      // Size of the PVC (e.g., "1Gi")
-	StorageClassName string `json:"storageClassName,omitempty"` // StorageClass to use for the PVC
-
-	// API configuration
-	APIEnabled bool `json:"apiEnabled,omitempty"` // Whether to enable the REST API
-
-	// API server configuration
-	APIServer *APIServerConfig `json:"apiServer,omitempty"` // API server settings
-
-	// CORS settings for API
-	CORSOrigins []string `json:"corsOrigins,omitempty"` // List of allowed origins for CORS
+	Image            string                      `json:"image,omitempty"`
+	Resources        corev1.ResourceRequirements `json:"resources,omitempty"`
+	StorageSize      string                      `json:"storage_size,omitempty"`
+	StorageClassName string                      `json:"storage_class_name,omitempty"`
 }
 
-// UnfilledTimeoutConfig defines timeout settings for unfilled orders
-type UnfilledTimeoutConfig struct {
-	Entry            int    `json:"entry,omitempty"`            // Entry order timeout in minutes
-	Exit             int    `json:"exit,omitempty"`             // Exit order timeout in minutes
-	ExitTimeoutCount int    `json:"exitTimeoutCount,omitempty"` // Number of exit timeouts before giving up
-	Unit             string `json:"unit,omitempty"`             // Time unit (minutes, seconds)
-}
-
-// EdgeConfig defines edge position sizing configuration
-type EdgeConfig struct {
-	Enabled                    *bool   `json:"enabled,omitempty"`
-	ProcessThrottleSecs        int     `json:"processThrottleSecs,omitempty"`
-	CalculateSinceNumberOfDays int     `json:"calculateSinceNumberOfDays,omitempty"`
-	AllowedRisk                float64 `json:"allowedRisk,omitempty"`
-	StoplossRangeMin           float64 `json:"stoplossRangeMin,omitempty"`
-	StoplossRangeMax           float64 `json:"stoplossRangeMax,omitempty"`
-	StoplossRangeStep          float64 `json:"stoplossRangeStep,omitempty"`
-	MinimumWinrate             float64 `json:"minimumWinrate,omitempty"`
-	MinimumExpectancy          float64 `json:"minimumExpectancy,omitempty"`
-	MinTradeNumber             int     `json:"minTradeNumber,omitempty"`
-	MaxTradeDurationMinute     int     `json:"maxTradeDurationMinute,omitempty"`
-	RemovePumps                *bool   `json:"removePumps,omitempty"`
-}
-
-// InternalsConfig defines internal processing configuration
-type InternalsConfig struct {
-	ProcessThrottleSecs int `json:"processThrottleSecs,omitempty"` // Throttle processing in seconds
-}
-
-// APIServerConfig defines API server configuration
 type APIServerConfig struct {
-	ListenIP      string `json:"listenIpAddress,omitempty"` // IP address to listen on
-	ListenPort    int    `json:"listenPort,omitempty"`      // Port to listen on
-	Verbosity     string `json:"verbosity,omitempty"`       // Log verbosity level
-	EnableOpenAPI *bool  `json:"enableOpenapi,omitempty"`   // Enable OpenAPI documentation
-	Username      string `json:"username,omitempty"`        // API username
-	Password      string `json:"password,omitempty"`        // API password
+	Enabled       bool   `json:"enabled,omitempty"`
+	ListenIP      string `json:"listen_ip_address,omitempty"`
+	ListenPort    *int   `json:"listen_port,omitempty"`
+	Verbosity     string `json:"verbosity,omitempty"`
+	EnableOpenAPI bool   `json:"enable_openapi,omitempty"`
+	Username      string `json:"username,omitempty"`
+	Password      string `json:"password,omitempty"`
+	//jwtSecretKey string `json:"jwtSecretKey,omitempty"`
+	SecretRef   string   `json:"secretRef,omitempty"`
+	CORSOrigins []string `json:"cors_origins,omitempty"`
+}
+
+type ExperimentalConfig struct {
+	BlockBadExchanges bool `json:"block_bad_exchanges,omitempty"`
+}
+
+type LoggingConfig struct {
+	Version *int `json:"version,omitempty"`
+	//Formatters map[string]map[string]interface{} `json:"formatters,omitempty"`
+	//Handlers   map[string]map[string]interface{} `json:"handlers,omitempty"`
+	//Root       map[string]interface{}            `json:"root,omitempty"`
 }
 
 // TradeBotStatus defines the observed state of TradeBot
 type TradeBotStatus struct {
 	Phase        string `json:"phase,omitempty"`
 	Message      string `json:"message,omitempty"`
-	JWTSecretKey string `json:"jwtSecretKey,omitempty"` // Generated JWT secret key for API authentication
+	JWTSecretKey string `json:"jwt_secret_key,omitempty"`
 }
 
 //+kubebuilder:object:root=true

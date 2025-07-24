@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: exchanges.freqtrade.io
+  name: pricings.freqtrade.io
 spec:
   group: freqtrade.io
   names:
-    kind: Exchange
-    listKind: ExchangeList
-    plural: exchanges
-    singular: exchange
+    kind: Pricing
+    listKind: PricingList
+    plural: pricings
+    singular: pricing
   scope: Namespaced
   versions:
   - name: v1alpha1
@@ -36,52 +36,28 @@ spec:
           metadata:
             type: object
           spec:
-            description: ExchangeSpec defines the desired state of Exchange
+            description: PricingSpec defines the desired state of Pricing
             properties:
-              account_id:
-                type: string
-              blacklistRef:
-                type: string
-              ccxt_async_config:
-                x-kubernetes-preserve-unknown-fields: true
-              ccxt_config:
-                x-kubernetes-preserve-unknown-fields: true
-              ccxt_sync_config:
-                x-kubernetes-preserve-unknown-fields: true
-              enable_ws:
-                type: boolean
-              key:
-                type: string
-              log_responses:
-                type: boolean
-              market_refresh_interval:
+              check_depth_of_market:
+                description: PricingCheckDepthOfMarket defines the check_depth_of_market
+                  settings
+                properties:
+                  bids_to_ask_delta:
+                    type: number
+                  enabled:
+                    type: boolean
+                type: object
+              order_book_top:
                 type: integer
-              name:
-                type: string
-              outdated_offset:
-                type: integer
-              password:
-                type: string
-              private_key:
-                type: string
-              secret:
-                type: string
-              secretRef:
-                type: string
-              uid:
-                type: string
-              unkown_fee_rate:
+              price_last_balance:
                 type: boolean
-              wallet_address:
+              price_side:
                 type: string
-              whitelistRef:
-                type: string
-            required:
-            - name
-            - secretRef
+              use_order_book:
+                type: boolean
             type: object
           status:
-            description: ExchangeStatus defines the observed state of Exchange
+            description: PricingStatus defines the observed state of Pricing
             properties:
               message:
                 type: string

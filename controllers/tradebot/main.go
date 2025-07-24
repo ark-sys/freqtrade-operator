@@ -108,7 +108,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	configData, jwtSecretKey, err := configbuilder.AssembleConfig(
 		ctx, r.Client,
 		&tradeBot, resources.exchange, resources.pairWhitelist, resources.pairBlacklist,
-		resources.entryPricing, resources.exitPricing, resources.orderTypes,
+		resources.entryPricing, resources.exitPricing, resources.order,
 		resources.riskManagement, resources.notification, resources.strategy,
 		resources.pairlistMethods, tradeBot.Status.JWTSecretKey,
 	)

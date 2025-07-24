@@ -52,7 +52,7 @@ type PairlistConfig struct {
 	RefreshPeriod *int64 `json:"refresh_period,omitempty"`
 
 	// StaticPairList specific options
-	AllowInactive *bool `json:"allow_inactive,omitempty"`
+	AllowInactive bool `json:"allow_inactive,omitempty"`
 
 	// VolumePairList specific options
 	SortKey string `json:"sort_key,omitempty"` // Only "quoteVolume" is supported
