@@ -11,9 +11,8 @@ rules:
   - pairlistmethods
   - strategies
   - exchanges
-  - entrypricings
-  - exitpricings
-  - ordertypes
+  - pricings
+  - orders
   - riskmanagements
   - notifications
   - frequis
@@ -33,9 +32,8 @@ rules:
   - pairlistmethods/status
   - strategies/status
   - exchanges/status
-  - entrypricings/status
-  - exitpricings/status
-  - ordertypes/status
+  - pricings/status
+  - orders/status
   - riskmanagements/status
   - notifications/status
   - frequis/status
@@ -51,9 +49,8 @@ rules:
   - pairlistmethods/finalizers
   - strategies/finalizers
   - exchanges/finalizers
-  - entrypricings/finalizers
-  - exitpricings/finalizers
-  - ordertypes/finalizers
+  - pricings/finalizers
+  - orders/finalizers
   - riskmanagements/finalizers
   - notifications/finalizers
   - frequis/finalizers

@@ -15,7 +15,7 @@ type NotificationTelegram struct {
 	Enabled             bool     `json:"enabled,omitempty"`
 	Token               string   `json:"token,omitempty"`
 	SecretRef           string   `json:"secretRef,omitempty"` // Reference to Secret containing Telegram credentials
-	BalanceDustLevel    float64  `json:"balance_dust_level,omitempty"`
+	BalanceDustLevel    *float64 `json:"balance_dust_level,omitempty"`
 	Reload              bool     `json:"reload,omitempty"`
 	AllowCustomMessages bool     `json:"allow_custom_messages,omitempty"`
 	ChatID              string   `json:"chat_id,omitempty"`  // Telegram chat ID to send notifications

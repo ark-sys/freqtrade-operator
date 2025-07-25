@@ -9,7 +9,7 @@ import (
 type TradeBotSpec struct {
 	// NOTE: Base schema configuration reference is at https://schema.freqtrade.io/schema.json
 
-	Bot          *BotConfig             `json:"bot"`
+	Bot          BotConfig              `json:"bot"`
 	Data         *DataConfig            `json:"data,omitempty"`
 	Advanced     *AdvancedConfig        `json:"advanced,omitempty"`
 	Timeout      *UnfilledTimeoutConfig `json:"timeout,omitempty"`

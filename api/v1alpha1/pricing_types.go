@@ -12,11 +12,11 @@ type PricingCheckDepthOfMarket struct {
 
 // PricingSpec defines the desired state of Pricing
 type PricingSpec struct {
-	PriceSide          string                    `json:"price_side,omitempty"`
-	PriceLastBalance   bool                      `json:"price_last_balance,omitempty"`
-	UseOrderBook       bool                      `json:"use_order_book,omitempty"`
-	OrderBookTop       *int                      `json:"order_book_top,omitempty"`
-	CheckDepthOfMarket PricingCheckDepthOfMarket `json:"check_depth_of_market,omitempty"`
+	PriceSide          string                     `json:"price_side,omitempty"`
+	PriceLastBalance   bool                       `json:"price_last_balance,omitempty"`
+	UseOrderBook       bool                       `json:"use_order_book,omitempty"`
+	OrderBookTop       *int                       `json:"order_book_top,omitempty"`
+	CheckDepthOfMarket *PricingCheckDepthOfMarket `json:"check_depth_of_market,omitempty"`
 }
 
 // PricingStatus defines the observed state of Pricing

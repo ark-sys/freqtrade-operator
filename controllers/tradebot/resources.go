@@ -35,7 +35,7 @@ func (r *Reconciler) fetchReferencedResources(
 
 	// Fetch Exchange
 	exchange := &freqtradev1alpha1.Exchange{}
-	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.ExchangeRef, Namespace: namespace}, exchange); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.ExchangeRef, Namespace: namespace}, exchange); err != nil {
 		logger.Error(err, "Failed to fetch Exchange")
 		return nil, err
 	}
@@ -61,9 +61,9 @@ func (r *Reconciler) fetchReferencedResources(
 	}
 
 	// Fetch EntryPricing
-	if tradeBot.Spec.EntryPricingRef != "" {
+	if tradeBot.Spec.References.EntryPricingRef != "" {
 		ep := &freqtradev1alpha1.Pricing{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.EntryPricingRef, Namespace: namespace}, ep); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.EntryPricingRef, Namespace: namespace}, ep); err != nil {
 			logger.Error(err, "Failed to fetch EntryPricing")
 			return nil, err
 		}
@@ -71,9 +71,9 @@ func (r *Reconciler) fetchReferencedResources(
 	}
 
 	// Fetch ExitPricing
-	if tradeBot.Spec.ExitPricingRef != "" {
+	if tradeBot.Spec.References.ExitPricingRef != "" {
 		ep := &freqtradev1alpha1.Pricing{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.ExitPricingRef, Namespace: namespace}, ep); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.ExitPricingRef, Namespace: namespace}, ep); err != nil {
 			logger.Error(err, "Failed to fetch ExitPricing")
 			return nil, err
 		}
@@ -81,9 +81,9 @@ func (r *Reconciler) fetchReferencedResources(
 	}
 
 	// Fetch OrderTypes
-	if tradeBot.Spec.OrderTypesRef != "" {
+	if tradeBot.Spec.References.OrderTypesRef != "" {
 		ot := &freqtradev1alpha1.Order{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.OrderTypesRef, Namespace: namespace}, ot); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.OrderTypesRef, Namespace: namespace}, ot); err != nil {
 			logger.Error(err, "Failed to fetch OrderTypes")
 			return nil, err
 		}
@@ -91,9 +91,9 @@ func (r *Reconciler) fetchReferencedResources(
 	}
 
 	// Fetch RiskManagement
-	if tradeBot.Spec.RiskManagementRef != "" {
+	if tradeBot.Spec.References.RiskManagementRef != "" {
 		rm := &freqtradev1alpha1.RiskManagement{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.RiskManagementRef, Namespace: namespace}, rm); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.RiskManagementRef, Namespace: namespace}, rm); err != nil {
 			logger.Error(err, "Failed to fetch RiskManagement")
 			return nil, err
 		}
@@ -101,9 +101,9 @@ func (r *Reconciler) fetchReferencedResources(
 	}
 
 	// Fetch Notification
-	if tradeBot.Spec.NotificationRef != "" {
+	if tradeBot.Spec.References.NotificationRef != "" {
 		n := &freqtradev1alpha1.Notification{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.NotificationRef, Namespace: namespace}, n); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.NotificationRef, Namespace: namespace}, n); err != nil {
 			logger.Error(err, "Failed to fetch Notification")
 			return nil, err
 		}
@@ -112,16 +112,16 @@ func (r *Reconciler) fetchReferencedResources(
 
 	// Fetch Strategy
 	strategy := &freqtradev1alpha1.Strategy{}
-	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.StrategyRef, Namespace: namespace}, strategy); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.StrategyRef, Namespace: namespace}, strategy); err != nil {
 		logger.Error(err, "Failed to fetch Strategy")
 		return nil, err
 	}
 	result.strategy = strategy
 
 	// Fetch PairlistMethods
-	if tradeBot.Spec.PairlistMethodsRef != "" {
+	if tradeBot.Spec.References.PairlistMethodsRef != "" {
 		pm := &freqtradev1alpha1.PairlistMethods{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.PairlistMethodsRef, Namespace: namespace}, pm); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.PairlistMethodsRef, Namespace: namespace}, pm); err != nil {
 			logger.Error(err, "Failed to fetch PairlistMethods")
 			return nil, err
 		}
@@ -150,7 +150,7 @@ func (r *Reconciler) reconcileResources(
 
 	// 2. Create or update ConfigMap for strategy
 	strategy := &freqtradev1alpha1.Strategy{}
-	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.StrategyRef, Namespace: tradeBot.Namespace}, strategy); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.StrategyRef, Namespace: tradeBot.Namespace}, strategy); err != nil {
 		logger.Error(err, "Failed to fetch Strategy for ConfigMap creation")
 		return fmt.Errorf("failed to fetch Strategy for ConfigMap creation: %w", err)
 	}

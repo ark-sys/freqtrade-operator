@@ -4,11 +4,8 @@ metadata:
   name: default-risk
   namespace: freqtrade
 spec:
-  minimalRoi:
-    "0": 0.1
-    "10": 0.05
+  minimal_roi: 0.1
+
   stoploss: -0.2
-  trailingStop: true
-  trailingStopPositive: 0.01
-  trailingStopPositiveOffset: 0.02
-  trailingOnlyOffsetIsReached: true
+  trailing_stop: false
+

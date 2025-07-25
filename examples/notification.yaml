@@ -7,12 +7,6 @@ spec:
   telegram:
     enabled: true
     secretRef: telegram-credentials
-    balanceDustLevel: 0.01
+    balance_dust_level: 0.01
     reload: true
-    allowCustomMessages: true
-  apiServer:
-    enabled: true
-    listenIpAddress: "0.0.0.0"
-    listenPort: 8080
-    verbosity: "info"
-    secretRef: api-server-credentials
+    chat_id: "your-chat-id"

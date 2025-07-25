@@ -20,7 +20,7 @@ func BuildStatefulSet(ctx context.Context, c client.Client, tradeBot freqtradev1
 
 	// Fetch the referenced Strategy resource
 	var strategy freqtradev1alpha1.Strategy
-	err := c.Get(ctx, types.NamespacedName{Namespace: tradeBot.Namespace, Name: tradeBot.Spec.StrategyRef}, &strategy)
+	err := c.Get(ctx, types.NamespacedName{Namespace: tradeBot.Namespace, Name: tradeBot.Spec.References.StrategyRef}, &strategy)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Strategy not found, return an error
@@ -33,8 +33,8 @@ func BuildStatefulSet(ctx context.Context, c client.Client, tradeBot freqtradev1
 
 	// Set default image if not specified
 	image := "freqtradeorg/freqtrade:stable"
-	if tradeBot.Spec.Image != "" {
-		image = tradeBot.Spec.Image
+	if tradeBot.Spec.Deployment != nil && tradeBot.Spec.Deployment.Image != "" {
+		image = tradeBot.Spec.Deployment.Image
 	}
 
 	// Prepare command arguments
@@ -133,7 +133,12 @@ func BuildStatefulSet(ctx context.Context, c client.Client, tradeBot freqtradev1
 									Protocol:      corev1.ProtocolTCP,
 								},
 							},
-							Resources: tradeBot.Spec.Resources,
+							Resources: func() corev1.ResourceRequirements {
+								if tradeBot.Spec.Deployment != nil {
+									return tradeBot.Spec.Deployment.Resources
+								}
+								return corev1.ResourceRequirements{}
+							}(),
 							LivenessProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{

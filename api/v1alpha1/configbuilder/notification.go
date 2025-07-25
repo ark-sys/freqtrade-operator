@@ -49,8 +49,8 @@ func BuildNotificationConfig(
 			}
 		}
 
-		if notification.Spec.Telegram.BalanceDustLevel > 0 {
-			telegram["balance_dust_level"] = notification.Spec.Telegram.BalanceDustLevel
+		if notification.Spec.Telegram.BalanceDustLevel != nil {
+			telegram["balance_dust_level"] = *notification.Spec.Telegram.BalanceDustLevel
 		}
 
 		if notification.Spec.Telegram.Reload {
@@ -191,9 +191,7 @@ func BuildNotificationConfig(
 			webhook["webhookstatus"] = notification.Spec.Webhook.Status
 		}
 
-		if notification.Spec.Webhook.AllowCustomMessages != nil {
-			webhook["allow_custom_messages"] = *notification.Spec.Webhook.AllowCustomMessages
-		}
+		webhook["allow_custom_messages"] = notification.Spec.Webhook.AllowCustomMessages
 
 		cfg["webhook"] = webhook
 	}

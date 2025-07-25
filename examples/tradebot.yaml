@@ -6,65 +6,63 @@ metadata:
   annotations:
     freqtrade.io/preserve-data: "true"
 spec:
-  botName: BTC-Trader
-  tradingMode: spot
-  dryRun: true
-  dryRunWallet: 1000
-  stakeCurrency: USDT
-  stakeAmount: "unlimited"
-  maxOpenTrades: 5
-  fiatDisplayCurrency: USD
-  
+  bot:
+    bot_name: BTC-Trader
+    trading_mode: spot
+    dry_run: true
+    dry_run_wallet: 1000
+    stake_currency: USDT
+    stake_amount: "unlimited"
+    max_open_trades: 20
+    fiat_display_currency: USD
+
   # Advanced trading configuration
-  tradableBalanceRatio: 0.99
-  cancelOpenOrdersOnExit: false
-  initialState: "running"
-  forceEntryEnable: false
+  advanced:
+    tradable_balance_ratio: 0.99
+    cancel_open_orders_on_exit: false
+    initial_state: "running"
+    force_entry_enable: false
   
   # Timeout configuration
-  unfilledTimeout:
+  timeout:
     entry: 10
     exit: 10
-    exitTimeoutCount: 0
+    exit_timeout_count: 0
     unit: "minutes"
-  
-  # Internal processing configuration
-  internals:
-    processThrottleSecs: 5
-  
-  # References to other resources
-  exchangeRef: binance
-  pairlistMethodsRef: default-pairlist-methods
-  strategyRef: default-strategy
-  entryPricingRef: default-entry-pricing
-  exitPricingRef: default-exit-pricing
-  orderTypesRef: default-order-types
-  riskManagementRef: default-risk
-#  notificationRef: telegram-notifications
-  
-  # Deployment configuration
-  image: freqtradeorg/freqtrade:stable
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "500m"
-    limits:
-      memory: "1Gi"
-      cpu: "1"
-  
-  # Storage configuration
-  storageSize: "1Gi"
-  storageClassName: longhorn
-  
+
+  # The config.json is generated from the combination of the following references
+  references:
+    exchangeRef: binance
+    strategyRef: default-strategy
+    pairlistMethodsRef: default-pairlist-methods
+    entryPricingRef: default-entry-pricing
+    exitPricingRef: default-exit-pricing
+    orderTypesRef: default-order-types
+    riskManagementRef: default-risk
+
   # API configuration
-  apiEnabled: true
-  apiServer:  
-    listenIpAddress: "0.0.0.0"  # Custom IP (default: 0.0.0.0)
-    listenPort: 8080              # Custom port (default: 8080)
-    verbosity: "error"             # Custom verbosity (default: error)
-    enableOpenapi: true           # Enable OpenAPI docs (default: false)
-    username: "admin"             # API username (default: none)
-    password: "secret"            # API password (default: none)
-  corsOrigins:
-    - "https://frequi.example.com"
-    - "https://btc-trader.frequi.example.com"
+  apiServer:
+    listen_ip_address: 0.0.0.0
+    listen_port: 8080
+    verbosity: "error"
+    secretRef: freqtrade-api-secret
+    cors_origins:
+      - "https://frequi.example.com"
+      - "https://btc-trader.frequi.example.com"
+
+  # Deployment configuration
+  deployment:
+    #TODO Extend this properly: we should be able to set all the deployment options here
+    image: freqtradeorg/freqtrade:stable
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1"
+    storage_class_name: longhorn
+    storage_size: "1Gi"
+
+
+

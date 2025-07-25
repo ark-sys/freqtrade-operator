@@ -2,14 +2,13 @@
 # since it depends on service name and namespace that are out of this kustomize package.
 # It should be run by config/default
 resources:
-- bases/freqtrade.io_entrypricings.yaml
 - bases/freqtrade.io_exchanges.yaml
-- bases/freqtrade.io_exitpricings.yaml
 - bases/freqtrade.io_frequis.yaml
 - bases/freqtrade.io_notifications.yaml
-- bases/freqtrade.io_ordertypes.yaml
+- bases/freqtrade.io_orders.yaml
 - bases/freqtrade.io_pairlistmethods.yaml
 - bases/freqtrade.io_pairlists.yaml
+- bases/freqtrade.io_pricings.yaml
 - bases/freqtrade.io_riskmanagements.yaml
 - bases/freqtrade.io_strategies.yaml
 - bases/freqtrade.io_tradebots.yaml

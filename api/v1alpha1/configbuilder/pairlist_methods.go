@@ -28,9 +28,7 @@ func BuildPairlistMethodsConfig(pairlistMethods *freqtradev1alpha1.PairlistMetho
 		// Add method-specific configuration options
 		switch method.Method {
 		case freqtradev1alpha1.StaticPairList:
-			if method.AllowInactive != nil {
-				methodMap["allow_inactive"] = method.AllowInactive
-			}
+			methodMap["allow_inactive"] = method.AllowInactive
 
 		case freqtradev1alpha1.VolumePairList:
 			if method.SortKey != "" {

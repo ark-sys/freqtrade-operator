@@ -15,14 +15,14 @@ import (
 // BuildUserDataPVC creates a PVC for the bot's user_data directory
 func BuildUserDataPVC(tradeBot freqtradev1alpha1.TradeBot) corev1.PersistentVolumeClaim {
 	storageSize := resource.MustParse("1Gi") // Default size
-	if tradeBot.Spec.StorageSize != "" {
-		storageSize = resource.MustParse(tradeBot.Spec.StorageSize)
+	if tradeBot.Spec.Deployment != nil && tradeBot.Spec.Deployment.StorageSize != "" {
+		storageSize = resource.MustParse(tradeBot.Spec.Deployment.StorageSize)
 	}
 
 	// Default storage class
 	storageClassName := "standard"
-	if tradeBot.Spec.StorageClassName != "" {
-		storageClassName = tradeBot.Spec.StorageClassName
+	if tradeBot.Spec.Deployment != nil && tradeBot.Spec.Deployment.StorageClassName != "" {
+		storageClassName = tradeBot.Spec.Deployment.StorageClassName
 	}
 
 	return corev1.PersistentVolumeClaim{

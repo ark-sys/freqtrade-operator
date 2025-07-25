@@ -513,7 +513,7 @@ func (r *Reconciler) buildFreqUIIngress(ctx context.Context, frequi *freqtradev1
 		// Fetch the TradeBot to verify it exists and has API enabled
 		var tradeBot freqtradev1alpha1.TradeBot
 		err := r.Get(ctx, types.NamespacedName{Name: tradeBotRef, Namespace: frequi.Namespace}, &tradeBot)
-		if err == nil && tradeBot.Spec.APIEnabled {
+		if err == nil && tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.Enabled {
 			apiRoutes = append(apiRoutes, resources.TradeBotAPIRoute{
 				Name:        tradeBotRef,
 				ServiceName: tradeBotRef,

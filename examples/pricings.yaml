@@ -1,18 +1,22 @@
 apiVersion: freqtrade.io/v1alpha1
-kind: EntryPricing
+kind: Pricing
 metadata:
   name: default-entry-pricing
   namespace: freqtrade
 spec:
-  priceSide: "bid"
-  useOrderBook: false
+  price_side: "bid"
+  use_order_book: false
+  price_last_balance: false
+
 
 ---
 apiVersion: freqtrade.io/v1alpha1
-kind: ExitPricing
+kind: Pricing
 metadata:
   name: default-exit-pricing
   namespace: freqtrade
 spec:
-  priceSide: "bid"
-  useOrderBook: false
+    price_side: "ask"
+    use_order_book: false
+    price_last_balance: false
+

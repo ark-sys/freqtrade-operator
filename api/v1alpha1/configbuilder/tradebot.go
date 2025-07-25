@@ -61,63 +61,67 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 	}
 
 	// DataConfig
-	data := tradeBot.Spec.Data
-	if data.DataformatOHLCV != "" {
-		cfg["dataformat_ohlcv"] = data.DataformatOHLCV
-	}
-	if data.DataformatTrades != "" {
-		cfg["dataformat_trades"] = data.DataformatTrades
-	}
-	if data.PositionAdjustment != "" {
-		cfg["position_adjustment"] = data.PositionAdjustment
-	}
-	if data.NewPairsDaysAgo != nil {
-		cfg["new_pairs_days_ago"] = data.NewPairsDaysAgo
-	}
-	if data.DownloadTrades {
-		cfg["download_trades"] = data.DownloadTrades
-	}
-	if data.MaxEntryPositionAdjustment != nil {
-		cfg["max_entry_position_adjustment"] = *data.MaxEntryPositionAdjustment
-	}
-	if data.AvailableCapital != nil {
-		cfg["available_capital"] = *data.AvailableCapital
-	}
-	if data.AmendLastStakeAmount {
-		cfg["amend_last_stake_amount"] = data.AmendLastStakeAmount
-	}
-	if data.LastStakeAmountMinRatio != nil {
-		cfg["last_stake_amount_min_ratio"] = data.LastStakeAmountMinRatio
-	}
-	if data.ProcessOnlyNewCandles {
-		cfg["process_only_new_candles"] = data.ProcessOnlyNewCandles
-	}
-	if data.AmountReservePercent != nil {
-		cfg["amount_reserve_percent"] = *data.AmountReservePercent
-	}
-	if data.ReduceDfFootprint {
-		cfg["reduce_df_footprint"] = data.ReduceDfFootprint
-	}
-	if data.CustomPriceMaxDistanceRatio != nil {
-		cfg["custom_price_max_distance_ratio"] = data.CustomPriceMaxDistanceRatio
+	if tradeBot.Spec.Data != nil {
+		data := tradeBot.Spec.Data
+		if data.DataformatOHLCV != "" {
+			cfg["dataformat_ohlcv"] = data.DataformatOHLCV
+		}
+		if data.DataformatTrades != "" {
+			cfg["dataformat_trades"] = data.DataformatTrades
+		}
+		if data.PositionAdjustment != "" {
+			cfg["position_adjustment"] = data.PositionAdjustment
+		}
+		if data.NewPairsDaysAgo != nil {
+			cfg["new_pairs_days_ago"] = data.NewPairsDaysAgo
+		}
+		if data.DownloadTrades {
+			cfg["download_trades"] = data.DownloadTrades
+		}
+		if data.MaxEntryPositionAdjustment != nil {
+			cfg["max_entry_position_adjustment"] = *data.MaxEntryPositionAdjustment
+		}
+		if data.AvailableCapital != nil {
+			cfg["available_capital"] = *data.AvailableCapital
+		}
+		if data.AmendLastStakeAmount {
+			cfg["amend_last_stake_amount"] = data.AmendLastStakeAmount
+		}
+		if data.LastStakeAmountMinRatio != nil {
+			cfg["last_stake_amount_min_ratio"] = data.LastStakeAmountMinRatio
+		}
+		if data.ProcessOnlyNewCandles {
+			cfg["process_only_new_candles"] = data.ProcessOnlyNewCandles
+		}
+		if data.AmountReservePercent != nil {
+			cfg["amount_reserve_percent"] = *data.AmountReservePercent
+		}
+		if data.ReduceDfFootprint {
+			cfg["reduce_df_footprint"] = data.ReduceDfFootprint
+		}
+		if data.CustomPriceMaxDistanceRatio != nil {
+			cfg["custom_price_max_distance_ratio"] = data.CustomPriceMaxDistanceRatio
+		}
 	}
 
 	// AdvancedConfig
-	adv := tradeBot.Spec.Advanced
-	if adv.TradableBalanceRatio != nil {
-		cfg["tradable_balance_ratio"] = *adv.TradableBalanceRatio
-	}
-	if adv.CancelOpenOrdersOnExit {
-		cfg["cancel_open_orders_on_exit"] = adv.CancelOpenOrdersOnExit
-	}
-	if adv.MarginMode != "" {
-		cfg["margin_mode"] = adv.MarginMode
-	}
-	if adv.InitialState != "" {
-		cfg["initial_state"] = adv.InitialState
-	}
-	if adv.ForceEntryEnable {
-		cfg["force_entry_enable"] = adv.ForceEntryEnable
+	if tradeBot.Spec.Advanced != nil {
+		adv := tradeBot.Spec.Advanced
+		if adv.TradableBalanceRatio != nil {
+			cfg["tradable_balance_ratio"] = *adv.TradableBalanceRatio
+		}
+		if adv.CancelOpenOrdersOnExit {
+			cfg["cancel_open_orders_on_exit"] = adv.CancelOpenOrdersOnExit
+		}
+		if adv.MarginMode != "" {
+			cfg["margin_mode"] = adv.MarginMode
+		}
+		if adv.InitialState != "" {
+			cfg["initial_state"] = adv.InitialState
+		}
+		if adv.ForceEntryEnable {
+			cfg["force_entry_enable"] = adv.ForceEntryEnable
+		}
 	}
 
 	// UnfilledTimeoutConfig
