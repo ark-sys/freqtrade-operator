@@ -38,15 +38,41 @@ spec:
           spec:
             description: ExchangeSpec defines the desired state of Exchange
             properties:
+              account_id:
+                type: string
               blacklistRef:
                 type: string
-              ccxtAsyncConfig:
+              ccxt_async_config:
                 x-kubernetes-preserve-unknown-fields: true
-              ccxtConfig:
+              ccxt_config:
                 x-kubernetes-preserve-unknown-fields: true
+              ccxt_sync_config:
+                x-kubernetes-preserve-unknown-fields: true
+              enable_ws:
+                type: boolean
+              key:
+                type: string
+              log_responses:
+                type: boolean
+              market_refresh_interval:
+                type: integer
               name:
                 type: string
+              outdated_offset:
+                type: integer
+              password:
+                type: string
+              private_key:
+                type: string
+              secret:
+                type: string
               secretRef:
+                type: string
+              uid:
+                type: string
+              unkown_fee_rate:
+                type: boolean
+              wallet_address:
                 type: string
               whitelistRef:
                 type: string

@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: entrypricings.freqtrade.io
+  name: pricings.freqtrade.io
 spec:
   group: freqtrade.io
   names:
-    kind: EntryPricing
-    listKind: EntryPricingList
-    plural: entrypricings
-    singular: entrypricing
+    kind: Pricing
+    listKind: PricingList
+    plural: pricings
+    singular: pricing
   scope: Namespaced
   versions:
   - name: v1alpha1
@@ -36,28 +36,28 @@ spec:
           metadata:
             type: object
           spec:
-            description: EntryPricingSpec defines the desired state of EntryPricing
+            description: PricingSpec defines the desired state of Pricing
             properties:
-              checkDepthOfMarket:
-                description: EntryPricingCheckDepthOfMarket defines the check_depth_of_market
+              check_depth_of_market:
+                description: PricingCheckDepthOfMarket defines the check_depth_of_market
                   settings
                 properties:
-                  bidsToAskDelta:
+                  bids_to_ask_delta:
                     type: number
                   enabled:
                     type: boolean
                 type: object
-              orderBookTop:
+              order_book_top:
                 type: integer
-              priceLastBalance:
-                type: boolean
-              priceSide:
+              price_last_balance:
+                type: number
+              price_side:
                 type: string
-              useOrderBook:
+              use_order_book:
                 type: boolean
             type: object
           status:
-            description: EntryPricingStatus defines the observed state of EntryPricing
+            description: PricingStatus defines the observed state of Pricing
             properties:
               message:
                 type: string

@@ -38,21 +38,48 @@ spec:
           spec:
             description: RiskManagementSpec defines the desired state of RiskManagement
             properties:
-              minimalRoi:
+              backtest_breakdown:
+                items:
+                  type: string
+                type: array
+              exit_profit_offset:
+                type: number
+              exit_profit_only:
+                type: boolean
+              fee:
+                type: number
+              ignore_buying_expired_candle_after:
+                type: integer
+              ignore_roi_if_entry_signal:
+                type: boolean
+              liquidation_buffer:
+                type: number
+              lookahead_analysis_export_filename:
+                type: string
+              minimal_roi:
                 additionalProperties:
                   type: number
-                description: MinimalROI maps duration (in minutes) to ROI ratio
                 type: object
+              minimum_trade_amount:
+                type: integer
+              startup_candle:
+                items:
+                  type: integer
+                type: array
               stoploss:
                 type: number
-              trailingOnlyOffsetIsReached:
+              targeted_trade_amount:
+                type: integer
+              trailing_only_offset_is_reached:
                 type: boolean
-              trailingStop:
+              trailing_stop:
                 type: boolean
-              trailingStopPositive:
+              trailing_stop_positive:
                 type: number
-              trailingStopPositiveOffset:
+              trailing_stop_positive_offset:
                 type: number
+              use_exit_signal:
+                type: boolean
             type: object
           status:
             description: RiskManagementStatus defines the observed state of RiskManagement
