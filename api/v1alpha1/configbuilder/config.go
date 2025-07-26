@@ -24,21 +24,20 @@ func AssembleConfig(
 	notification *v1alpha1.Notification,
 	strategy *v1alpha1.Strategy,
 	pairlistMethods *v1alpha1.PairlistMethods,
-	existingJWTKey string,
-) (map[string]string, string, error) {
+) (map[string]string, error) {
 	// Create the main config map
 	config := make(map[string]interface{})
 
 	// Retrieve apiCredentials if any
 	apiCredentials, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBot.Spec.APIServer.SecretRef)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get API credentials: %w", err)
+		return nil, fmt.Errorf("failed to get API credentials: %w", err)
 	}
 
 	// Add bot-level configuration
-	botConfig, jwtSecretKey, err := BuildTradeBotConfig(tradeBot, existingJWTKey, apiCredentials)
+	botConfig, err := BuildTradeBotConfig(tradeBot, apiCredentials)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to build TradeBot config: %w", err)
+		return nil, fmt.Errorf("failed to build TradeBot config: %w", err)
 	}
 
 	for k, v := range botConfig {
@@ -48,7 +47,7 @@ func AssembleConfig(
 	// Add exchange configuration
 	exchangeConfig, err := BuildExchangeConfig(ctx, k8sClient, exchange)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to build Exchange config: %w", err)
+		return nil, fmt.Errorf("failed to build Exchange config: %w", err)
 	}
 
 	if exchangeConfig != nil {
@@ -106,7 +105,7 @@ func AssembleConfig(
 	// Add notification configuration
 	notificationConfig, err := BuildNotificationConfig(ctx, k8sClient, notification)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to build Notification config: %w", err)
+		return nil, fmt.Errorf("failed to build Notification config: %w", err)
 	}
 
 	if notificationConfig != nil {
@@ -126,10 +125,10 @@ func AssembleConfig(
 	// Marshal to JSON
 	configBytes, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to marshal config to JSON: %w", err)
+		return nil, fmt.Errorf("failed to marshal config to JSON: %w", err)
 	}
 
-	return map[string]string{"config.json": string(configBytes)}, jwtSecretKey, nil
+	return map[string]string{"config.json": string(configBytes)}, nil
 }
 
 // GetSecretData retrieves data from a Kubernetes Secret

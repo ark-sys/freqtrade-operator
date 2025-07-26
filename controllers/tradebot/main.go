@@ -105,12 +105,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// 5. Assemble config.json from TradeBot and referenced CRDs using configbuilder
-	configData, jwtSecretKey, err := configbuilder.AssembleConfig(
+	configData, err := configbuilder.AssembleConfig(
 		ctx, r.Client,
 		&tradeBot, resources.exchange,
 		resources.entryPricing, resources.exitPricing, resources.order,
 		resources.riskManagement, resources.notification, resources.strategy,
-		resources.pairlistMethods, tradeBot.Status.JWTSecretKey,
+		resources.pairlistMethods,
 	)
 	if err != nil {
 		logger.Error(err, "Failed to assemble config")
@@ -132,7 +132,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// 7. Update status with success
 	tradeBot.Status.Phase = "Running"
 	tradeBot.Status.Message = "Bot deployed successfully"
-	tradeBot.Status.JWTSecretKey = jwtSecretKey
 	statusChanged = !reflect.DeepEqual(originalStatus, &tradeBot.Status)
 
 	logger.Info("TradeBot reconciliation completed successfully", "name", tradeBot.Name)

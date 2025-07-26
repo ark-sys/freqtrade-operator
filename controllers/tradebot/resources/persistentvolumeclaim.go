@@ -61,23 +61,24 @@ func ApplyPVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolume
 	// Only allow increasing storage
 	existingQty := existing.Spec.Resources.Requests[corev1.ResourceStorage]
 	newQty := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	if newQty.Cmp(existingQty) > 0 {
-		existing.Spec.Resources.Requests[corev1.ResourceStorage] = newQty
-		needsUpdate = true
+	if newQty.Cmp(existingQty) < 0 {
+		return nil // Do not allow decreasing storage
 	}
 
 	// Update labels and annotations if they differ
 	if !reflect.DeepEqual(existing.Labels, pvc.Labels) {
-		existing.Labels = pvc.Labels
+		pvc.Labels = existing.Labels
 		needsUpdate = true
 	}
 	if !reflect.DeepEqual(existing.Annotations, pvc.Annotations) {
-		existing.Annotations = pvc.Annotations
+		pvc.Annotations = existing.Annotations
 		needsUpdate = true
 	}
 
 	if needsUpdate {
-		return c.Update(ctx, &existing)
+		pvc.ResourceVersion = existing.ResourceVersion
+
+		return c.Update(ctx, pvc)
 	}
 
 	return nil

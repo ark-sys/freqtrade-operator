@@ -17,9 +17,9 @@ func GenerateJWTSecretKey() (string, error) {
 }
 
 // BuildTradeBotConfig builds the base bot configuration for Freqtrade config.json
-func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string, apiCredentials map[string][]byte) (map[string]interface{}, string, error) {
+func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, apiCredentials map[string][]byte) (map[string]interface{}, error) {
 	if tradeBot == nil {
-		return nil, "", nil
+		return nil, nil
 	}
 
 	cfg := map[string]interface{}{}
@@ -169,22 +169,11 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string, api
 	}
 
 	// API Server
-	jwtSecretKey := existingJWTKey
 	if tradeBot.Spec.APIServer != nil {
 
 		apiServer := map[string]interface{}{}
 		if tradeBot.Spec.APIServer.Enabled != nil {
 			apiServer["enabled"] = *tradeBot.Spec.APIServer.Enabled
-			if jwtSecretKey == "" {
-				//TODO: lol, this needs to change
-				var err error
-				jwtSecretKey, err = GenerateJWTSecretKey()
-				if err != nil {
-					jwtSecretKey = "1ewq2r3t4y5u6i7o8p9asdfghjklzxcvbnm1234567890"
-				}
-			}
-
-			apiServer["jwt_secret_key"] = jwtSecretKey
 		}
 		if tradeBot.Spec.APIServer.ListenIP != "" {
 			apiServer["listen_ip_address"] = tradeBot.Spec.APIServer.ListenIP
@@ -207,10 +196,9 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string, api
 			if apiCredentials["password"] != nil {
 				apiServer["password"] = string(apiCredentials["password"])
 			}
-			//if apiCredentials["jwt_secret_key"] != nil {
-			//	jwtSecretKey = string(apiCredentials["jwt_secret_key"])
-			//	apiServer["jwt_secret_key"] = jwtSecretKey
-			//}
+			if apiCredentials["jwt_secret_key"] != nil {
+				apiServer["jwt_secret_key"] = string(apiCredentials["jwt_secret_key"])
+			}
 		}
 
 		if tradeBot.Spec.APIServer.Username != "" {
@@ -218,6 +206,10 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string, api
 		}
 		if tradeBot.Spec.APIServer.Password != "" {
 			apiServer["password"] = tradeBot.Spec.APIServer.Password
+		}
+		if tradeBot.Spec.APIServer.JWTSecretKey != "" {
+			apiServer["jwt_secret_key"] = tradeBot.Spec.APIServer.JWTSecretKey
+
 		}
 
 		if len(tradeBot.Spec.APIServer.CORSOrigins) > 0 {
@@ -240,5 +232,5 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string, api
 		}
 	}
 
-	return cfg, jwtSecretKey, nil
+	return cfg, nil
 }

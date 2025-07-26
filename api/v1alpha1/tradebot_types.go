@@ -90,16 +90,16 @@ type References struct {
 	StrategyRef        string `json:"strategyRef"`
 }
 type APIServerConfig struct {
-	Enabled       *bool  `json:"enabled,omitempty"`
-	ListenIP      string `json:"listen_ip_address,omitempty"`
-	ListenPort    *int   `json:"listen_port,omitempty"`
-	Verbosity     string `json:"verbosity,omitempty"`
-	EnableOpenAPI *bool  `json:"enable_openapi,omitempty"`
-	Username      string `json:"username,omitempty"`
-	Password      string `json:"password,omitempty"`
-	//jwtSecretKey string `json:"jwtSecretKey,omitempty"`
-	SecretRef   string   `json:"secretRef,omitempty"`
-	CORSOrigins []string `json:"cors_origins,omitempty"`
+	Enabled       *bool    `json:"enabled,omitempty"`
+	ListenIP      string   `json:"listen_ip_address,omitempty"`
+	ListenPort    *int     `json:"listen_port,omitempty"`
+	Verbosity     string   `json:"verbosity,omitempty"`
+	EnableOpenAPI *bool    `json:"enable_openapi,omitempty"`
+	Username      string   `json:"username,omitempty"`
+	Password      string   `json:"password,omitempty"`
+	JWTSecretKey  string   `json:"jwtSecretKey,omitempty"`
+	SecretRef     string   `json:"secretRef,omitempty"`
+	CORSOrigins   []string `json:"cors_origins,omitempty"`
 }
 
 type ExperimentalConfig struct {
@@ -120,9 +120,8 @@ type TBAppConfig struct {
 
 // TradeBotStatus defines the observed state of TradeBot
 type TradeBotStatus struct {
-	Phase        string `json:"phase,omitempty"`
-	Message      string `json:"message,omitempty"`
-	JWTSecretKey string `json:"jwt_secret_key,omitempty"`
+	Phase   string `json:"phase,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 //+kubebuilder:object:root=true
