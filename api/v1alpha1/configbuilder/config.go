@@ -17,8 +17,6 @@ func AssembleConfig(
 	k8sClient client.Client,
 	tradeBot *v1alpha1.TradeBot,
 	exchange *v1alpha1.Exchange,
-	pairWhitelist *v1alpha1.PairList,
-	pairBlacklist *v1alpha1.PairList,
 	entryPricing *v1alpha1.Pricing,
 	exitPricing *v1alpha1.Pricing,
 	orderTypes *v1alpha1.Order,

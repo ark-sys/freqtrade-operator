@@ -21,11 +21,12 @@ func BuildNotificationConfig(
 	cfg := map[string]interface{}{}
 
 	// Telegram configuration
-	if notification.Spec.Telegram != nil && notification.Spec.Telegram.Enabled {
-		telegram := map[string]interface{}{
-			"enabled": true,
-		}
+	if notification.Spec.Telegram != nil {
+		telegram := map[string]interface{}{}
 
+		if notification.Spec.Telegram.Enabled != nil {
+			telegram["enabled"] = *notification.Spec.Telegram.Enabled
+		}
 		// Get Telegram credentials from Secret
 		if notification.Spec.Telegram.SecretRef != "" {
 			secretData, err := GetSecretData(ctx, k8sClient, notification.Namespace, notification.Spec.Telegram.SecretRef)
@@ -53,12 +54,12 @@ func BuildNotificationConfig(
 			telegram["balance_dust_level"] = *notification.Spec.Telegram.BalanceDustLevel
 		}
 
-		if notification.Spec.Telegram.Reload {
-			telegram["reload"] = notification.Spec.Telegram.Reload
+		if notification.Spec.Telegram.Reload != nil {
+			telegram["reload"] = *notification.Spec.Telegram.Reload
 		}
 
-		if notification.Spec.Telegram.AllowCustomMessages {
-			telegram["allow_custom_messages"] = notification.Spec.Telegram.AllowCustomMessages
+		if notification.Spec.Telegram.AllowCustomMessages != nil {
+			telegram["allow_custom_messages"] = *notification.Spec.Telegram.AllowCustomMessages
 		}
 
 		if notification.Spec.Telegram.TopicID != "" {
@@ -157,7 +158,7 @@ func BuildNotificationConfig(
 	}
 
 	// Webhook configuration
-	if notification.Spec.Webhook != nil && notification.Spec.Webhook.Enabled {
+	if notification.Spec.Webhook != nil && *notification.Spec.Webhook.Enabled {
 		webhook := map[string]interface{}{
 			"enabled": true,
 			"url":     notification.Spec.Webhook.URL,
@@ -191,17 +192,18 @@ func BuildNotificationConfig(
 			webhook["webhookstatus"] = notification.Spec.Webhook.Status
 		}
 
-		webhook["allow_custom_messages"] = notification.Spec.Webhook.AllowCustomMessages
+		webhook["allow_custom_messages"] = *notification.Spec.Webhook.AllowCustomMessages
 
 		cfg["webhook"] = webhook
 	}
 
 	// Discord configuration
-	if notification.Spec.Discord != nil && notification.Spec.Discord.Enabled {
-		discord := map[string]interface{}{
-			"enabled": true,
-		}
+	if notification.Spec.Discord != nil {
+		discord := map[string]interface{}{}
 
+		if notification.Spec.Discord.Enabled != nil {
+			discord["enabled"] = *notification.Spec.Discord.Enabled
+		}
 		if notification.Spec.Discord.WebhookURL != "" {
 			discord["webhook_url"] = notification.Spec.Discord.WebhookURL
 		}

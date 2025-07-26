@@ -21,9 +21,9 @@ type ExchangeSpec struct {
 	CcxtSyncConfig        apiextensionsv1.JSON `json:"ccxt_sync_config,omitempty"` // CCXT sync config for the exchange
 	WhitelistRef          string               `json:"whitelistRef,omitempty"`     // Reference to PairList
 	BlacklistRef          string               `json:"blacklistRef,omitempty"`     // Reference to PairList
-	LogResponses          bool                 `json:"log_responses,omitempty"`
-	EnableWS              bool                 `json:"enable_ws,omitempty"` // Enable WebSocket support
-	UnkownFeeRate         bool                 `json:"unkown_fee_rate,omitempty"`
+	LogResponses          *bool                `json:"log_responses,omitempty"`
+	EnableWS              *bool                `json:"enable_ws,omitempty"` // Enable WebSocket support
+	UnkownFeeRate         *bool                `json:"unkown_fee_rate,omitempty"`
 	OutdatedOffset        *int                 `json:"outdated_offset,omitempty"`         // Offset in minutes for outdated data
 	MarketRefreshInterval *int                 `json:"market_refresh_interval,omitempty"` // Interval in seconds to refresh market data
 

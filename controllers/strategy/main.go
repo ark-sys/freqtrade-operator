@@ -141,6 +141,7 @@ func isValidPythonClassName(name string) bool {
 	}
 
 	// Must start with a letter or underscore
+	// TODO: A new hope
 	if !(name[0] >= 'A' && name[0] <= 'Z') &&
 		!(name[0] >= 'a' && name[0] <= 'z') &&
 		name[0] != '_' {

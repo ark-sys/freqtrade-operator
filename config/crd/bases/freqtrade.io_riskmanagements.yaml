@@ -57,7 +57,9 @@ spec:
               lookahead_analysis_export_filename:
                 type: string
               minimal_roi:
-                type: number
+                additionalProperties:
+                  type: number
+                type: object
               minimum_trade_amount:
                 type: integer
               startup_candle:

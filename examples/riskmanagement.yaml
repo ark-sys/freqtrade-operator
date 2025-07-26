@@ -4,8 +4,9 @@ metadata:
   name: default-risk
   namespace: freqtrade
 spec:
-  minimal_roi: 0.1
-
+  minimal_roi:
+    "20": 0.2
+    "10": 0.1
   stoploss: -0.2
   trailing_stop: false
 

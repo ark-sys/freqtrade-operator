@@ -3,6 +3,8 @@ package shared
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -247,7 +249,7 @@ func FinishReconciliation(phase string, err error, requeueAfter time.Duration) R
 	if phase == "Valid" {
 		// Config is valid and stable, don't requeue frequently
 		return ReconcileResult{
-			Result: ctrl.Result{RequeueAfter: 5 * time.Minute},
+			Result: ctrl.Result{},
 			Error:  nil,
 		}
 	}
@@ -257,4 +259,29 @@ func FinishReconciliation(phase string, err error, requeueAfter time.Duration) R
 		Result: ctrl.Result{RequeueAfter: requeueAfter},
 		Error:  nil,
 	}
+}
+
+func MergeSpecsWithStrategicPatch[T any](defaultSpec, userSpec T, patchMeta any) T {
+	defaultJSON, err := json.Marshal(defaultSpec)
+	if err != nil {
+		// Log error if you have logging setup
+		return defaultSpec
+	}
+
+	userJSON, err := json.Marshal(userSpec)
+	if err != nil {
+		return defaultSpec
+	}
+
+	merged, err := strategicpatch.StrategicMergePatch(defaultJSON, userJSON, patchMeta)
+	if err != nil {
+		return defaultSpec
+	}
+
+	var result T
+	if err := json.Unmarshal(merged, &result); err != nil {
+		return defaultSpec
+	}
+
+	return result
 }

@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +16,26 @@ import (
 
 // BuildService creates a Service for the bot
 func BuildService(tradeBot freqtradev1alpha1.TradeBot) corev1.Service {
+	// Build default service spec
+	baseServiceSpec := corev1.ServiceSpec{
+		Selector: map[string]string{"app": tradeBot.Name},
+		Type:     corev1.ServiceTypeClusterIP, // Default service type
+		Ports: []corev1.ServicePort{
+			{
+				Name:       "http",
+				Port:       8080,
+				TargetPort: intstr.FromInt(8080),
+				Protocol:   corev1.ProtocolTCP,
+			},
+		},
+	}
+
+	// Merge with user-provided service configuration
+	finalSpec := baseServiceSpec
+	if tradeBot.Spec.App != nil && !reflect.DeepEqual(tradeBot.Spec.App.ServiceSpec, corev1.ServiceSpec{}) {
+		finalSpec = shared.MergeSpecsWithStrategicPatch(baseServiceSpec, tradeBot.Spec.App.ServiceSpec, &corev1.ServiceSpec{})
+	}
+
 	return corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tradeBot.Name,
@@ -23,17 +44,7 @@ func BuildService(tradeBot freqtradev1alpha1.TradeBot) corev1.Service {
 				*metav1.NewControllerRef(&tradeBot, freqtradev1alpha1.GroupVersion.WithKind("TradeBot")),
 			},
 		},
-		Spec: corev1.ServiceSpec{
-			Selector: map[string]string{"app": tradeBot.Name},
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "http",
-					Port:       8080,
-					TargetPort: intstr.FromInt(8080),
-					Protocol:   corev1.ProtocolTCP,
-				},
-			},
-		},
+		Spec: finalSpec,
 	}
 }
 
@@ -65,11 +76,30 @@ func ApplyService(ctx context.Context, c client.Client, svc *corev1.Service) err
 		needsUpdate = true
 	}
 
+	// Compare session affinity
+	if existing.Spec.SessionAffinity != svc.Spec.SessionAffinity {
+		needsUpdate = true
+	}
+
+	if !reflect.DeepEqual(existing.Spec.LoadBalancerSourceRanges, svc.Spec.LoadBalancerSourceRanges) {
+		needsUpdate = true
+	}
+
 	// Only update if there are actual changes
 	if needsUpdate {
 		svc.ResourceVersion = existing.ResourceVersion
 		// Preserve the cluster IP that was assigned
 		svc.Spec.ClusterIP = existing.Spec.ClusterIP
+		// Preserve other system-assigned fields
+		if existing.Spec.ClusterIPs != nil {
+			svc.Spec.ClusterIPs = existing.Spec.ClusterIPs
+		}
+		if existing.Spec.IPFamilies != nil {
+			svc.Spec.IPFamilies = existing.Spec.IPFamilies
+		}
+		if existing.Spec.IPFamilyPolicy != nil {
+			svc.Spec.IPFamilyPolicy = existing.Spec.IPFamilyPolicy
+		}
 		return c.Update(ctx, svc)
 	}
 

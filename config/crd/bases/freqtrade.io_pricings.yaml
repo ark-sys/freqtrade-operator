@@ -50,7 +50,7 @@ spec:
               order_book_top:
                 type: integer
               price_last_balance:
-                type: boolean
+                type: number
               price_side:
                 type: string
               use_order_book:

@@ -27,7 +27,7 @@ type Types struct {
 	ForceEntry                   string   `json:"force_entry,omitempty"`
 	ForceExit                    string   `json:"force_exit,omitempty"`
 	Stoploss                     string   `json:"stoploss,omitempty"`
-	StoplossOnExchange           bool     `json:"stoploss_on_exchange,omitempty"`
+	StoplossOnExchange           *bool    `json:"stoploss_on_exchange,omitempty"`
 	StoplossOnExchangeInterval   *int     `json:"stoploss_on_exchange_interval,omitempty"`
 	StoplossOnExchangeLimitRatio *float64 `json:"stoploss_on_exchange_limit_ratio,omitempty"`
 }

@@ -46,19 +46,19 @@ func BuildExchangeConfig(
 	if exchange.Spec.PrivateKey != "" {
 		cfg["private_key"] = exchange.Spec.PrivateKey
 	}
-	if exchange.Spec.LogResponses {
-		cfg["log_responses"] = exchange.Spec.LogResponses
+	if exchange.Spec.LogResponses != nil {
+		cfg["log_responses"] = *exchange.Spec.LogResponses
 	}
-	if exchange.Spec.EnableWS {
-		cfg["enable_ws"] = exchange.Spec.EnableWS
+	if exchange.Spec.EnableWS != nil {
+		cfg["enable_ws"] = *exchange.Spec.EnableWS
 	}
-	if exchange.Spec.UnkownFeeRate {
-		cfg["unkown_fee_rate"] = exchange.Spec.UnkownFeeRate
+	if exchange.Spec.UnkownFeeRate != nil {
+		cfg["unkown_fee_rate"] = *exchange.Spec.UnkownFeeRate
 	}
-	if exchange.Spec.OutdatedOffset != nil && *exchange.Spec.OutdatedOffset > 0 {
+	if exchange.Spec.OutdatedOffset != nil {
 		cfg["outdated_offset"] = *exchange.Spec.OutdatedOffset
 	}
-	if exchange.Spec.MarketRefreshInterval != nil && *exchange.Spec.MarketRefreshInterval > 0 {
+	if exchange.Spec.MarketRefreshInterval != nil {
 		cfg["market_refresh_interval"] = *exchange.Spec.MarketRefreshInterval
 	}
 
@@ -111,11 +111,49 @@ func BuildExchangeConfig(
 	}
 
 	if exchange.Spec.WhitelistRef != "" {
-		cfg["pair_whitelist"] = exchange.Spec.WhitelistRef
+		whitelist, err := GetPairList(ctx, k8sClient, exchange.Namespace, exchange.Spec.WhitelistRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get whitelist pair list %s: %w", exchange.Spec.WhitelistRef, err)
+		}
+		if len(whitelist) > 0 {
+			cfg["pair_whitelist"] = whitelist
+		} else {
+			return nil, fmt.Errorf("whitelist pair list %s is empty", exchange.Spec.WhitelistRef)
+		}
+
 	}
 	if exchange.Spec.BlacklistRef != "" {
-		cfg["pair_blacklist"] = exchange.Spec.BlacklistRef
+		blacklist, err := GetPairList(ctx, k8sClient, exchange.Namespace, exchange.Spec.BlacklistRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get blacklist pair list %s: %w", exchange.Spec.BlacklistRef, err)
+		}
+		if len(blacklist) > 0 {
+			cfg["pair_blacklist"] = blacklist
+		} else {
+			return nil, fmt.Errorf("blacklist pair list %s is empty", exchange.Spec.BlacklistRef)
+		}
 	}
 
 	return cfg, nil
+}
+
+func GetPairList(
+	ctx context.Context,
+	k8sClient client.Client,
+	namespace string,
+	listRef string,
+) ([]string, error) {
+	// This function should retrieve the PairList resource
+	// and return the list of pairs as a slice of strings
+
+	var pairList v1alpha1.PairList
+	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: listRef}, &pairList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pair list %s: %w", listRef, err)
+	}
+	pairs := make([]string, 0, len(pairList.Spec.Pairs))
+	for _, pair := range pairList.Spec.Pairs {
+		pairs = append(pairs, pair)
+	}
+	return pairs, nil
 }

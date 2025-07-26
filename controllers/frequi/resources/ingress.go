@@ -1,32 +1,43 @@
 package resources
 
 import (
+	"context"
+	"github.com/ark-sys/freqtrade-operator/controllers/shared"
+	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// TradeBotAPIRoute represents a TradeBot API route configuration
+type TradeBotAPIRoute struct {
+	Name        string
+	ServiceName string
+	PathPrefix  string
+}
+
 // BuildFreqUIIngress creates an Ingress for FreqUI with subdomain-based API routing
-func BuildFreqUIIngress(options FreqUIOptions) networkingv1.Ingress {
+// BuildFreqUIIngress creates an Ingress for FreqUI with subdomain-based API routing
+func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []TradeBotAPIRoute) networkingv1.Ingress {
+	spec := frequi.Spec
 	pathType := networkingv1.PathTypePrefix
 
-	// Default host if not specified
-	host := options.Name + "." + options.Namespace + ".svc.cluster.local"
-	if options.Host != "" {
-		host = options.Host
+	// Use Host from spec if set, else default
+	mainHost := spec.Host
+	if mainHost == "" {
+		mainHost = frequi.Name + "." + frequi.Namespace + ".svc.cluster.local"
 	}
 
-	// Prepare annotations (no regex needed for subdomain approach)
-	annotations := make(map[string]string)
-	for k, v := range options.IngressAnnotations {
-		annotations[k] = v
-	}
-
-	// Build ingress rules - UI host + API subdomains
 	var rules []networkingv1.IngressRule
 
-	// Add main UI rule (clean, no complex routing)
+	// Add main UI rule
 	rules = append(rules, networkingv1.IngressRule{
-		Host: host,
+		Host: mainHost,
 		IngressRuleValue: networkingv1.IngressRuleValue{
 			HTTP: &networkingv1.HTTPIngressRuleValue{
 				Paths: []networkingv1.HTTPIngressPath{
@@ -35,7 +46,7 @@ func BuildFreqUIIngress(options FreqUIOptions) networkingv1.Ingress {
 						PathType: &pathType,
 						Backend: networkingv1.IngressBackend{
 							Service: &networkingv1.IngressServiceBackend{
-								Name: options.Name,
+								Name: frequi.Name,
 								Port: networkingv1.ServiceBackendPort{
 									Number: 80,
 								},
@@ -47,63 +58,116 @@ func BuildFreqUIIngress(options FreqUIOptions) networkingv1.Ingress {
 		},
 	})
 
-	// Add API subdomain rules for each TradeBot
-	// This simplifies the configuration for multiple bots under the same UI
-	for _, apiRoute := range options.TradeBotAPIRoutes {
-		apiHost := apiRoute.Name + "." + host
-
-		rules = append(rules, networkingv1.IngressRule{
-			Host: apiHost,
-			IngressRuleValue: networkingv1.IngressRuleValue{
-				HTTP: &networkingv1.HTTPIngressRuleValue{
-					Paths: []networkingv1.HTTPIngressPath{
-						{
-							Path:     "/",
-							PathType: &pathType,
-							Backend: networkingv1.IngressBackend{
-								Service: &networkingv1.IngressServiceBackend{
-									Name: apiRoute.ServiceName,
-									Port: networkingv1.ServiceBackendPort{
-										Number: 8080,
+	// Add API subdomain rules
+	if tradeBotAPIRoutes != nil {
+		for _, apiRoute := range tradeBotAPIRoutes {
+			apiHost := apiRoute.Name + "." + mainHost
+			rules = append(rules, networkingv1.IngressRule{
+				Host: apiHost,
+				IngressRuleValue: networkingv1.IngressRuleValue{
+					HTTP: &networkingv1.HTTPIngressRuleValue{
+						Paths: []networkingv1.HTTPIngressPath{
+							{
+								Path:     "/",
+								PathType: &pathType,
+								Backend: networkingv1.IngressBackend{
+									Service: &networkingv1.IngressServiceBackend{
+										Name: apiRoute.ServiceName,
+										Port: networkingv1.ServiceBackendPort{
+											Number: 8080,
+										},
 									},
 								},
 							},
 						},
 					},
 				},
-			},
-		})
-	}
-
-	// Build TLS configuration for all hosts
-	var tlsHosts []string
-	tlsHosts = append(tlsHosts, host) // Main UI host
-
-	for _, apiRoute := range options.TradeBotAPIRoutes {
-		apiHost := apiRoute.Name + "." + host
-		tlsHosts = append(tlsHosts, apiHost)
-	}
-
-	// Update TLS configuration to include all hosts
-	var tls []networkingv1.IngressTLS
-	if len(options.TLS) > 0 {
-		// Use the existing TLS config but extend hosts
-		for _, tlsConfig := range options.TLS {
-			newTLSConfig := tlsConfig
-			newTLSConfig.Hosts = tlsHosts
-			tls = append(tls, newTLSConfig)
+			})
 		}
+	}
+
+	// Build TLS configuration
+	tls := spec.TLS
+	if tls == nil || len(tls) == 0 {
+		// If not set, build TLS for all hosts (optional)
+		var tlsHosts []string
+		tlsHosts = append(tlsHosts, mainHost)
+		if tradeBotAPIRoutes != nil {
+			for _, apiRoute := range tradeBotAPIRoutes {
+				apiHost := apiRoute.Name + "." + mainHost
+				tlsHosts = append(tlsHosts, apiHost)
+			}
+		}
+		tls = []networkingv1.IngressTLS{{Hosts: tlsHosts}}
+	}
+
+	baseIngressSpec := networkingv1.IngressSpec{
+		Rules: rules,
+		TLS:   tls,
+	}
+
+	finalSpec := baseIngressSpec
+	if spec.App != nil && !reflect.DeepEqual(spec.App.IngressSpec, networkingv1.IngressSpec{}) {
+		finalSpec = shared.MergeSpecsWithStrategicPatch(baseIngressSpec, spec.App.IngressSpec, &networkingv1.IngressSpec{})
 	}
 
 	return networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        options.Name,
-			Namespace:   options.Namespace,
-			Annotations: annotations,
+			Name:      frequi.Name,
+			Namespace: frequi.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(&frequi, freqtradev1alpha1.GroupVersion.WithKind("FreqUI")),
+			},
+			Annotations: spec.IngressAnnotations,
 		},
-		Spec: networkingv1.IngressSpec{
-			Rules: rules,
-			TLS:   tls,
-		},
+		Spec: finalSpec,
 	}
+}
+
+// ApplyIngress creates or updates the Ingress
+func ApplyIngress(ctx context.Context, c client.Client, ing *networkingv1.Ingress) error {
+	logger := log.FromContext(ctx)
+	logger.V(4).Info("Applying Ingress")
+	var existing networkingv1.Ingress
+	err := c.Get(ctx, types.NamespacedName{Name: ing.Name, Namespace: ing.Namespace}, &existing)
+	if errors.IsNotFound(err) {
+		logger.V(1).Info("Creating a new Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
+		return c.Create(ctx, ing)
+	} else if err != nil {
+
+		logger.Error(err, "Failed to get Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
+		return err
+	}
+
+	// Check if update is needed by comparing relevant fields
+	needsUpdate := false
+
+	// Compare ingress rules
+	if !reflect.DeepEqual(existing.Spec.Rules, ing.Spec.Rules) {
+		needsUpdate = true
+	}
+
+	// Compare TLS configuration
+	if !reflect.DeepEqual(existing.Spec.TLS, ing.Spec.TLS) {
+		needsUpdate = true
+	}
+
+	// Compare ingress class name
+	if !reflect.DeepEqual(existing.Spec.IngressClassName, ing.Spec.IngressClassName) {
+		needsUpdate = true
+	}
+
+	// Compare default backend
+	if !reflect.DeepEqual(existing.Spec.DefaultBackend, ing.Spec.DefaultBackend) {
+		needsUpdate = true
+	}
+
+	// Only update if there are actual changes
+	if needsUpdate {
+		ing.ResourceVersion = existing.ResourceVersion
+		logger.V(1).Info("Updating existing Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
+		return c.Update(ctx, ing)
+	}
+
+	return nil
 }

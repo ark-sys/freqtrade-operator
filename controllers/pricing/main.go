@@ -98,17 +98,18 @@ func (r *Reconciler) validatePricing(ctx context.Context, pricing *freqtradev1al
 	}
 
 	// Validate check_depth_of_market settings
-	if pricing.Spec.CheckDepthOfMarket != nil && pricing.Spec.CheckDepthOfMarket.Enabled {
-		if pricing.Spec.CheckDepthOfMarket.BidsToAskDelta < 0 {
-			return fmt.Errorf("bids_to_ask_delta must be non-negative (current: %f)", pricing.Spec.CheckDepthOfMarket.BidsToAskDelta)
+	if pricing.Spec.CheckDepthOfMarket != nil {
+
+		if *pricing.Spec.CheckDepthOfMarket.BidsToAskDelta < 0 {
+			return fmt.Errorf("bids_to_ask_delta must be non-negative (current: %f)", *pricing.Spec.CheckDepthOfMarket.BidsToAskDelta)
 		}
-		if pricing.Spec.CheckDepthOfMarket.BidsToAskDelta > 1 {
-			return fmt.Errorf("bids_to_ask_delta should not exceed 1 (current: %f)", pricing.Spec.CheckDepthOfMarket.BidsToAskDelta)
+		if *pricing.Spec.CheckDepthOfMarket.BidsToAskDelta > 1 {
+			return fmt.Errorf("bids_to_ask_delta should not exceed 1 (current: %f)", *pricing.Spec.CheckDepthOfMarket.BidsToAskDelta)
 		}
 	}
 
 	// Validate logical consistency
-	if pricing.Spec.UseOrderBook && pricing.Spec.OrderBookTop == nil {
+	if *pricing.Spec.UseOrderBook && pricing.Spec.OrderBookTop == nil {
 		return fmt.Errorf("order_book_top must be specified when use_order_book is true")
 	}
 

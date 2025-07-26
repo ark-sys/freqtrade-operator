@@ -107,7 +107,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// 5. Assemble config.json from TradeBot and referenced CRDs using configbuilder
 	configData, jwtSecretKey, err := configbuilder.AssembleConfig(
 		ctx, r.Client,
-		&tradeBot, resources.exchange, resources.pairWhitelist, resources.pairBlacklist,
+		&tradeBot, resources.exchange,
 		resources.entryPricing, resources.exitPricing, resources.order,
 		resources.riskManagement, resources.notification, resources.strategy,
 		resources.pairlistMethods, tradeBot.Status.JWTSecretKey,
@@ -138,7 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger.Info("TradeBot reconciliation completed successfully", "name", tradeBot.Name)
 
 	// If nothing changed and we're already in Running state, don't requeue
-	if !statusChanged && originalStatus.Phase == "Running" {
+	if !statusChanged {
 		return ctrl.Result{}, nil
 	}
 
@@ -183,13 +183,17 @@ func (r *Reconciler) finishReconciliation(
 		return ctrl.Result{RequeueAfter: requeueAfter}, err
 	}
 
-	// If status is "Running" and no changes were made, don't requeue
-	if tradeBot.Status.Phase == "Running" && !statusChanged {
-		// Only log at a higher verbosity level to reduce noise
-		logger.V(1).Info("TradeBot is running and stable, no requeue needed")
-		return ctrl.Result{}, nil
+	if statusChanged {
+		return ctrl.Result{RequeueAfter: requeueAfter}, nil
 	}
 
+	//// If status is "Running" and no changes were made, don't requeue
+	//if tradeBot.Status.Phase == "Running" && !statusChanged {
+	//	// Only log at a higher verbosity level to reduce noise
+	//	logger.V(1).Info("TradeBot is running and stable, no requeue needed")
+	//	return ctrl.Result{}, nil
+	//}
+
 	// Otherwise, requeue after the specified duration
-	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	return ctrl.Result{}, nil
 }

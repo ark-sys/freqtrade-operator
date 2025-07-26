@@ -106,12 +106,18 @@ func (r *Reconciler) validateExchange(ctx context.Context, exchange *freqtradev1
 	}
 
 	// Validate numeric fields
-	if exchange.Spec.OutdatedOffset != nil && *exchange.Spec.OutdatedOffset < 0 {
-		return fmt.Errorf("outdated_offset must be non-negative")
+	if exchange.Spec.OutdatedOffset != nil {
+		if *exchange.Spec.OutdatedOffset < 0 {
+			return fmt.Errorf("outdated_offset must be non-negative")
+
+		}
 	}
 
-	if exchange.Spec.MarketRefreshInterval != nil && *exchange.Spec.MarketRefreshInterval < 0 {
-		return fmt.Errorf("market_refresh_interval must be non-negative")
+	if exchange.Spec.MarketRefreshInterval != nil {
+		if *exchange.Spec.MarketRefreshInterval < 0 {
+
+			return fmt.Errorf("market_refresh_interval must be non-negative")
+		}
 	}
 
 	logger.Info("Exchange validation passed", "name", exchange.Name)

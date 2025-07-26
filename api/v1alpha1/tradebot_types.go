@@ -1,7 +1,8 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -9,23 +10,23 @@ import (
 type TradeBotSpec struct {
 	// NOTE: Base schema configuration reference is at https://schema.freqtrade.io/schema.json
 
-	Bot          BotConfig              `json:"bot"`
+	Bot          *BotConfig             `json:"bot"`
 	Data         *DataConfig            `json:"data,omitempty"`
 	Advanced     *AdvancedConfig        `json:"advanced,omitempty"`
 	Timeout      *UnfilledTimeoutConfig `json:"timeout,omitempty"`
 	Internals    *InternalsConfig       `json:"internals,omitempty"`
 	References   *References            `json:"references"`
-	Deployment   *DeploymentConfig      `json:"deployment,omitempty"`
 	APIServer    *APIServerConfig       `json:"apiServer,omitempty"`
 	Experimental *ExperimentalConfig    `json:"experimental,omitempty"`
 	Logging      *LoggingConfig         `json:"logging,omitempty"`
+	App          *TBAppConfig           `json:"app,omitempty"`
 }
 
 type BotConfig struct {
 	// Bot configuration
 	BotName                string   `json:"bot_name"`
 	TradingMode            string   `json:"trading_mode,omitempty"`
-	DryRun                 bool     `json:"dry_run,omitempty"`
+	DryRun                 *bool    `json:"dry_run,omitempty"`
 	DryRunWallet           *float64 `json:"dry_run_wallet,omitempty"`
 	StakeCurrency          string   `json:"stake_currency,omitempty"`
 	StakeAmount            string   `json:"stake_amount,omitempty"`
@@ -33,8 +34,8 @@ type BotConfig struct {
 	FiatDisplayCurrency    string   `json:"fiat_display_currency,omitempty"`
 	DBUrl                  string   `json:"db_url,omitempty"`
 	Export                 string   `json:"export,omitempty"`
-	DisableParamExport     bool     `json:"disable_param_export,omitempty"`
-	DisableDataframeChecks bool     `json:"disable_dataframe_checks,omitempty"`
+	DisableParamExport     *bool    `json:"disable_param_export,omitempty"`
+	DisableDataframeChecks *bool    `json:"disable_dataframe_checks,omitempty"`
 }
 
 type DataConfig struct {
@@ -42,24 +43,24 @@ type DataConfig struct {
 	DataformatTrades            string   `json:"dataformat_trades,omitempty"`
 	PositionAdjustment          string   `json:"position_adjustment,omitempty"`
 	NewPairsDaysAgo             *int     `json:"new_pairs_days_ago,omitempty"`
-	DownloadTrades              bool     `json:"download_trades,omitempty"`
+	DownloadTrades              *bool    `json:"download_trades,omitempty"`
 	MaxEntryPositionAdjustment  *float64 `json:"max_entry_position_adjustment,omitempty"`
 	AvailableCapital            *float64 `json:"available_capital,omitempty"`               // Available capital for trading
-	AmendLastStakeAmount        bool     `json:"amend_last_stake_amount,omitempty"`         // Whether to amend the last stake amount
+	AmendLastStakeAmount        *bool    `json:"amend_last_stake_amount,omitempty"`         // Whether to amend the last stake amount
 	LastStakeAmountMinRatio     *float64 `json:"last_stake_amount_min_ratio,omitempty"`     // Minimum ratio for the last stake amount
-	ProcessOnlyNewCandles       bool     `json:"process_only_new_candles,omitempty"`        // Process only new candles
+	ProcessOnlyNewCandles       *bool    `json:"process_only_new_candles,omitempty"`        // Process only new candles
 	AmountReservePercent        *float64 `json:"amount_reserve_percent,omitempty"`          // Percentage of amount to reserve
-	ReduceDfFootprint           bool     `json:"reduce_df_footprint,omitempty"`             // Reduce DataFrame footprint
+	ReduceDfFootprint           *bool    `json:"reduce_df_footprint,omitempty"`             // Reduce DataFrame footprint
 	CustomPriceMaxDistanceRatio *float64 `json:"custom_price_max_distance_ratio,omitempty"` // Maximum distance ratio for custom price
 }
 
 type AdvancedConfig struct {
 	// Advanced trading configuration
 	TradableBalanceRatio   *float64 `json:"tradable_balance_ratio,omitempty"`
-	CancelOpenOrdersOnExit bool     `json:"cancel_open_orders_on_exit,omitempty"`
+	CancelOpenOrdersOnExit *bool    `json:"cancel_open_orders_on_exit,omitempty"`
 	MarginMode             string   `json:"margin_mode,omitempty"`
 	InitialState           string   `json:"initial_state,omitempty"`
-	ForceEntryEnable       bool     `json:"force_entry_enable,omitempty"`
+	ForceEntryEnable       *bool    `json:"force_entry_enable,omitempty"`
 }
 
 // UnfilledTimeoutConfig defines timeout settings for unfilled orders
@@ -72,9 +73,9 @@ type UnfilledTimeoutConfig struct {
 
 // InternalsConfig defines internal processing configuration
 type InternalsConfig struct {
-	ProcessThrottleSecs *int `json:"process_throttle_secs,omitempty"`
-	Interval            *int `json:"interval,omitempty"`  // Interval in seconds for internal processing
-	SdNotify            bool `json:"sd_notify,omitempty"` // Enable systemd notification
+	ProcessThrottleSecs *int  `json:"process_throttle_secs,omitempty"`
+	Interval            *int  `json:"interval,omitempty"`  // Interval in seconds for internal processing
+	SdNotify            *bool `json:"sd_notify,omitempty"` // Enable systemd notification
 }
 
 type References struct {
@@ -88,21 +89,12 @@ type References struct {
 	NotificationRef    string `json:"notificationRef,omitempty"`
 	StrategyRef        string `json:"strategyRef"`
 }
-
-type DeploymentConfig struct {
-	// Deployment configuration
-	Image            string                      `json:"image,omitempty"`
-	Resources        corev1.ResourceRequirements `json:"resources,omitempty"`
-	StorageSize      string                      `json:"storage_size,omitempty"`
-	StorageClassName string                      `json:"storage_class_name,omitempty"`
-}
-
 type APIServerConfig struct {
-	Enabled       bool   `json:"enabled,omitempty"`
+	Enabled       *bool  `json:"enabled,omitempty"`
 	ListenIP      string `json:"listen_ip_address,omitempty"`
 	ListenPort    *int   `json:"listen_port,omitempty"`
 	Verbosity     string `json:"verbosity,omitempty"`
-	EnableOpenAPI bool   `json:"enable_openapi,omitempty"`
+	EnableOpenAPI *bool  `json:"enable_openapi,omitempty"`
 	Username      string `json:"username,omitempty"`
 	Password      string `json:"password,omitempty"`
 	//jwtSecretKey string `json:"jwtSecretKey,omitempty"`
@@ -111,7 +103,7 @@ type APIServerConfig struct {
 }
 
 type ExperimentalConfig struct {
-	BlockBadExchanges bool `json:"block_bad_exchanges,omitempty"`
+	BlockBadExchanges *bool `json:"block_bad_exchanges,omitempty"`
 }
 
 type LoggingConfig struct {
@@ -119,6 +111,11 @@ type LoggingConfig struct {
 	//Formatters map[string]map[string]interface{} `json:"formatters,omitempty"`
 	//Handlers   map[string]map[string]interface{} `json:"handlers,omitempty"`
 	//Root       map[string]interface{}            `json:"root,omitempty"`
+}
+type TBAppConfig struct {
+	StatefulSetSpec appsv1.StatefulSetSpec       `json:"spec,omitempty"`    // StatefulSet for the application
+	ServiceSpec     v1.ServiceSpec               `json:"service,omitempty"` // Service for the application
+	PVCSpec         v1.PersistentVolumeClaimSpec `json:"pvc,omitempty"`     // Persistent Volume Claim for the application
 }
 
 // TradeBotStatus defines the observed state of TradeBot

@@ -29,8 +29,8 @@ func BuildOrderTypesConfig(order *v1alpha1.Order) map[string]interface{} {
 	if types.Stoploss != "" {
 		cfg["stoploss"] = types.Stoploss
 	}
-	if types.StoplossOnExchange {
-		cfg["stoploss_on_exchange"] = types.StoplossOnExchange
+	if types.StoplossOnExchange != nil {
+		cfg["stoploss_on_exchange"] = *types.StoplossOnExchange
 	}
 	if types.StoplossOnExchangeInterval != nil {
 		cfg["stoploss_on_exchange_interval"] = *types.StoplossOnExchangeInterval

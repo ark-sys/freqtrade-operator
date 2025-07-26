@@ -65,7 +65,7 @@ func BuildPairlistMethodsConfig(pairlistMethods *freqtradev1alpha1.PairlistMetho
 				methodMap["pairlist_url"] = method.PairlistURL
 			}
 			if method.KeepPairlistOnFailure != nil {
-				methodMap["keep_pairlist_on_failure"] = method.KeepPairlistOnFailure
+				methodMap["keep_pairlist_on_failure"] = *method.KeepPairlistOnFailure
 			}
 			if method.ReadTimeout != nil {
 				methodMap["read_timeout"] = *method.ReadTimeout

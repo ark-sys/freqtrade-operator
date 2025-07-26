@@ -8,12 +8,12 @@ import (
 
 // RiskManagementSpec defines the desired state of RiskManagement
 type RiskManagementSpec struct {
-	MinimalROI                  *float64 `json:"minimal_roi,omitempty"`
-	Stoploss                    *float64 `json:"stoploss,omitempty"`
-	TrailingStop                bool     `json:"trailing_stop,omitempty"`
-	TrailingStopPositive        *float64 `json:"trailing_stop_positive,omitempty"`
-	TrailingStopPositiveOffset  *float64 `json:"trailing_stop_positive_offset,omitempty"`
-	TrailingOnlyOffsetIsReached bool     `json:"trailing_only_offset_is_reached,omitempty"`
+	MinimalROI                  map[string]*float64 `json:"minimal_roi,omitempty"`
+	Stoploss                    *float64            `json:"stoploss,omitempty"`
+	TrailingStop                bool                `json:"trailing_stop,omitempty"`
+	TrailingStopPositive        *float64            `json:"trailing_stop_positive,omitempty"`
+	TrailingStopPositiveOffset  *float64            `json:"trailing_stop_positive_offset,omitempty"`
+	TrailingOnlyOffsetIsReached bool                `json:"trailing_only_offset_is_reached,omitempty"`
 
 	UseExitSignal                   bool     `json:"use_exit_signal,omitempty"`
 	ExitProfitOnly                  bool     `json:"exit_profit_only,omitempty"`
@@ -24,7 +24,7 @@ type RiskManagementSpec struct {
 	MinimumTradeAmount              *int     `json:"minimum_trade_amount,omitempty"`
 	TargetedTradeAmount             *int     `json:"targeted_trade_amount,omitempty"`
 	LookaheadAnalysisExportFilename string   `json:"lookahead_analysis_export_filename,omitempty"`
-	StartupCandle                   []int    `json:"startup_candle,omitempty"`     // Array of integers representing startup candles
+	StartupCandle                   *[]int   `json:"startup_candle,omitempty"`     // Array of integers representing startup candles
 	LiquidationBuffer               *float64 `json:"liquidation_buffer,omitempty"` // Buffer for liquidation
 	BacktestBreakdown               []string `json:"backtest_breakdown,omitempty"`
 }

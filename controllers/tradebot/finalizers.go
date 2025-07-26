@@ -2,7 +2,6 @@ package tradebot
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -27,17 +26,44 @@ func (r *Reconciler) finalizeTradeBot(ctx context.Context, tradeBot *freqtradev1
 	// 2. If the StatefulSet exists, scale it down to 0 to ensure graceful termination
 	if stsErr == nil {
 		logger.Info("Scaling down StatefulSet before deletion", "name", sts.Name)
-		replicas := int32(0)
-		sts.Spec.Replicas = &replicas
-		if err := r.Update(ctx, &sts); err != nil {
-			logger.Error(err, "Failed to scale down StatefulSet")
-			return err
-		}
 
-		// Wait for the StatefulSet to scale down
-		if err := r.waitForStatefulSetScaleDown(ctx, &sts); err != nil {
-			logger.Error(err, "Failed to wait for StatefulSet scale down")
-			return err
+		// Only scale down if not already at 0
+		if sts.Spec.Replicas == nil || *sts.Spec.Replicas > 0 {
+			replicas := int32(0)
+			sts.Spec.Replicas = &replicas
+			if err := r.Update(ctx, &sts); err != nil {
+				// If update fails due to conflict, try to get latest version
+				if errors.IsConflict(err) {
+					logger.Info("Conflict updating StatefulSet, retrying with latest version")
+					var latestSts appsv1.StatefulSet
+					if getErr := r.Get(ctx, stsName, &latestSts); getErr != nil {
+						if errors.IsNotFound(getErr) {
+							// StatefulSet is gone, continue
+							logger.Info("StatefulSet no longer exists, continuing finalization")
+						} else {
+							logger.Error(getErr, "Failed to get latest StatefulSet")
+							return getErr
+						}
+					} else {
+						// Try scaling down the latest version
+						replicas := int32(0)
+						latestSts.Spec.Replicas = &replicas
+						if updateErr := r.Update(ctx, &latestSts); updateErr != nil {
+							logger.Error(updateErr, "Failed to scale down StatefulSet on retry")
+							return updateErr
+						}
+					}
+				} else {
+					logger.Error(err, "Failed to scale down StatefulSet")
+					return err
+				}
+			}
+
+			// Wait for the StatefulSet to scale down, but with timeout
+			if err := r.waitForStatefulSetScaleDown(ctx, stsName); err != nil {
+				logger.Error(err, "Failed to wait for StatefulSet scale down, but continuing cleanup")
+				// Don't return error here - we want to continue with cleanup even if scaling fails
+			}
 		}
 		logger.Info("StatefulSet scaled down successfully", "name", sts.Name)
 	} else if !errors.IsNotFound(stsErr) {
@@ -45,8 +71,21 @@ func (r *Reconciler) finalizeTradeBot(ctx context.Context, tradeBot *freqtradev1
 		return stsErr
 	}
 
-	// 3. Check if we need to preserve the PVC
-	// Look for the preserve-data annotation
+	// 3. Handle PVC preservation logic
+	if err := r.handlePVCPreservation(ctx, tradeBot); err != nil {
+		logger.Error(err, "Failed to handle PVC preservation, but continuing cleanup")
+		// Don't return error here - we don't want PVC issues to block deletion
+	}
+
+	logger.Info("TradeBot finalization completed successfully", "name", tradeBot.Name)
+	return nil
+}
+
+// handlePVCPreservation handles the PVC preservation logic
+func (r *Reconciler) handlePVCPreservation(ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot) error {
+	logger := log.FromContext(ctx)
+
+	// Check if we need to preserve the PVC
 	if preserveData, exists := tradeBot.Annotations["freqtrade.io/preserve-data"]; exists && preserveData == "true" {
 		logger.Info("Preserving PVC as requested by annotation", "name", tradeBot.Name)
 
@@ -55,13 +94,12 @@ func (r *Reconciler) finalizeTradeBot(ctx context.Context, tradeBot *freqtradev1
 		var pvc corev1.PersistentVolumeClaim
 		err := r.Get(ctx, types.NamespacedName{Name: pvcName, Namespace: tradeBot.Namespace}, &pvc)
 		if err != nil {
-			if !errors.IsNotFound(err) {
-				logger.Error(err, "Failed to get PVC during finalization")
-				return err
+			if errors.IsNotFound(err) {
+				logger.Info("PVC not found, nothing to preserve", "name", pvcName)
+				return nil
 			}
-			// PVC not found, nothing to preserve
-			logger.Info("PVC not found, nothing to preserve", "name", pvcName)
-			return nil
+			logger.Error(err, "Failed to get PVC during finalization")
+			return err
 		}
 
 		// Remove owner reference to prevent garbage collection
@@ -90,56 +128,48 @@ func (r *Reconciler) finalizeTradeBot(ctx context.Context, tradeBot *freqtradev1
 		logger.Info("PVC will be garbage collected as no preserve annotation was found")
 	}
 
-	logger.Info("TradeBot finalization completed successfully", "name", tradeBot.Name)
 	return nil
 }
 
 // waitForStatefulSetScaleDown waits for the StatefulSet to scale down to 0 replicas
-func (r *Reconciler) waitForStatefulSetScaleDown(ctx context.Context, sts *appsv1.StatefulSet) error {
+func (r *Reconciler) waitForStatefulSetScaleDown(ctx context.Context, namespacedName types.NamespacedName) error {
 	logger := log.FromContext(ctx)
-	namespacedName := types.NamespacedName{
-		Name:      sts.Name,
-		Namespace: sts.Namespace,
-	}
 
-	// Wait for up to 2 minutes for the StatefulSet to scale down
-	// In a production environment, you might want to make this configurable
-	maxAttempts := 24 // 24 attempts * 5 seconds = 2 minutes
-	for i := 0; i < maxAttempts; i++ {
-		// Check if context is done
+	// Create a timeout context - don't wait forever
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
 		select {
-		case <-ctx.Done():
-			return fmt.Errorf("context cancelled while waiting for StatefulSet to scale down")
-		default:
-			// Continue
-		}
+		case <-timeoutCtx.Done():
+			logger.Info("Timeout waiting for StatefulSet to scale down, continuing with cleanup")
+			return nil // Don't block deletion on timeout
+		case <-ticker.C:
+			var sts appsv1.StatefulSet
+			if err := r.Get(ctx, namespacedName, &sts); err != nil {
+				if errors.IsNotFound(err) {
+					// StatefulSet is gone, which is fine
+					logger.Info("StatefulSet no longer exists")
+					return nil
+				}
+				logger.Error(err, "Failed to get StatefulSet while waiting for scale down")
+				return nil // Don't block on transient errors
+			}
 
-		// Get the latest StatefulSet
-		if err := r.Get(ctx, namespacedName, sts); err != nil {
-			if errors.IsNotFound(err) {
-				// StatefulSet is gone, which is fine
+			// Check if the StatefulSet is scaled down
+			if sts.Status.Replicas == 0 && sts.Status.ReadyReplicas == 0 {
+				logger.Info("StatefulSet is fully scaled down", "name", sts.Name)
 				return nil
 			}
-			return err
+
+			// Log progress
+			logger.V(1).Info("Still waiting for StatefulSet to scale down",
+				"name", sts.Name,
+				"current", sts.Status.Replicas,
+				"ready", sts.Status.ReadyReplicas)
 		}
-
-		// Check if the StatefulSet is scaled down
-		if sts.Status.Replicas == 0 && sts.Status.ReadyReplicas == 0 {
-			logger.Info("StatefulSet is fully scaled down", "name", sts.Name)
-			return nil
-		}
-
-		// Log progress
-		logger.Info("Waiting for StatefulSet to scale down",
-			"name", sts.Name,
-			"current", sts.Status.Replicas,
-			"ready", sts.Status.ReadyReplicas,
-			"attempt", i+1,
-			"maxAttempts", maxAttempts)
-
-		// Wait before checking again
-		time.Sleep(5 * time.Second)
 	}
-
-	return fmt.Errorf("timed out waiting for StatefulSet %s to scale down", sts.Name)
 }

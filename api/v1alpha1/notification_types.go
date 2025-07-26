@@ -12,12 +12,12 @@ type NotificationSpec struct {
 }
 
 type NotificationTelegram struct {
-	Enabled             bool     `json:"enabled,omitempty"`
+	Enabled             *bool    `json:"enabled,omitempty"`
 	Token               string   `json:"token,omitempty"`
 	SecretRef           string   `json:"secretRef,omitempty"` // Reference to Secret containing Telegram credentials
 	BalanceDustLevel    *float64 `json:"balance_dust_level,omitempty"`
-	Reload              bool     `json:"reload,omitempty"`
-	AllowCustomMessages bool     `json:"allow_custom_messages,omitempty"`
+	Reload              *bool    `json:"reload,omitempty"`
+	AllowCustomMessages *bool    `json:"allow_custom_messages,omitempty"`
 	ChatID              string   `json:"chat_id,omitempty"`  // Telegram chat ID to send notifications
 	TopicID             string   `json:"topic_id,omitempty"` // Topic ID for grouping notifications
 	AuthorizedUsers     []string `json:"authorized_users,omitempty"`
@@ -42,7 +42,7 @@ type NotificationTelegramSettings struct {
 }
 
 type NotificationWebhook struct {
-	Enabled             bool   `json:"enabled,omitempty"`
+	Enabled             *bool  `json:"enabled,omitempty"`
 	URL                 string `json:"url,omitempty"`
 	Entry               string `json:"entry,omitempty"`
 	EntryCancel         string `json:"entry_cancel,omitempty"`
@@ -51,11 +51,11 @@ type NotificationWebhook struct {
 	ExitCancel          string `json:"exit_cancel,omitempty"`
 	ExitFill            string `json:"exit_fill,omitempty"`
 	Status              string `json:"status,omitempty"`
-	AllowCustomMessages bool   `json:"allow_custom_messages,omitempty"`
+	AllowCustomMessages *bool  `json:"allow_custom_messages,omitempty"`
 }
 
 type NotificationDiscord struct {
-	Enabled    bool                `json:"enabled,omitempty"`
+	Enabled    *bool               `json:"enabled,omitempty"`
 	WebhookURL string              `json:"webhook_url,omitempty"` // Discord webhook URL, recommended to be set via environment variable
 	ExitFill   []map[string]string `json:"exit_fill,omitempty"`   // Exit fill message template
 	EntryFill  []map[string]string `json:"entry_fill,omitempty"`  // Entry fill message template

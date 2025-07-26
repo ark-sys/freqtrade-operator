@@ -109,7 +109,7 @@ func (r *Reconciler) validateNotification(ctx context.Context, notification *fre
 
 // validateTelegram validates Telegram notification configuration
 func (r *Reconciler) validateTelegram(telegram *freqtradev1alpha1.NotificationTelegram) error {
-	if !telegram.Enabled {
+	if !*telegram.Enabled {
 		return nil // Skip validation if disabled
 	}
 
@@ -123,8 +123,11 @@ func (r *Reconciler) validateTelegram(telegram *freqtradev1alpha1.NotificationTe
 	}
 
 	// Validate balance dust level
-	if telegram.BalanceDustLevel != nil && *telegram.BalanceDustLevel < 0 {
-		return fmt.Errorf("balance_dust_level must be non-negative (current: %f)", *telegram.BalanceDustLevel)
+	if telegram.BalanceDustLevel != nil {
+		if *telegram.BalanceDustLevel < 0 {
+			return fmt.Errorf("balance_dust_level must be non-negative (current: %f)", *telegram.BalanceDustLevel)
+
+		}
 	}
 
 	return nil
@@ -132,7 +135,7 @@ func (r *Reconciler) validateTelegram(telegram *freqtradev1alpha1.NotificationTe
 
 // validateWebhook validates Webhook notification configuration
 func (r *Reconciler) validateWebhook(webhook *freqtradev1alpha1.NotificationWebhook) error {
-	if !webhook.Enabled {
+	if !*webhook.Enabled {
 		return nil // Skip validation if disabled
 	}
 
@@ -148,7 +151,7 @@ func (r *Reconciler) validateWebhook(webhook *freqtradev1alpha1.NotificationWebh
 
 // validateDiscord validates Discord notification configuration
 func (r *Reconciler) validateDiscord(discord *freqtradev1alpha1.NotificationDiscord) error {
-	if !discord.Enabled {
+	if !*discord.Enabled {
 		return nil // Skip validation if disabled
 	}
 

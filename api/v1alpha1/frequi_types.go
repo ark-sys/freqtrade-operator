@@ -1,26 +1,40 @@
 package v1alpha1
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // FreqUISpec defines the desired state of FreqUI
 type FreqUISpec struct {
-	// Image is the FreqUI Docker image to use
-	Image string `json:"image,omitempty"`
-
-	// Host is the hostname for the FreqUI ingress
+	//// Host is the hostname for the FreqUI ingress
 	Host string `json:"host,omitempty"`
 
-	// IngressAnnotations are annotations to add to the FreqUI ingress
+	//// TLS configuration for the FreqUI ingress
+	TLS []networkingv1.IngressTLS `json:"tls,omitempty"`
+
+	// IngressAnnotations are additional annotations for the FreqUI ingress
 	IngressAnnotations map[string]string `json:"ingressAnnotations,omitempty"`
 
-	// TLS configuration for the FreqUI ingress
-	TLS []networkingv1.IngressTLS `json:"tls,omitempty"`
+	// App is the configuration for the FreqUI application
+	App *FUAppConfig `json:"app,omitempty"`
 
 	// TradeBotRefs is a list of TradeBot names that this FreqUI should manage
 	TradeBotRefs []string `json:"tradeBotRefs,omitempty"`
+}
+
+// FUAppConfig defines the configuration for the FreqUI application
+type FUAppConfig struct {
+	// DeploymentSpec is the deployment specification for FreqUI
+	DeploymentSpec appsv1.DeploymentSpec `json:"deploymentSpec,omitempty"`
+
+	// ServiceSpec is the service specification for FreqUI
+	ServiceSpec corev1.ServiceSpec `json:"serviceSpec,omitempty"`
+
+	// IngressSpec is the ingress specification for FreqUI
+	IngressSpec networkingv1.IngressSpec `json:"ingressSpec,omitempty"`
 }
 
 // FreqUIStatus defines the observed state of FreqUI

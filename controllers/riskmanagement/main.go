@@ -3,6 +3,7 @@ package riskmanagement
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -115,9 +116,24 @@ func (r *Reconciler) validateRiskManagement(ctx context.Context, riskMgmt *freqt
 
 	// Validate minimal ROI
 	if riskMgmt.Spec.MinimalROI != nil {
-		if *riskMgmt.Spec.MinimalROI < 0 {
-			return fmt.Errorf("minimal_roi must be non-negative (current: %f)", *riskMgmt.Spec.MinimalROI)
+		if len(riskMgmt.Spec.MinimalROI) == 0 {
+			return fmt.Errorf("minimal_roi must not be empty")
 		}
+
+		for keystr, value := range riskMgmt.Spec.MinimalROI {
+			key, err := strconv.Atoi(keystr)
+			if err != nil {
+				return fmt.Errorf("minimal_roi keys must be integers (current: %s)", keystr)
+			}
+
+			if key < 0 {
+				return fmt.Errorf("minimal_roi keys must be 0 or greater (current: %d)", key)
+			}
+			if *value < -1.0 || *value > 1.0 {
+				return fmt.Errorf("minimal_roi values must be between -1 and 1 (current: %f)", *value)
+			}
+		}
+
 	}
 
 	// Validate trade amounts

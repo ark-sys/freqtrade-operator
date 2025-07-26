@@ -14,4 +14,7 @@ spec:
     - "DOT/USDT"
     - "LINK/USDT"
     - "XLM/USDT"
+    - "SOL/USDT"
+    - "AVAX/USDT"
+    - "MATIC/USDT"
 

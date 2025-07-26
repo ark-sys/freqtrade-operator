@@ -42,11 +42,7 @@ spec:
         # Number of candles the strategy requires before producing valid signals
         startup_candle_count: int = 30
     
-        # Parameters for both timeframes
-        short_window = IntParameter(5, 20, default=10, space="buy")
-        long_window = IntParameter(20, 50, default=30, space="buy")
 
-        # Change these parameters
         short_window = IntParameter(3, 15, default=5, space="buy")
         long_window = IntParameter(15, 30, default=20, space="buy")
     
@@ -54,6 +50,14 @@ spec:
         trailing_stop = True
         trailing_stop_positive = 0.01
         trailing_stop_positive_offset = 0.02
+        order_types = {
+            'entry': 'limit',
+            'exit': 'limit',
+            'stoploss': 'market',
+            'stoploss_on_exchange': False,
+            'emergency_exit': 'market',
+        }
+    
     
         def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
             """

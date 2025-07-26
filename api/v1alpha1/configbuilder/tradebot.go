@@ -3,7 +3,6 @@ package configbuilder
 import (
 	"crypto/rand"
 	"encoding/base64"
-
 	"github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
 
@@ -25,39 +24,47 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 
 	cfg := map[string]interface{}{}
 
-	// BotConfig
-	bot := tradeBot.Spec.Bot
-	cfg["bot_name"] = bot.BotName
-	if bot.TradingMode != "" {
-		cfg["trading_mode"] = bot.TradingMode
-	}
-	cfg["dry_run"] = bot.DryRun
-	if bot.DryRunWallet != nil {
-		cfg["dry_run_wallet"] = *bot.DryRunWallet
-	}
-	if bot.StakeCurrency != "" {
-		cfg["stake_currency"] = bot.StakeCurrency
-	}
-	if bot.StakeAmount != "" {
-		cfg["stake_amount"] = bot.StakeAmount
-	}
-	if bot.MaxOpenTrades != nil {
-		cfg["max_open_trades"] = *bot.MaxOpenTrades
-	}
-	if bot.FiatDisplayCurrency != "" {
-		cfg["fiat_display_currency"] = bot.FiatDisplayCurrency
-	}
-	if bot.DBUrl != "" {
-		cfg["db_url"] = bot.DBUrl
-	}
-	if bot.Export != "" {
-		cfg["export"] = bot.Export
-	}
-	if bot.DisableParamExport {
-		cfg["disable_param_export"] = bot.DisableParamExport
-	}
-	if bot.DisableDataframeChecks {
-		cfg["disable_dataframe_checks"] = bot.DisableDataframeChecks
+	if tradeBot.Spec.Bot != nil {
+		// BotConfig
+		bot := tradeBot.Spec.Bot
+
+		if bot.BotName == "" {
+			cfg["bot_name"] = bot.BotName
+		}
+		if bot.TradingMode != "" {
+			cfg["trading_mode"] = bot.TradingMode
+		}
+		if bot.DryRun != nil {
+			cfg["dry_run"] = *bot.DryRun
+		}
+		if bot.DryRunWallet != nil {
+			cfg["dry_run_wallet"] = *bot.DryRunWallet
+		}
+		if bot.StakeCurrency != "" {
+			cfg["stake_currency"] = bot.StakeCurrency
+		}
+		if bot.StakeAmount != "" {
+			cfg["stake_amount"] = bot.StakeAmount
+		}
+		if bot.MaxOpenTrades != nil {
+			cfg["max_open_trades"] = *bot.MaxOpenTrades
+		}
+		if bot.FiatDisplayCurrency != "" {
+			cfg["fiat_display_currency"] = bot.FiatDisplayCurrency
+		}
+		if bot.DBUrl != "" {
+			cfg["db_url"] = bot.DBUrl
+		}
+		if bot.Export != "" {
+			cfg["export"] = bot.Export
+		}
+		if bot.DisableParamExport != nil {
+			cfg["disable_param_export"] = *bot.DisableParamExport
+		}
+		if bot.DisableDataframeChecks != nil {
+			cfg["disable_dataframe_checks"] = *bot.DisableDataframeChecks
+		}
+
 	}
 
 	// DataConfig
@@ -73,10 +80,10 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 			cfg["position_adjustment"] = data.PositionAdjustment
 		}
 		if data.NewPairsDaysAgo != nil {
-			cfg["new_pairs_days_ago"] = data.NewPairsDaysAgo
+			cfg["new_pairs_days_ago"] = *data.NewPairsDaysAgo
 		}
-		if data.DownloadTrades {
-			cfg["download_trades"] = data.DownloadTrades
+		if data.DownloadTrades != nil {
+			cfg["download_trades"] = *data.DownloadTrades
 		}
 		if data.MaxEntryPositionAdjustment != nil {
 			cfg["max_entry_position_adjustment"] = *data.MaxEntryPositionAdjustment
@@ -84,23 +91,23 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 		if data.AvailableCapital != nil {
 			cfg["available_capital"] = *data.AvailableCapital
 		}
-		if data.AmendLastStakeAmount {
-			cfg["amend_last_stake_amount"] = data.AmendLastStakeAmount
+		if data.AmendLastStakeAmount != nil {
+			cfg["amend_last_stake_amount"] = *data.AmendLastStakeAmount
 		}
 		if data.LastStakeAmountMinRatio != nil {
 			cfg["last_stake_amount_min_ratio"] = data.LastStakeAmountMinRatio
 		}
-		if data.ProcessOnlyNewCandles {
-			cfg["process_only_new_candles"] = data.ProcessOnlyNewCandles
+		if data.ProcessOnlyNewCandles != nil {
+			cfg["process_only_new_candles"] = *data.ProcessOnlyNewCandles
 		}
 		if data.AmountReservePercent != nil {
 			cfg["amount_reserve_percent"] = *data.AmountReservePercent
 		}
-		if data.ReduceDfFootprint {
-			cfg["reduce_df_footprint"] = data.ReduceDfFootprint
+		if data.ReduceDfFootprint != nil {
+			cfg["reduce_df_footprint"] = *data.ReduceDfFootprint
 		}
 		if data.CustomPriceMaxDistanceRatio != nil {
-			cfg["custom_price_max_distance_ratio"] = data.CustomPriceMaxDistanceRatio
+			cfg["custom_price_max_distance_ratio"] = *data.CustomPriceMaxDistanceRatio
 		}
 	}
 
@@ -110,8 +117,8 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 		if adv.TradableBalanceRatio != nil {
 			cfg["tradable_balance_ratio"] = *adv.TradableBalanceRatio
 		}
-		if adv.CancelOpenOrdersOnExit {
-			cfg["cancel_open_orders_on_exit"] = adv.CancelOpenOrdersOnExit
+		if adv.CancelOpenOrdersOnExit != nil && *adv.CancelOpenOrdersOnExit {
+			cfg["cancel_open_orders_on_exit"] = *adv.CancelOpenOrdersOnExit
 		}
 		if adv.MarginMode != "" {
 			cfg["margin_mode"] = adv.MarginMode
@@ -119,8 +126,8 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 		if adv.InitialState != "" {
 			cfg["initial_state"] = adv.InitialState
 		}
-		if adv.ForceEntryEnable {
-			cfg["force_entry_enable"] = adv.ForceEntryEnable
+		if adv.ForceEntryEnable != nil {
+			cfg["force_entry_enable"] = *adv.ForceEntryEnable
 		}
 	}
 
@@ -134,7 +141,7 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 			timeoutConfig["exit"] = *tradeBot.Spec.Timeout.Exit
 		}
 		if tradeBot.Spec.Timeout.ExitTimeoutCount != nil {
-			timeoutConfig["exit_timeout_count"] = tradeBot.Spec.Timeout.ExitTimeoutCount
+			timeoutConfig["exit_timeout_count"] = *tradeBot.Spec.Timeout.ExitTimeoutCount
 		}
 		if tradeBot.Spec.Timeout.Unit != "" {
 			timeoutConfig["unit"] = tradeBot.Spec.Timeout.Unit
@@ -151,10 +158,10 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 			internalsConfig["process_throttle_secs"] = *tradeBot.Spec.Internals.ProcessThrottleSecs
 		}
 		if tradeBot.Spec.Internals.Interval != nil {
-			internalsConfig["interval"] = tradeBot.Spec.Internals.Interval
+			internalsConfig["interval"] = *tradeBot.Spec.Internals.Interval
 		}
-		if tradeBot.Spec.Internals.SdNotify {
-			internalsConfig["sd_notify"] = tradeBot.Spec.Internals.SdNotify
+		if tradeBot.Spec.Internals.SdNotify != nil {
+			internalsConfig["sd_notify"] = *tradeBot.Spec.Internals.SdNotify
 		}
 		if len(internalsConfig) > 0 {
 			cfg["internals"] = internalsConfig
@@ -163,17 +170,21 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 
 	// API Server
 	jwtSecretKey := existingJWTKey
-	if tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.Enabled {
-		if jwtSecretKey == "" {
-			var err error
-			jwtSecretKey, err = GenerateJWTSecretKey()
-			if err != nil {
-				jwtSecretKey = "1ewq2r3t4y5u6i7o8p9asdfghjklzxcvbnm1234567890"
+	if tradeBot.Spec.APIServer != nil {
+
+		apiServer := map[string]interface{}{}
+		if tradeBot.Spec.APIServer.Enabled != nil {
+			apiServer["enabled"] = *tradeBot.Spec.APIServer.Enabled
+			if jwtSecretKey == "" {
+				//TODO: lol, this needs to change
+				var err error
+				jwtSecretKey, err = GenerateJWTSecretKey()
+				if err != nil {
+					jwtSecretKey = "1ewq2r3t4y5u6i7o8p9asdfghjklzxcvbnm1234567890"
+				}
 			}
-		}
-		apiServer := map[string]interface{}{
-			"enabled":        true,
-			"jwt_secret_key": jwtSecretKey,
+
+			apiServer["jwt_secret_key"] = jwtSecretKey
 		}
 		if tradeBot.Spec.APIServer.ListenIP != "" {
 			apiServer["listen_ip_address"] = tradeBot.Spec.APIServer.ListenIP
@@ -184,8 +195,8 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 		if tradeBot.Spec.APIServer.Verbosity != "" {
 			apiServer["verbosity"] = tradeBot.Spec.APIServer.Verbosity
 		}
-		if tradeBot.Spec.APIServer.EnableOpenAPI {
-			apiServer["enable_openapi"] = tradeBot.Spec.APIServer.EnableOpenAPI
+		if tradeBot.Spec.APIServer.EnableOpenAPI != nil {
+			apiServer["enable_openapi"] = *tradeBot.Spec.APIServer.EnableOpenAPI
 		}
 		if tradeBot.Spec.APIServer.Username != "" {
 			apiServer["username"] = tradeBot.Spec.APIServer.Username
@@ -202,8 +213,8 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 	}
 
 	// ExperimentalConfig
-	if tradeBot.Spec.Experimental != nil && tradeBot.Spec.Experimental.BlockBadExchanges {
-		cfg["block_bad_exchanges"] = tradeBot.Spec.Experimental.BlockBadExchanges
+	if tradeBot.Spec.Experimental != nil {
+		cfg["block_bad_exchanges"] = *tradeBot.Spec.Experimental.BlockBadExchanges
 	}
 
 	// LoggingConfig

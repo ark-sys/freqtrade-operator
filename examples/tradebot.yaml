@@ -42,27 +42,42 @@ spec:
 
   # API configuration
   apiServer:
+    enabled: true
     listen_ip_address: 0.0.0.0
     listen_port: 8080
     verbosity: "error"
-    secretRef: freqtrade-api-secret
+#    secretRef: freqtrade-api-secret
+    username: admin
+    password: admin
     cors_origins:
       - "https://frequi.example.com"
       - "https://btc-trader.frequi.example.com"
 
   # Deployment configuration
-  deployment:
-    #TODO Extend this properly: we should be able to set all the deployment options here
-    image: freqtradeorg/freqtrade:stable
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "500m"
-      limits:
-        memory: "1Gi"
-        cpu: "1"
-    storage_class_name: longhorn
-    storage_size: "1Gi"
+  app:
+    spec:
+      selector:
+        matchLabels:
+          app: btc-trader
+
+      template:
+        spec:
+          containers:
+            - name: freqtrade
+              image: freqtradeorg/freqtrade:stable
+              ports:
+                - containerPort: 8080
+              resources:
+                requests:
+                  memory: "512Mi"
+                  cpu: "500m"
+                limits:
+                  memory: "1Gi"
+                  cpu: "1"
+    pvc:
+      storageClassName: longhorn
+
+
 
 
 

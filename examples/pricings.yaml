@@ -6,7 +6,7 @@ metadata:
 spec:
   price_side: "bid"
   use_order_book: false
-  price_last_balance: false
+  price_last_balance: 0.1
 
 
 ---
@@ -18,5 +18,5 @@ metadata:
 spec:
     price_side: "ask"
     use_order_book: false
-    price_last_balance: false
+    price_last_balance: 0.2
 

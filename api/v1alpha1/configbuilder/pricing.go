@@ -16,24 +16,27 @@ func BuildPricingConfig(pricing *v1alpha1.Pricing) map[string]interface{} {
 		cfg["price_side"] = pricing.Spec.PriceSide
 	}
 
-	if pricing.Spec.UseOrderBook {
+	if pricing.Spec.UseOrderBook != nil {
 		cfg["use_order_book"] = true
 		if pricing.Spec.OrderBookTop != nil {
 			cfg["order_book_top"] = *pricing.Spec.OrderBookTop
 		}
 	}
 
-	if pricing.Spec.PriceLastBalance {
-		cfg["price_last_balance"] = pricing.Spec.PriceLastBalance
+	if pricing.Spec.PriceLastBalance != nil {
+		cfg["price_last_balance"] = *pricing.Spec.PriceLastBalance
 	}
 
 	if pricing.Spec.CheckDepthOfMarket != nil {
-		if pricing.Spec.CheckDepthOfMarket.Enabled {
-			cfg["check_depth_of_market"] = map[string]interface{}{
-				"enabled":           true,
-				"bids_to_ask_delta": pricing.Spec.CheckDepthOfMarket.BidsToAskDelta,
-			}
+
+		cfg["check_depth_of_market"] = map[string]interface{}{}
+		if pricing.Spec.CheckDepthOfMarket.Enabled != nil {
+			cfg["check_depth_of_market"].(map[string]interface{})["enabled"] = *pricing.Spec.CheckDepthOfMarket.Enabled
 		}
+		if pricing.Spec.CheckDepthOfMarket.BidsToAskDelta != nil {
+			cfg["check_depth_of_market"].(map[string]interface{})["bids_to_ask_delta"] = *pricing.Spec.CheckDepthOfMarket.BidsToAskDelta
+		}
+
 	}
 
 	return cfg

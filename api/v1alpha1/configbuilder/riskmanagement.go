@@ -13,7 +13,7 @@ func BuildRiskManagementConfig(riskManagement *v1alpha1.RiskManagement) map[stri
 	cfg := map[string]interface{}{}
 
 	if riskManagement.Spec.MinimalROI != nil {
-		cfg["minimal_roi"] = *riskManagement.Spec.MinimalROI
+		cfg["minimal_roi"] = riskManagement.Spec.MinimalROI
 	}
 
 	if riskManagement.Spec.Stoploss != nil {
@@ -45,7 +45,7 @@ func BuildRiskManagementConfig(riskManagement *v1alpha1.RiskManagement) map[stri
 	}
 
 	if riskManagement.Spec.ExitProfitOffset != nil {
-		cfg["exit_profit_offset"] = riskManagement.Spec.ExitProfitOffset
+		cfg["exit_profit_offset"] = *riskManagement.Spec.ExitProfitOffset
 	}
 
 	if riskManagement.Spec.Fee != nil {
@@ -73,7 +73,7 @@ func BuildRiskManagementConfig(riskManagement *v1alpha1.RiskManagement) map[stri
 	}
 
 	if riskManagement.Spec.StartupCandle != nil {
-		cfg["startup_candle"] = riskManagement.Spec.StartupCandle
+		cfg["startup_candle"] = *riskManagement.Spec.StartupCandle
 	}
 
 	if riskManagement.Spec.LiquidationBuffer != nil {
