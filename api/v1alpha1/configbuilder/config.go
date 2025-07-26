@@ -29,8 +29,14 @@ func AssembleConfig(
 	// Create the main config map
 	config := make(map[string]interface{})
 
+	// Retrieve apiCredentials if any
+	apiCredentials, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBot.Spec.APIServer.SecretRef)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get API credentials: %w", err)
+	}
+
 	// Add bot-level configuration
-	botConfig, jwtSecretKey, err := BuildTradeBotConfig(tradeBot, existingJWTKey)
+	botConfig, jwtSecretKey, err := BuildTradeBotConfig(tradeBot, existingJWTKey, apiCredentials)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to build TradeBot config: %w", err)
 	}

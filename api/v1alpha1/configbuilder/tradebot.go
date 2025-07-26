@@ -17,7 +17,7 @@ func GenerateJWTSecretKey() (string, error) {
 }
 
 // BuildTradeBotConfig builds the base bot configuration for Freqtrade config.json
-func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (map[string]interface{}, string, error) {
+func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string, apiCredentials map[string][]byte) (map[string]interface{}, string, error) {
 	if tradeBot == nil {
 		return nil, "", nil
 	}
@@ -198,12 +198,28 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, existingJWTKey string) (ma
 		if tradeBot.Spec.APIServer.EnableOpenAPI != nil {
 			apiServer["enable_openapi"] = *tradeBot.Spec.APIServer.EnableOpenAPI
 		}
+
+		if apiCredentials != nil {
+
+			if apiCredentials["user"] != nil {
+				apiServer["username"] = string(apiCredentials["user"])
+			}
+			if apiCredentials["password"] != nil {
+				apiServer["password"] = string(apiCredentials["password"])
+			}
+			//if apiCredentials["jwt_secret_key"] != nil {
+			//	jwtSecretKey = string(apiCredentials["jwt_secret_key"])
+			//	apiServer["jwt_secret_key"] = jwtSecretKey
+			//}
+		}
+
 		if tradeBot.Spec.APIServer.Username != "" {
 			apiServer["username"] = tradeBot.Spec.APIServer.Username
 		}
 		if tradeBot.Spec.APIServer.Password != "" {
 			apiServer["password"] = tradeBot.Spec.APIServer.Password
 		}
+
 		if len(tradeBot.Spec.APIServer.CORSOrigins) > 0 {
 			apiServer["CORS_origins"] = tradeBot.Spec.APIServer.CORSOrigins
 		} else {
