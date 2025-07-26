@@ -187,13 +187,6 @@ func (r *Reconciler) finishReconciliation(
 		return ctrl.Result{RequeueAfter: requeueAfter}, nil
 	}
 
-	//// If status is "Running" and no changes were made, don't requeue
-	//if tradeBot.Status.Phase == "Running" && !statusChanged {
-	//	// Only log at a higher verbosity level to reduce noise
-	//	logger.V(1).Info("TradeBot is running and stable, no requeue needed")
-	//	return ctrl.Result{}, nil
-	//}
-
 	// Otherwise, requeue after the specified duration
 	return ctrl.Result{}, nil
 }
