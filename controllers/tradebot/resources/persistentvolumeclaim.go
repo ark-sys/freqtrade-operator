@@ -16,7 +16,6 @@ import (
 
 // BuildUserDataPVC creates a PVC for the bot's user_data directory
 func BuildUserDataPVC(tradeBot freqtradev1alpha1.TradeBot) corev1.PersistentVolumeClaim {
-	// Default PVC spec
 	defaultStorageSize := resource.MustParse("1Gi")
 	defaultStorageClassName := "standard"
 
@@ -30,7 +29,6 @@ func BuildUserDataPVC(tradeBot freqtradev1alpha1.TradeBot) corev1.PersistentVolu
 		StorageClassName: &defaultStorageClassName,
 	}
 
-	// Merge with user-provided PVC configuration
 	finalSpec := basePVCSpec
 	if tradeBot.Spec.App != nil && !reflect.DeepEqual(tradeBot.Spec.App.PVCSpec, corev1.PersistentVolumeClaimSpec{}) {
 		finalSpec = shared.MergeSpecsWithStrategicPatch(basePVCSpec, tradeBot.Spec.App.PVCSpec, &corev1.PersistentVolumeClaimSpec{})
@@ -57,31 +55,29 @@ func ApplyPVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolume
 	} else if err != nil {
 		return err
 	}
-	// PVC is immutable except for spec.resources.requests.storage (which can only be increased)
-	// and metadata.labels/annotations, so we don't update it if it exists
-	if !reflect.DeepEqual(existing.Spec.Resources.Requests, pvc.Spec.Resources.Requests) {
-		// Verify that new storage request is greater than existing
-		quantity := existing.Spec.Resources.Requests[corev1.ResourceStorage]
-		if quantity.Cmp(pvc.Spec.Resources.Requests[corev1.ResourceStorage]) >= 0 {
-			return nil // No update needed, existing storage is sufficient
-		} else {
-			// Update the storage request
-			quantity = pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-			if err := c.Update(ctx, &existing); err != nil {
-				return err
-			}
-		}
 
+	needsUpdate := false
+
+	// Only allow increasing storage
+	existingQty := existing.Spec.Resources.Requests[corev1.ResourceStorage]
+	newQty := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	if newQty.Cmp(existingQty) > 0 {
+		existing.Spec.Resources.Requests[corev1.ResourceStorage] = newQty
+		needsUpdate = true
 	}
 
 	// Update labels and annotations if they differ
-	if !reflect.DeepEqual(existing.ObjectMeta.Labels, pvc.ObjectMeta.Labels) ||
-		!reflect.DeepEqual(existing.ObjectMeta.Annotations, pvc.ObjectMeta.Annotations) {
-		existing.ObjectMeta.Labels = pvc.ObjectMeta.Labels
-		existing.ObjectMeta.Annotations = pvc.ObjectMeta.Annotations
-		if err := c.Update(ctx, &existing); err != nil {
-			return err
-		}
+	if !reflect.DeepEqual(existing.Labels, pvc.Labels) {
+		existing.Labels = pvc.Labels
+		needsUpdate = true
+	}
+	if !reflect.DeepEqual(existing.Annotations, pvc.Annotations) {
+		existing.Annotations = pvc.Annotations
+		needsUpdate = true
+	}
+
+	if needsUpdate {
+		return c.Update(ctx, &existing)
 	}
 
 	return nil

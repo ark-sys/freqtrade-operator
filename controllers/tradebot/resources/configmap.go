@@ -60,11 +60,6 @@ func ApplyConfigMap(ctx context.Context, c client.Client, cm *corev1.ConfigMap) 
 		needsUpdate = true
 	}
 
-	// Compare binary data if present
-	if !reflect.DeepEqual(existing.BinaryData, cm.BinaryData) {
-		needsUpdate = true
-	}
-
 	// Only update if there are actual changes
 	if needsUpdate {
 		cm.ResourceVersion = existing.ResourceVersion
