@@ -62,12 +62,12 @@ func BuildStatefulSet(ctx context.Context, c client.Client, tradeBot freqtradev1
 	baseStatefulSetSpec := appsv1.StatefulSetSpec{
 		Replicas: &replicas,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: map[string]string{"app": tradeBot.Name},
+			MatchLabels: map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
 		},
 		ServiceName: tradeBot.Name,
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app": tradeBot.Name},
+				Labels: map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
 			},
 			Spec: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{
