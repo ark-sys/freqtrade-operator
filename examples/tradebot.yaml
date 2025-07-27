@@ -50,8 +50,8 @@ spec:
     username: admin
     password: admin
     cors_origins:
-      - "https://frequi.example.com"
-      - "https://btc-trader.frequi.example.com"
+      - "https://frequi-example.example.com"
+      - "https://btc-trader.frequi-example.example.com"
 
   # Deployment configuration
   app:
@@ -59,7 +59,6 @@ spec:
       selector:
         matchLabels:
           name: btc-trader
-
       template:
         spec:
           containers:

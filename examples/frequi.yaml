@@ -4,15 +4,15 @@ metadata:
   name: freqtrade-ui
   namespace: freqtrade-example
 spec:
-  host: frequi.example.com
+  host: frequi-example.example.com
   tls:
     - hosts:
-        - "frequi.example.com"
-        - "*.frequi.example.com"
+        - "frequi-example.example.com"
+        - "*.frequi-example.example.com"
       secretName: frequi-example-tls
   ingressAnnotations:
     kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 
   tradeBotRefs:
