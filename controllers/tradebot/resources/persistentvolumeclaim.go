@@ -67,14 +67,14 @@ func ApplyPVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolume
 	}
 
 	// Update labels and annotations if they differ
-	if !reflect.DeepEqual(existing.Labels, pvc.Labels) {
-		existing.Labels = pvc.Labels
-		needsUpdate = true
-	}
-	if !reflect.DeepEqual(existing.Annotations, pvc.Annotations) {
-		existing.Annotations = pvc.Annotations
-		needsUpdate = true
-	}
+	//if !reflect.DeepEqual(existing.Labels, pvc.Labels) {
+	//	existing.Labels = pvc.Labels
+	//	needsUpdate = true
+	//}
+	//if !reflect.DeepEqual(existing.Annotations, pvc.Annotations) {
+	//	existing.Annotations = pvc.Annotations
+	//	needsUpdate = true
+	//}
 
 	if needsUpdate {
 		return c.Update(ctx, &existing)
