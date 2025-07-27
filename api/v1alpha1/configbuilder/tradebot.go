@@ -43,7 +43,7 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, apiCredentials map[string]
 		if bot.StakeCurrency != "" {
 			cfg["stake_currency"] = bot.StakeCurrency
 		}
-		if bot.StakeAmount != nil {
+		if bot.StakeAmount != "" {
 			cfg["stake_amount"] = bot.StakeAmount
 		}
 		if bot.MaxOpenTrades != nil {

@@ -30,7 +30,7 @@ type BotConfig struct {
 	DryRun                 *bool    `json:"dry_run,omitempty"`
 	DryRunWallet           *float64 `json:"dry_run_wallet,omitempty"`
 	StakeCurrency          string   `json:"stake_currency,omitempty"`
-	StakeAmount            *int     `json:"stake_amount,omitempty"`
+	StakeAmount            string   `json:"stake_amount,omitempty"`
 	MaxOpenTrades          *int     `json:"max_open_trades,omitempty"`
 	FiatDisplayCurrency    string   `json:"fiat_display_currency,omitempty"`
 	DBUrl                  string   `json:"db_url,omitempty"`

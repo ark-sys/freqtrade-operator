@@ -213,11 +213,6 @@ func (in *BotConfig) DeepCopyInto(out *BotConfig) {
 		*out = new(float64)
 		**out = **in
 	}
-	if in.StakeAmount != nil {
-		in, out := &in.StakeAmount, &out.StakeAmount
-		*out = new(int)
-		**out = **in
-	}
 	if in.MaxOpenTrades != nil {
 		in, out := &in.MaxOpenTrades, &out.MaxOpenTrades
 		*out = new(int)

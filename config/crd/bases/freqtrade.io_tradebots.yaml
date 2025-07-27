@@ -9576,7 +9576,7 @@ spec:
                   max_open_trades:
                     type: integer
                   stake_amount:
-                    type: integer
+                    type: string
                   stake_currency:
                     type: string
                   trading_mode:
