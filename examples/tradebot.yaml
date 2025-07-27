@@ -58,7 +58,7 @@ spec:
     spec:
       selector:
         matchLabels:
-          app: btc-trader
+          name: btc-trader
 
       template:
         spec:

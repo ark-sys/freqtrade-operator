@@ -3,8 +3,11 @@ kind: Kustomization
 
 namespace: freqtrade-example
 resources:
+  - namespace.yaml
   - exchange-secret.yaml
   - notification-secret.yaml
+  - whitelist.yaml
+  - blacklist.yaml
   - exchange.yaml
   - pairlist_methods.yaml
   - strategy.yaml
