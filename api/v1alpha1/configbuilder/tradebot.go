@@ -43,7 +43,7 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, apiCredentials map[string]
 		if bot.StakeCurrency != "" {
 			cfg["stake_currency"] = bot.StakeCurrency
 		}
-		if bot.StakeAmount != "" {
+		if bot.StakeAmount != nil {
 			cfg["stake_amount"] = bot.StakeAmount
 		}
 		if bot.MaxOpenTrades != nil {
@@ -65,6 +65,189 @@ func BuildTradeBotConfig(tradeBot *v1alpha1.TradeBot, apiCredentials map[string]
 			cfg["disable_dataframe_checks"] = *bot.DisableDataframeChecks
 		}
 
+	}
+
+	if tradeBot.Spec.AI != nil {
+		ai := tradeBot.Spec.AI
+		aiConfig := map[string]interface{}{}
+
+		if ai.Enabled != nil {
+			aiConfig["enabled"] = *ai.Enabled
+		}
+		if ai.Identifier != "" {
+			aiConfig["identifier"] = ai.Identifier
+		}
+		if ai.WriteMetricsToDisk != nil {
+			aiConfig["write_metrics_to_disk"] = *ai.WriteMetricsToDisk
+		}
+		if ai.PurgeOldModels != nil {
+			aiConfig["purge_old_models"] = *ai.PurgeOldModels
+		}
+		if ai.ConvWidth != nil {
+			aiConfig["conv_width"] = *ai.ConvWidth
+		}
+		if ai.TrainPeriodDays != nil {
+			aiConfig["train_period_days"] = *ai.TrainPeriodDays
+		}
+		if ai.BacktestPeriodDays != nil {
+			aiConfig["backtest_period_days"] = *ai.BacktestPeriodDays
+		}
+		if ai.LiveRetrainHours != nil {
+			aiConfig["live_retrain_hours"] = *ai.LiveRetrainHours
+		}
+		if ai.ExpirationHours != nil {
+			aiConfig["expiration_hours"] = *ai.ExpirationHours
+		}
+		if ai.SaveBacktestModels != nil {
+			aiConfig["save_backtest_models"] = *ai.SaveBacktestModels
+		}
+		if ai.FitLivePredictionsCandles != nil {
+			aiConfig["fit_live_predictions_candles"] = *ai.FitLivePredictionsCandles
+		}
+		if ai.DataKitchenThreadCount != nil {
+			aiConfig["data_kitchen_thread_count"] = *ai.DataKitchenThreadCount
+		}
+		if ai.ActivateTensorboard != nil {
+			aiConfig["activate_tensorboard"] = *ai.ActivateTensorboard
+		}
+		if ai.WaitForTrainingIterationOnReload != nil {
+			aiConfig["wait_for_training_iteration_on_reload"] = *ai.WaitForTrainingIterationOnReload
+		}
+		if ai.ContinueLearning != nil {
+			aiConfig["continue_learning"] = *ai.ContinueLearning
+		}
+		if ai.Keras != nil {
+			aiConfig["keras"] = *ai.Keras
+		}
+
+		// FeatureParameters
+		if ai.FeatureParameters != nil {
+			fp := ai.FeatureParameters
+			fpConfig := map[string]interface{}{}
+			if len(fp.IncludeCorrPairlist) > 0 {
+				fpConfig["include_corr_pairlist"] = fp.IncludeCorrPairlist
+			}
+			if len(fp.IncludeTimeframes) > 0 {
+				fpConfig["include_timeframes"] = fp.IncludeTimeframes
+			}
+			if fp.LabelPeriodCandles != nil {
+				fpConfig["label_period_candles"] = *fp.LabelPeriodCandles
+			}
+			if fp.IncludeShiftedCandles != nil {
+				fpConfig["include_shifted_candles"] = *fp.IncludeShiftedCandles
+			}
+			if fp.DIThreshold != nil {
+				fpConfig["di_threshold"] = *fp.DIThreshold
+			}
+			if fp.WeightFactor != nil {
+				fpConfig["weight_factor"] = *fp.WeightFactor
+			}
+			if fp.PrincipalComponentAnalysis != nil {
+				fpConfig["principal_component_analysis"] = *fp.PrincipalComponentAnalysis
+			}
+			if len(fp.IndicatorPeriodsCandles) > 0 {
+				fpConfig["indicator_periods_candles"] = fp.IndicatorPeriodsCandles
+			}
+			if fp.UseSVMToRemoveOutliers != nil {
+				fpConfig["use_svm_to_remove_outliers"] = *fp.UseSVMToRemoveOutliers
+			}
+			if fp.PlotFeatureImportances != nil {
+				fpConfig["plot_feature_importances"] = *fp.PlotFeatureImportances
+			}
+			if fp.SVMParams != nil {
+				svm := fp.SVMParams
+				svmConfig := map[string]interface{}{}
+				if svm.Shuffle != nil {
+					svmConfig["shuffle"] = *svm.Shuffle
+				}
+				if svm.Nu != nil {
+					svmConfig["nu"] = *svm.Nu
+				}
+				fpConfig["svm_params"] = svmConfig
+			}
+			if fp.ShuffleAfterSplit != nil {
+				fpConfig["shuffle_after_split"] = *fp.ShuffleAfterSplit
+			}
+			if fp.BufferTrainDataCandles != nil {
+				fpConfig["buffer_train_data_candles"] = *fp.BufferTrainDataCandles
+			}
+			aiConfig["feature_parameters"] = fpConfig
+		}
+
+		// DataSplitParameters
+		if ai.DataSplitParameters != nil {
+			dsp := ai.DataSplitParameters
+			dspConfig := map[string]interface{}{}
+			if dsp.TestSize != nil {
+				dspConfig["test_size"] = *dsp.TestSize
+			}
+			if dsp.RandomState != nil {
+				dspConfig["random_state"] = *dsp.RandomState
+			}
+			if dsp.Shuffle != nil {
+				dspConfig["shuffle"] = *dsp.Shuffle
+			}
+			aiConfig["data_split_parameters"] = dspConfig
+		}
+
+		// ModelTrainingParameters
+		if ai.ModelTrainingParameters != nil {
+			// If ModelTrainingParameters has fields, map them here.
+			aiConfig["model_training_parameters"] = ai.ModelTrainingParameters
+		}
+
+		// RLConfig
+		if ai.RLConfig != nil {
+			rl := ai.RLConfig
+			rlConfig := map[string]interface{}{}
+			if rl.DropOHLCFromFeatures != nil {
+				rlConfig["drop_ohlc_from_features"] = *rl.DropOHLCFromFeatures
+			}
+			if rl.TrainCycles != nil {
+				rlConfig["train_cycles"] = *rl.TrainCycles
+			}
+			if rl.MaxTradeDurationCandles != nil {
+				rlConfig["max_trade_duration_candles"] = *rl.MaxTradeDurationCandles
+			}
+			if rl.AddStateInfo != nil {
+				rlConfig["add_state_info"] = *rl.AddStateInfo
+			}
+			if rl.MaxTrainingDrawdownPct != nil {
+				rlConfig["max_training_drawdown_pct"] = *rl.MaxTrainingDrawdownPct
+			}
+			if rl.CPUCount != nil {
+				rlConfig["cpu_count"] = *rl.CPUCount
+			}
+			if rl.ModelType != "" {
+				rlConfig["model_type"] = rl.ModelType
+			}
+			if rl.PolicyType != "" {
+				rlConfig["policy_type"] = rl.PolicyType
+			}
+			if len(rl.NetArch) > 0 {
+				rlConfig["net_arch"] = rl.NetArch
+			}
+			if rl.RandomizeStartingPosition != nil {
+				rlConfig["randomize_starting_position"] = *rl.RandomizeStartingPosition
+			}
+			if rl.ProgressBar != nil {
+				rlConfig["progress_bar"] = *rl.ProgressBar
+			}
+			if rl.ModelRewardParameters != nil {
+				mrp := rl.ModelRewardParameters
+				mrpConfig := map[string]interface{}{}
+				if mrp.RR != nil {
+					mrpConfig["rr"] = *mrp.RR
+				}
+				if mrp.ProfitAim != nil {
+					mrpConfig["profit_aim"] = *mrp.ProfitAim
+				}
+				rlConfig["model_reward_parameters"] = mrpConfig
+			}
+			aiConfig["rl_config"] = rlConfig
+		}
+
+		cfg["freqai"] = aiConfig
 	}
 
 	// DataConfig
