@@ -2,7 +2,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: Order
 metadata:
   name: default-order-types
-  namespace: freqtrade
+  namespace: freqtrade-example
 spec:
   types:
     entry: "limit"

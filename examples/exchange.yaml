@@ -4,7 +4,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: Exchange
 metadata:
   name: binance
-  namespace: freqtrade
+  namespace: freqtrade-example
 spec:
   name: binance
   secretRef: binance-credentials

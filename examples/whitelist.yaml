@@ -2,7 +2,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: PairList
 metadata:
   name: crypto-whitelist
-  namespace: freqtrade
+  namespace: freqtrade-example
 spec:
   pairs:
     - "BTC/USDT"

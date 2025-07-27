@@ -2,7 +2,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: Notification
 metadata:
   name: telegram-notifications
-  namespace: freqtrade
+  namespace: freqtrade-example
 spec:
   telegram:
     enabled: true

@@ -2,6 +2,7 @@ kind: PairlistMethods
 apiVersion: freqtrade.io/v1alpha1
 metadata:
   name: default-pairlist-methods
+  namespace: freqtrade-example
 spec:
   methods:
   - method: StaticPairList

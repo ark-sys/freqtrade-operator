@@ -2,7 +2,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: TradeBot
 metadata:
   name: btc-trader
-  namespace: freqtrade
+  namespace: freqtrade-example
   annotations:
     freqtrade.io/preserve-data: "true"
 spec:

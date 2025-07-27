@@ -2,7 +2,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: Pricing
 metadata:
   name: default-entry-pricing
-  namespace: freqtrade
+  namespace: freqtrade-example
 spec:
   price_side: "bid"
   use_order_book: false
@@ -14,7 +14,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: Pricing
 metadata:
   name: default-exit-pricing
-  namespace: freqtrade
+  namespace: freqtrade-example
 spec:
     price_side: "ask"
     use_order_book: false

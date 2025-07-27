@@ -2,7 +2,7 @@ apiVersion: freqtrade.io/v1alpha1
 kind: Strategy
 metadata:
   name: default-strategy
-  namespace: freqtrade
+  namespace: freqtrade-example
 spec:
   name: "SimpleMovingAverageStrategy"
   script: |
