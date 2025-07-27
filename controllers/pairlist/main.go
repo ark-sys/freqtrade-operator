@@ -96,30 +96,42 @@ func (r *Reconciler) validatePairList(ctx context.Context, pairList *freqtradev1
 
 // validatePairFormat validates the format of a trading pair
 func (r *Reconciler) validatePairFormat(pair string) error {
-	// Basic validation: pair should contain a separator (/ or _)
-	if !strings.Contains(pair, "/") && !strings.Contains(pair, "_") {
+	// Allow optional suffix after colon
+	mainPair := pair
+	if idx := strings.Index(pair, ":"); idx != -1 {
+		mainPair = pair[:idx]
+		suffix := pair[idx+1:]
+		if suffix == "" {
+			return fmt.Errorf("pair '%s' has empty suffix after ':'", pair)
+		}
+		// Suffix should be alphanumeric
+		for _, char := range suffix {
+			if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+				return fmt.Errorf("pair '%s' contains invalid character '%c' in suffix", pair, char)
+			}
+		}
+	}
+
+	// Validate main pair as before
+	if !strings.Contains(mainPair, "/") && !strings.Contains(mainPair, "_") {
 		return fmt.Errorf("pair '%s' must contain a separator (/ or _)", pair)
 	}
 
-	// Split by common separators
 	var parts []string
-	if strings.Contains(pair, "/") {
-		parts = strings.Split(pair, "/")
+	if strings.Contains(mainPair, "/") {
+		parts = strings.Split(mainPair, "/")
 	} else {
-		parts = strings.Split(pair, "_")
+		parts = strings.Split(mainPair, "_")
 	}
 
 	if len(parts) != 2 {
 		return fmt.Errorf("pair '%s' must have exactly two parts separated by / or _", pair)
 	}
 
-	// Validate that both parts are not empty and contain only valid characters
 	for i, part := range parts {
 		if part == "" {
 			return fmt.Errorf("pair '%s' has empty part at position %d", pair, i)
 		}
-
-		// Check for valid characters (alphanumeric)
 		for _, char := range part {
 			if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
 				return fmt.Errorf("pair '%s' contains invalid character '%c' in part '%s'", pair, char, part)
