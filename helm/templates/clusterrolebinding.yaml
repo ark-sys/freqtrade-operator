@@ -5,8 +5,6 @@ metadata:
   name: {{ include "freqtrade-operator.fullname" . }}-manager-rolebinding
   labels:
     {{- include "freqtrade-operator.labels" . | nindent 4 }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

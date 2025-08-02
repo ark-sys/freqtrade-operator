@@ -18,18 +18,12 @@
 
 4. The following Custom Resource Definitions have been installed:
   - TradeBots (tradebots.freqtrade.io)
-  - PairLists (pairlists.freqtrade.io) [[memory:3563675]]
-  - PairListMethods (pairlistmethods.freqtrade.io)
+  - TradeBotConfigs (tradebotconfigs.freqtrade.io)
   - Strategies (strategies.freqtrade.io)
-  - Exchanges (exchanges.freqtrade.io)
-  - Pricings (pricings.freqtrade.io)
-  - Orders (orders.freqtrade.io)
-  - RiskManagements (riskmanagements.freqtrade.io)
-  - Notifications (notifications.freqtrade.io)
   - FreqUIs (frequis.freqtrade.io)
 
 5. You can now create Freqtrade resources using kubectl:
   kubectl apply -f your-freqtrade-resources.yaml
 
 For more information about using the Freqtrade Operator, visit:
-https://github.com/freqtrade/freqtrade-operator
+https://github.com/sys-ark/freqtrade-operator

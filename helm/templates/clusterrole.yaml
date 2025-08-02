@@ -5,17 +5,14 @@ metadata:
   name: {{ include "freqtrade-operator.fullname" . }}-manager-role
   labels:
     {{- include "freqtrade-operator.labels" . | nindent 4 }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 rules:
-# Freqtrade custom resources
 - apiGroups:
-  - freqtrade.io
+    - freqtrade.io
   resources:
-  - tradebots
-  - strategies
-  - frequis
-  - tradebotconfigs
+    - tradebots
+    - strategies
+    - frequis
+    - tradebotconfigs
   verbs:
     - create
     - delete
@@ -85,5 +82,6 @@ rules:
     - patch
     - update
     - watch
+
 
 {{- end }} 

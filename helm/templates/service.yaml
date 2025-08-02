@@ -7,8 +7,6 @@ metadata:
   labels:
     {{- include "freqtrade-operator.labels" . | nindent 4 }}
     control-plane: controller-manager
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
 spec:
   type: {{ .Values.controllerManager.metrics.service.type }}
   ports:
