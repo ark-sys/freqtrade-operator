@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
-	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,8 +31,8 @@ func BuildFreqUIService(frequi freqtradev1alpha1.FreqUI) corev1.Service {
 
 	// Merge with user-provided service configuration
 	finalSpec := baseServiceSpec
-	if frequi.Spec.App != nil && !reflect.DeepEqual(frequi.Spec.App.ServiceSpec, corev1.ServiceSpec{}) {
-		finalSpec = shared.MergeSpecsWithStrategicPatch(baseServiceSpec, frequi.Spec.App.ServiceSpec, &corev1.ServiceSpec{})
+	if frequi.Spec.App != nil && frequi.Spec.App.ServiceSpec != nil {
+		applyServiceSpecOverrides(&finalSpec, frequi.Spec.App.ServiceSpec)
 	}
 
 	return corev1.Service{
@@ -109,4 +108,37 @@ func ApplyService(ctx context.Context, c client.Client, svc *corev1.Service) err
 	}
 
 	return nil
+}
+
+// applyServiceSpecOverrides applies user-provided service specification overrides to the base service spec
+func applyServiceSpecOverrides(serviceSpec *corev1.ServiceSpec, userServiceSpec *freqtradev1alpha1.FUServiceSpec) {
+	// Override service type if specified
+	if userServiceSpec.Type != "" {
+		serviceSpec.Type = userServiceSpec.Type
+	}
+
+	// Override ports if specified
+	if len(userServiceSpec.Ports) > 0 {
+		serviceSpec.Ports = userServiceSpec.Ports
+	}
+
+	// Override selector if specified
+	if len(userServiceSpec.Selector) > 0 {
+		serviceSpec.Selector = userServiceSpec.Selector
+	}
+
+	// Override load balancer source ranges if specified
+	if len(userServiceSpec.LoadBalancerSourceRanges) > 0 {
+		serviceSpec.LoadBalancerSourceRanges = userServiceSpec.LoadBalancerSourceRanges
+	}
+
+	// Override external traffic policy if specified
+	if userServiceSpec.ExternalTrafficPolicy != "" {
+		serviceSpec.ExternalTrafficPolicy = userServiceSpec.ExternalTrafficPolicy
+	}
+
+	// Override session affinity if specified
+	if userServiceSpec.SessionAffinity != "" {
+		serviceSpec.SessionAffinity = userServiceSpec.SessionAffinity
+	}
 }

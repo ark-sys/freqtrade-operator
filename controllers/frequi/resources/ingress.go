@@ -2,8 +2,8 @@ package resources
 
 import (
 	"context"
-	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	"reflect"
+
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -59,44 +59,40 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 	})
 
 	// Add API subdomain rules
-	if tradeBotAPIRoutes != nil {
-		for _, apiRoute := range tradeBotAPIRoutes {
-			apiHost := apiRoute.Name + "." + mainHost
-			rules = append(rules, networkingv1.IngressRule{
-				Host: apiHost,
-				IngressRuleValue: networkingv1.IngressRuleValue{
-					HTTP: &networkingv1.HTTPIngressRuleValue{
-						Paths: []networkingv1.HTTPIngressPath{
-							{
-								Path:     "/",
-								PathType: &pathType,
-								Backend: networkingv1.IngressBackend{
-									Service: &networkingv1.IngressServiceBackend{
-										Name: apiRoute.ServiceName,
-										Port: networkingv1.ServiceBackendPort{
-											Number: 8080,
-										},
+	for _, apiRoute := range tradeBotAPIRoutes {
+		apiHost := apiRoute.Name + "." + mainHost
+		rules = append(rules, networkingv1.IngressRule{
+			Host: apiHost,
+			IngressRuleValue: networkingv1.IngressRuleValue{
+				HTTP: &networkingv1.HTTPIngressRuleValue{
+					Paths: []networkingv1.HTTPIngressPath{
+						{
+							Path:     "/",
+							PathType: &pathType,
+							Backend: networkingv1.IngressBackend{
+								Service: &networkingv1.IngressServiceBackend{
+									Name: apiRoute.ServiceName,
+									Port: networkingv1.ServiceBackendPort{
+										Number: 8080,
 									},
 								},
 							},
 						},
 					},
 				},
-			})
-		}
+			},
+		})
 	}
 
 	// Build TLS configuration
 	tls := spec.TLS
-	if tls == nil || len(tls) == 0 {
+	if len(tls) == 0 {
 		// If not set, build TLS for all hosts (optional)
 		var tlsHosts []string
 		tlsHosts = append(tlsHosts, mainHost)
-		if tradeBotAPIRoutes != nil {
-			for _, apiRoute := range tradeBotAPIRoutes {
-				apiHost := apiRoute.Name + "." + mainHost
-				tlsHosts = append(tlsHosts, apiHost)
-			}
+		for _, apiRoute := range tradeBotAPIRoutes {
+			apiHost := apiRoute.Name + "." + mainHost
+			tlsHosts = append(tlsHosts, apiHost)
 		}
 		tls = []networkingv1.IngressTLS{{Hosts: tlsHosts}}
 	}
@@ -107,8 +103,23 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 	}
 
 	finalSpec := baseIngressSpec
-	if spec.App != nil && !reflect.DeepEqual(spec.App.IngressSpec, networkingv1.IngressSpec{}) {
-		finalSpec = shared.MergeSpecsWithStrategicPatch(baseIngressSpec, spec.App.IngressSpec, &networkingv1.IngressSpec{})
+	if spec.App != nil && spec.App.IngressSpec != nil {
+		applyIngressSpecOverrides(&finalSpec, spec.App.IngressSpec)
+	}
+
+	// Merge annotations from both spec.IngressAnnotations and spec.App.IngressSpec.Annotations
+	annotations := make(map[string]string)
+
+	// Add annotations from spec.IngressAnnotations first
+	for k, v := range spec.IngressAnnotations {
+		annotations[k] = v
+	}
+
+	// Add annotations from spec.App.IngressSpec.Annotations (these take precedence)
+	if spec.App != nil && spec.App.IngressSpec != nil {
+		for k, v := range spec.App.IngressSpec.Annotations {
+			annotations[k] = v
+		}
 	}
 
 	return networkingv1.Ingress{
@@ -118,7 +129,7 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(&frequi, freqtradev1alpha1.GroupVersion.WithKind("FreqUI")),
 			},
-			Annotations: spec.IngressAnnotations,
+			Annotations: annotations,
 		},
 		Spec: finalSpec,
 	}
@@ -170,4 +181,27 @@ func ApplyIngress(ctx context.Context, c client.Client, ing *networkingv1.Ingres
 	}
 
 	return nil
+}
+
+// applyIngressSpecOverrides applies user-provided ingress specification overrides to the base ingress spec
+func applyIngressSpecOverrides(ingressSpec *networkingv1.IngressSpec, userIngressSpec *freqtradev1alpha1.FUIngressSpec) {
+	// Override ingress class name if specified
+	if userIngressSpec.IngressClassName != nil {
+		ingressSpec.IngressClassName = userIngressSpec.IngressClassName
+	}
+
+	// Override rules if specified
+	if len(userIngressSpec.Rules) > 0 {
+		ingressSpec.Rules = userIngressSpec.Rules
+	}
+
+	// Override TLS if specified
+	if len(userIngressSpec.TLS) > 0 {
+		ingressSpec.TLS = userIngressSpec.TLS
+	}
+
+	// Override default backend if specified
+	if userIngressSpec.DefaultBackend != nil {
+		ingressSpec.DefaultBackend = userIngressSpec.DefaultBackend
+	}
 }

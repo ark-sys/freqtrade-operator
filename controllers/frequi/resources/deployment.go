@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
-	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -21,10 +20,13 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 
 	// Set default image if not specified
 	image := "freqtradeorg/frequi:latest"
-	if frequi.Spec.App != nil &&
-		len(frequi.Spec.App.DeploymentSpec.Template.Spec.Containers) > 0 &&
-		frequi.Spec.App.DeploymentSpec.Template.Spec.Containers[0].Image != "" {
-		image = frequi.Spec.App.DeploymentSpec.Template.Spec.Containers[0].Image
+	if frequi.Spec.App != nil && frequi.Spec.App.PodSpec != nil && frequi.Spec.App.PodSpec.Image != "" {
+		image = frequi.Spec.App.PodSpec.Image
+	}
+
+	// Override replicas if specified
+	if frequi.Spec.App != nil && frequi.Spec.App.PodSpec != nil && frequi.Spec.App.PodSpec.Replicas != nil {
+		replicas = *frequi.Spec.App.PodSpec.Replicas
 	}
 
 	// Build default deployment spec
@@ -87,10 +89,10 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 		},
 	}
 
-	// Merge with user-provided deployment configuration
+	// Merge with user-provided pod configuration
 	finalSpec := baseDeploymentSpec
-	if frequi.Spec.App != nil && !reflect.DeepEqual(frequi.Spec.App.DeploymentSpec, appsv1.DeploymentSpec{}) {
-		finalSpec = shared.MergeSpecsWithStrategicPatch(baseDeploymentSpec, frequi.Spec.App.DeploymentSpec, &appsv1.DeploymentSpec{})
+	if frequi.Spec.App != nil && frequi.Spec.App.PodSpec != nil {
+		applyPodSpecOverrides(&finalSpec.Template.Spec, frequi.Spec.App.PodSpec)
 	}
 
 	return appsv1.Deployment{
@@ -139,4 +141,90 @@ func ApplyDeployment(ctx context.Context, c client.Client, deploy *appsv1.Deploy
 	}
 
 	return nil
+}
+
+// applyPodSpecOverrides applies user-provided pod specification overrides to the base pod spec
+func applyPodSpecOverrides(podSpec *corev1.PodSpec, userPodSpec *freqtradev1alpha1.FUPodSpec) {
+	// Override container resources if specified
+	if len(userPodSpec.Resources.Limits) > 0 || len(userPodSpec.Resources.Requests) > 0 {
+		if len(podSpec.Containers) > 0 {
+			podSpec.Containers[0].Resources = userPodSpec.Resources
+		}
+	}
+
+	// Override environment variables if specified
+	if len(userPodSpec.Env) > 0 {
+		if len(podSpec.Containers) > 0 {
+			podSpec.Containers[0].Env = append(podSpec.Containers[0].Env, userPodSpec.Env...)
+		}
+	}
+
+	// Override volume mounts if specified
+	if len(userPodSpec.VolumeMounts) > 0 {
+		if len(podSpec.Containers) > 0 {
+			podSpec.Containers[0].VolumeMounts = append(podSpec.Containers[0].VolumeMounts, userPodSpec.VolumeMounts...)
+		}
+	}
+
+	// Override volumes if specified
+	if len(userPodSpec.Volumes) > 0 {
+		podSpec.Volumes = append(podSpec.Volumes, userPodSpec.Volumes...)
+	}
+
+	// Override security context if specified
+	if userPodSpec.SecurityContext != nil {
+		podSpec.SecurityContext = userPodSpec.SecurityContext
+	}
+
+	// Override init containers if specified
+	if len(userPodSpec.InitContainers) > 0 {
+		podSpec.InitContainers = append(podSpec.InitContainers, userPodSpec.InitContainers...)
+	}
+
+	// Override image pull secrets if specified
+	if len(userPodSpec.ImagePullSecrets) > 0 {
+		podSpec.ImagePullSecrets = append(podSpec.ImagePullSecrets, userPodSpec.ImagePullSecrets...)
+	}
+
+	// Override liveness probe if specified
+	if userPodSpec.LivenessProbe != nil {
+		if len(podSpec.Containers) > 0 {
+			podSpec.Containers[0].LivenessProbe = userPodSpec.LivenessProbe
+		}
+	}
+
+	// Override readiness probe if specified
+	if userPodSpec.ReadinessProbe != nil {
+		if len(podSpec.Containers) > 0 {
+			podSpec.Containers[0].ReadinessProbe = userPodSpec.ReadinessProbe
+		}
+	}
+
+	// Override affinity if specified
+	if userPodSpec.Affinity != nil {
+		podSpec.Affinity = userPodSpec.Affinity
+	}
+
+	// Override anti-affinity if specified
+	if userPodSpec.AntiAffinity != nil {
+		if podSpec.Affinity == nil {
+			podSpec.Affinity = &corev1.Affinity{}
+		}
+		podSpec.Affinity.PodAntiAffinity = userPodSpec.AntiAffinity
+	}
+
+	// Override node selector if specified
+	if len(userPodSpec.NodeSelector) > 0 {
+		podSpec.NodeSelector = userPodSpec.NodeSelector
+	}
+
+	// Override tolerations if specified
+	if len(userPodSpec.Tolerations) > 0 {
+		podSpec.Tolerations = append(podSpec.Tolerations, userPodSpec.Tolerations...)
+	}
+
+	// Override topology spread constraints if specified
+	if len(userPodSpec.TopologySpreadConstraints) > 0 {
+		podSpec.TopologySpreadConstraints = append(podSpec.TopologySpreadConstraints, userPodSpec.TopologySpreadConstraints...)
+	}
 }
