@@ -7,15 +7,9 @@ rules:
   - freqtrade.io
   resources:
   - tradebots
-  - pairlists
-  - pairlistmethods
   - strategies
-  - exchanges
-  - pricings
-  - orders
-  - riskmanagements
-  - notifications
   - frequis
+  - tradebotconfigs
   verbs:
   - create
   - delete
@@ -28,15 +22,9 @@ rules:
   - freqtrade.io
   resources:
   - tradebots/status
-  - pairlists/status
-  - pairlistmethods/status
   - strategies/status
-  - exchanges/status
-  - pricings/status
-  - orders/status
-  - riskmanagements/status
-  - notifications/status
   - frequis/status
+  - tradebotconfigs/status
   verbs:
   - get
   - patch
@@ -45,15 +33,9 @@ rules:
   - freqtrade.io
   resources:
   - tradebots/finalizers
-  - pairlists/finalizers
-  - pairlistmethods/finalizers
   - strategies/finalizers
-  - exchanges/finalizers
-  - pricings/finalizers
-  - orders/finalizers
-  - riskmanagements/finalizers
-  - notifications/finalizers
   - frequis/finalizers
+  - tradebotconfigs/finalizers
   verbs:
   - update
 - apiGroups:

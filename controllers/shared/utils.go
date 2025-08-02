@@ -3,9 +3,11 @@ package shared
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	"time"
 
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -22,6 +24,22 @@ type StatusUpdater struct {
 	client.Client
 }
 
+func (s *StatusUpdater) RetryUpdateConfigStatus(ctx context.Context, obj client.Object, phase, message string, maxRetries int) error {
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		lastErr = s.UpdateConfigStatus(ctx, obj, phase, message)
+		if lastErr == nil {
+			return nil
+		}
+		if !errors.IsConflict(lastErr) {
+			return lastErr
+		}
+		// Brief backoff before retrying
+		time.Sleep(100 * time.Millisecond)
+	}
+	return lastErr
+}
+
 // UpdateConfigStatus updates the status of a config CRD with phase and message
 func (s *StatusUpdater) UpdateConfigStatus(ctx context.Context, obj client.Object, phase, message string) error {
 	logger := log.FromContext(ctx)
@@ -34,15 +52,6 @@ func (s *StatusUpdater) UpdateConfigStatus(ctx context.Context, obj client.Objec
 
 	// Update status based on object type
 	switch o := latest.(type) {
-	case *freqtradev1alpha1.Exchange:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update Exchange status: %w", err)
-			}
-			logger.Info("Updated Exchange status", "name", o.Name, "phase", phase)
-		}
 	case *freqtradev1alpha1.Strategy:
 		if o.Status.Phase != phase || o.Status.Message != message {
 			o.Status.Phase = phase
@@ -52,60 +61,19 @@ func (s *StatusUpdater) UpdateConfigStatus(ctx context.Context, obj client.Objec
 			}
 			logger.Info("Updated Strategy status", "name", o.Name, "phase", phase)
 		}
-	case *freqtradev1alpha1.RiskManagement:
+
+	case *freqtradev1alpha1.TradeBotConfig:
 		if o.Status.Phase != phase || o.Status.Message != message {
 			o.Status.Phase = phase
 			o.Status.Message = message
 			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update RiskManagement status: %w", err)
+				return fmt.Errorf("failed to update TradeBotConfig status: %w", err)
 			}
-			logger.Info("Updated RiskManagement status", "name", o.Name, "phase", phase)
+			logger.Info("Updated TradeBotConfig status", "name", o.Name, "phase",
+				phase)
+
 		}
-	case *freqtradev1alpha1.Notification:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update Notification status: %w", err)
-			}
-			logger.Info("Updated Notification status", "name", o.Name, "phase", phase)
-		}
-	case *freqtradev1alpha1.Pricing:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update Pricing status: %w", err)
-			}
-			logger.Info("Updated Pricing status", "name", o.Name, "phase", phase)
-		}
-	case *freqtradev1alpha1.Order:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update Order status: %w", err)
-			}
-			logger.Info("Updated Order status", "name", o.Name, "phase", phase)
-		}
-	case *freqtradev1alpha1.PairList:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update PairList status: %w", err)
-			}
-			logger.Info("Updated PairList status", "name", o.Name, "phase", phase)
-		}
-	case *freqtradev1alpha1.PairlistMethods:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update PairlistMethods status: %w", err)
-			}
-			logger.Info("Updated PairlistMethods status", "name", o.Name, "phase", phase)
-		}
+
 	default:
 		return fmt.Errorf("unsupported object type: %T", latest)
 	}
@@ -145,90 +113,47 @@ func EnqueueTradeBotsByConfigRef(c client.Client, refField string) handler.MapFu
 	}
 }
 
-// shouldEnqueueTradeBot checks if a TradeBot should be enqueued based on the reference field
-func shouldEnqueueTradeBot(bot *freqtradev1alpha1.TradeBot, configName, refField string) bool {
-	refs := bot.Spec.References
-	if refs == nil {
-		return false
-	}
-
-	switch refField {
-	case "exchangeRef":
-		return refs.ExchangeRef == configName
-	case "strategyRef":
-		return refs.StrategyRef == configName
-	case "riskManagementRef":
-		return refs.RiskManagementRef == configName
-	case "notificationRef":
-		return refs.NotificationRef == configName
-	case "entryPricingRef":
-		return refs.EntryPricingRef == configName
-	case "exitPricingRef":
-		return refs.ExitPricingRef == configName
-	case "orderTypesRef":
-		return refs.OrderTypesRef == configName
-	case "pairlistMethodsRef":
-		return refs.PairlistMethodsRef == configName
-	default:
-		return false
-	}
-}
-
-// EnqueueTradeBotsByPairListRef handles PairList references which are nested in Exchange
-func EnqueueTradeBotsByPairListRef(c client.Client, pairListType string) handler.MapFunc {
+// EnqueueTradeBotsByFreqUIRef creates a handler function that enqueues TradeBots referenced by a FreqUI
+func EnqueueTradeBotsByFreqUIRef(c client.Client) handler.MapFunc {
 	return func(ctx context.Context, obj client.Object) []reconcile.Request {
 		logger := log.FromContext(ctx)
 
-		// Find Exchanges that reference this PairList
-		var exchanges freqtradev1alpha1.ExchangeList
-		if err := c.List(ctx, &exchanges, client.InNamespace(obj.GetNamespace())); err != nil {
-			logger.Error(err, "Failed to list Exchanges for PairList reference")
-			return nil
-		}
-
-		var affectedExchanges []string
-		for _, exchange := range exchanges.Items {
-			if (pairListType == "whitelist" && exchange.Spec.WhitelistRef == obj.GetName()) ||
-				(pairListType == "blacklist" && exchange.Spec.BlacklistRef == obj.GetName()) {
-				affectedExchanges = append(affectedExchanges, exchange.Name)
-			}
-		}
-
-		if len(affectedExchanges) == 0 {
-			return nil
-		}
-
-		// Find TradeBots that reference these Exchanges
-		var tradeBots freqtradev1alpha1.TradeBotList
-		if err := c.List(ctx, &tradeBots, client.InNamespace(obj.GetNamespace())); err != nil {
-			logger.Error(err, "Failed to list TradeBots for PairList reference")
+		frequi, ok := obj.(*freqtradev1alpha1.FreqUI)
+		if !ok {
+			logger.Error(fmt.Errorf("unexpected object type"), "Expected FreqUI", "actualType", fmt.Sprintf("%T", obj))
 			return nil
 		}
 
 		var requests []reconcile.Request
-		for _, bot := range tradeBots.Items {
-			if bot.Spec.References != nil {
-				for _, exchangeName := range affectedExchanges {
-					if bot.Spec.References.ExchangeRef == exchangeName {
-						requests = append(requests, reconcile.Request{
-							NamespacedName: types.NamespacedName{
-								Name:      bot.Name,
-								Namespace: bot.Namespace,
-							},
-						})
-						break
-					}
-				}
-			}
+		for _, tradeBotRef := range frequi.Spec.TradeBotRefs {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      tradeBotRef,
+					Namespace: frequi.Namespace,
+				},
+			})
 		}
 
 		if len(requests) > 0 {
-			logger.Info("Enqueuing TradeBots for PairList change",
-				"pairListType", pairListType, "pairListName", obj.GetName(), "tradeBotCount", len(requests))
+			logger.Info("Enqueuing TradeBots for FreqUI change",
+				"frequiName", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs, "tradeBotCount", len(requests))
 		}
 
 		return requests
 	}
+}
+
+// shouldEnqueueTradeBot checks if a TradeBot should be enqueued based on the reference field
+func shouldEnqueueTradeBot(bot *freqtradev1alpha1.TradeBot, configName, refField string) bool {
+	strategyRef := bot.Spec.Strategy
+	tradebotconfigRef := bot.Spec.Config
+	switch refField {
+	case "strategy":
+		return strategyRef == configName
+	case "config":
+		return tradebotconfigRef == configName
+	}
+	return false
 }
 
 // ReconcileResult represents the result of a reconciliation operation

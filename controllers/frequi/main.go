@@ -48,6 +48,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Initialize status if empty
 	if frequi.Status.Phase == "" {
 		frequi.Status.Phase = "Initializing"
+		frequi.Status.Message = "Starting FreqUI deployment"
 		statusChanged = true
 	}
 
@@ -57,7 +58,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		frequi.Status.Phase = "ResourceError"
 		frequi.Status.Message = fmt.Sprintf("Failed to reconcile resources: %v", err)
 		statusChanged = true
-		return r.finishReconciliation(ctx, &frequi, originalStatus, statusChanged, 30*time.Second, err)
+		return r.finishReconciliation(ctx, &frequi, statusChanged, 30*time.Second, err)
 	}
 
 	// 3. Check if deployment is ready
@@ -67,7 +68,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		frequi.Status.Phase = "DeploymentError"
 		frequi.Status.Message = fmt.Sprintf("Failed to get deployment status: %v", err)
 		statusChanged = true
-		return r.finishReconciliation(ctx, &frequi, originalStatus, statusChanged, 30*time.Second, err)
+		return r.finishReconciliation(ctx, &frequi, statusChanged, 30*time.Second, err)
 	}
 
 	// 4. Update status based on deployment readiness
@@ -87,29 +88,42 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logger.V(1).Info("FreqUI is running and stable, no requeue needed")
 			return ctrl.Result{}, nil
 		}
-
-		// Otherwise, requeue after longer period
-		return r.finishReconciliation(ctx, &frequi, originalStatus, true, 5*time.Minute, nil)
+		// Otherwise, requeue after a longer period
+		return r.finishReconciliation(ctx, &frequi, true, 5*time.Minute, nil)
 	}
 
 	// Deployment is not ready yet, update status and requeue sooner
-	frequi.Status.Phase = "Pending"
-	frequi.Status.Message = "Waiting for deployment to be ready"
-	statusChanged = !reflect.DeepEqual(originalStatus, &frequi.Status)
+	newPhase := "Pending"
+	newMessage := fmt.Sprintf("Waiting for deployment to be ready (%d/%d replicas)",
+		deployment.Status.AvailableReplicas, deployment.Status.Replicas)
 
-	logger.Info("App not ready yet, requeuing",
-		"name", frequi.Name,
-		"availableReplicas", deployment.Status.AvailableReplicas,
-		"replicas", deployment.Status.Replicas)
+	// Only update status if phase or message actually changed to reduce reconciliation triggers
+	if frequi.Status.Phase != newPhase || frequi.Status.Message != newMessage {
+		frequi.Status.Phase = newPhase
+		frequi.Status.Message = newMessage
+		statusChanged = true
+		logger.Info("App not ready yet, updating status and requeuing",
+			"name", frequi.Name,
+			"availableReplicas", deployment.Status.AvailableReplicas,
+			"replicas", deployment.Status.Replicas,
+			"newMessage", newMessage)
+	} else {
+		// Status unchanged, just requeue without status update
+		statusChanged = false
+		logger.V(1).Info("App still not ready, requeuing without status update",
+			"name", frequi.Name,
+			"availableReplicas", deployment.Status.AvailableReplicas,
+			"replicas", deployment.Status.Replicas)
+	}
 
-	return r.finishReconciliation(ctx, &frequi, originalStatus, statusChanged, 10*time.Second, nil)
+	// Increase requeue time to reduce frequent checks (from 10s to 15s)
+	return r.finishReconciliation(ctx, &frequi, statusChanged, 15*time.Second, nil)
 }
 
 // finishReconciliation handles status updates and returns the appropriate result
 func (r *Reconciler) finishReconciliation(
 	ctx context.Context,
 	frequi *freqtradev1alpha1.FreqUI,
-	originalStatus *freqtradev1alpha1.FreqUIStatus,
 	statusChanged bool,
 	requeueAfter time.Duration,
 	err error) (ctrl.Result, error) {
@@ -118,9 +132,9 @@ func (r *Reconciler) finishReconciliation(
 
 	// Only update status if it has changed
 	if statusChanged {
-		updateErr := r.Status().Update(ctx, frequi)
+		updateErr := r.retryUpdateFreqUIStatus(ctx, frequi, 3)
 		if updateErr != nil {
-			logger.Error(updateErr, "Failed to update FreqUI status")
+			logger.Error(updateErr, "Failed to update FreqUI status after retries")
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, updateErr
 		}
 		logger.Info("Updated FreqUI status", "phase", frequi.Status.Phase)
@@ -128,7 +142,8 @@ func (r *Reconciler) finishReconciliation(
 
 	// Return appropriate result based on error
 	if err != nil {
-		return ctrl.Result{RequeueAfter: requeueAfter}, err
+		// When returning an error, don't specify RequeueAfter as controller-runtime will use exponential backoff
+		return ctrl.Result{}, err
 	}
 
 	// If status is "Running" and no changes were made, don't requeue
@@ -138,7 +153,10 @@ func (r *Reconciler) finishReconciliation(
 	}
 
 	// Otherwise, requeue after the specified duration
-	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	if statusChanged {
+		return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	}
+	return ctrl.Result{}, nil
 }
 
 // reconcileAllResources creates or updates all resources needed by FreqUI
@@ -164,13 +182,35 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 	for _, tradeBotRef := range frequi.Spec.TradeBotRefs {
 		var tradeBot freqtradev1alpha1.TradeBot
 		err := r.Get(ctx, types.NamespacedName{Name: tradeBotRef, Namespace: frequi.Namespace}, &tradeBot)
-		if err == nil && tradeBot.Spec.APIServer != nil && tradeBot.Spec.APIServer.Enabled != nil && *tradeBot.Spec.APIServer.Enabled {
-			apiRoutes = append(apiRoutes, resources.TradeBotAPIRoute{
-				Name:        tradeBotRef,
-				ServiceName: tradeBotRef,
-				PathPrefix:  tradeBotRef,
-			})
+		if err == nil {
+			// Retrieve TradeBotConfig for the TradeBot
+			var tradeBotConfig freqtradev1alpha1.TradeBotConfig
+			if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.Config, Namespace: frequi.Namespace}, &tradeBotConfig); err != nil {
+				logger.Error(err, "Failed to get TradeBotConfig for TradeBot", "tradeBot", tradeBotRef)
+				continue
+			}
+
+			// Only add API route if TradeBotConfig is valid and API server is enabled
+			if tradeBotConfig.Status.Phase == "Valid" && tradeBotConfig.Spec.APIServer != nil &&
+				tradeBotConfig.Spec.APIServer.Enabled != nil && *tradeBotConfig.Spec.APIServer.Enabled {
+				apiRoutes = append(apiRoutes, resources.TradeBotAPIRoute{
+					Name:        tradeBotRef,
+					ServiceName: tradeBotRef,
+					PathPrefix:  tradeBotRef,
+				})
+			} else {
+				logger.V(1).Info("Skipping TradeBot API route", "tradeBot", tradeBotRef,
+					"reason", "TradeBotConfig is not valid or API server is disabled")
+			}
+		} else if !errors.IsNotFound(err) {
+			logger.Error(err, "Failed to get TradeBot for API route", "tradeBot", tradeBotRef)
+			return fmt.Errorf("failed to get TradeBot %s: %w", tradeBotRef, err)
+		} else {
+			logger.V(1).Info("TradeBot not found for API route", "tradeBot", tradeBotRef)
+			// If TradeBot is not found, we skip adding it to the routes
+			continue
 		}
+
 	}
 
 	ingress := resources.BuildFreqUIIngress(*frequi, apiRoutes)
@@ -180,6 +220,40 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 	logger.V(1).Info("Ingress reconciled", "name", ingress.Name)
 
 	return nil
+}
+
+// retryUpdateFreqUIStatus updates the FreqUI status with retry logic to handle resource version conflicts
+func (r *Reconciler) retryUpdateFreqUIStatus(ctx context.Context, frequi *freqtradev1alpha1.FreqUI, maxRetries int) error {
+	logger := log.FromContext(ctx)
+
+	for i := 0; i < maxRetries; i++ {
+		// Get the latest version to avoid conflicts
+		var latest freqtradev1alpha1.FreqUI
+		if err := r.Get(ctx, client.ObjectKeyFromObject(frequi), &latest); err != nil {
+			return fmt.Errorf("failed to get latest FreqUI version: %w", err)
+		}
+
+		// Update the status on the latest version
+		latest.Status = frequi.Status
+
+		// Try to update the status
+		if err := r.Status().Update(ctx, &latest); err != nil {
+			if errors.IsConflict(err) && i < maxRetries-1 {
+				logger.V(1).Info("FreqUI status update conflict, retrying", "attempt", i+1, "maxRetries", maxRetries)
+				time.Sleep(100 * time.Millisecond) // Brief backoff
+				continue
+			}
+			return fmt.Errorf("failed to update FreqUI status: %w", err)
+		}
+
+		// Update successful
+		if i > 0 {
+			logger.Info("FreqUI status update succeeded after retry", "attempts", i+1)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("failed to update FreqUI status after %d retries", maxRetries)
 }
 
 // isDeploymentReady checks if a deployment is ready

@@ -38,16 +38,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
-	"github.com/ark-sys/freqtrade-operator/controllers/exchange"
 	"github.com/ark-sys/freqtrade-operator/controllers/frequi"
-	"github.com/ark-sys/freqtrade-operator/controllers/notification"
-	"github.com/ark-sys/freqtrade-operator/controllers/order"
-	"github.com/ark-sys/freqtrade-operator/controllers/pairlist"
-	"github.com/ark-sys/freqtrade-operator/controllers/pairlistmethods"
-	"github.com/ark-sys/freqtrade-operator/controllers/pricing"
-	"github.com/ark-sys/freqtrade-operator/controllers/riskmanagement"
 	"github.com/ark-sys/freqtrade-operator/controllers/strategy"
 	"github.com/ark-sys/freqtrade-operator/controllers/tradebot"
+	"github.com/ark-sys/freqtrade-operator/controllers/tradebotconfig"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -228,15 +222,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Setup Exchange controller
-	if err = (&exchange.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Exchange")
-		os.Exit(1)
-	}
-
 	// Setup Strategy controller
 	if err = (&strategy.Reconciler{
 		Client: mgr.GetClient(),
@@ -246,57 +231,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Setup RiskManagement controller
-	if err = (&riskmanagement.Reconciler{
+	// Setup TradeBotConfig controller
+	if err = (&tradebotconfig.Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "RiskManagement")
-		os.Exit(1)
-	}
-
-	// Setup Notification controller
-	if err = (&notification.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Notification")
-		os.Exit(1)
-	}
-
-	// Setup Pricing controller
-	if err = (&pricing.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Pricing")
-		os.Exit(1)
-	}
-
-	// Setup Order controller
-	if err = (&order.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Order")
-		os.Exit(1)
-	}
-
-	// Setup PairList controller
-	if err = (&pairlist.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PairList")
-		os.Exit(1)
-	}
-
-	// Setup PairlistMethods controller
-	if err = (&pairlistmethods.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PairlistMethods")
+		setupLog.Error(err, "unable to create controller", "controller", "TradeBotConfig")
 		os.Exit(1)
 	}
 

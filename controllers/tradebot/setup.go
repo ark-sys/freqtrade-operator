@@ -2,9 +2,11 @@ package tradebot
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -12,121 +14,184 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Add indexes for faster lookups
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &freqtradev1alpha1.TradeBot{}, "spec.references.exchangeRef", func(obj client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &freqtradev1alpha1.TradeBot{}, "spec.config", func(obj client.Object) []string {
 		tradeBot := obj.(*freqtradev1alpha1.TradeBot)
-		if tradeBot.Spec.References != nil {
-			return []string{tradeBot.Spec.References.ExchangeRef}
+		if tradeBot.Spec.Config != "" {
+			return []string{tradeBot.Spec.Config}
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &freqtradev1alpha1.TradeBot{}, "spec.references.strategyRef", func(obj client.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &freqtradev1alpha1.TradeBot{}, "spec.strategy", func(obj client.Object) []string {
 		tradeBot := obj.(*freqtradev1alpha1.TradeBot)
-		if tradeBot.Spec.References != nil {
-			return []string{tradeBot.Spec.References.StrategyRef}
+		if tradeBot.Spec.Strategy != "" {
+			return []string{tradeBot.Spec.Strategy}
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	// Create predicates for the main resource (TradeBot)
+	setupLog := ctrl.Log.WithName("predicate")
+
 	mainResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			// Skip reconciliation if only status or metadata changed
+			setupLog.Info("=== MAIN RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
+
 			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.TradeBot)
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.TradeBot)
+
+			if !oldOk || !newOk {
+				setupLog.Info("Predicate triggered: type assertion failed", "eventType", "Update")
+				return true
+			}
+
+			// Check if only status changed (should not trigger reconciliation)
+			if reflect.DeepEqual(oldObj.Spec, newObj.Spec) {
+				if !reflect.DeepEqual(oldObj.Status, newObj.Status) {
+					setupLog.Info("Predicate: ONLY status changed, skipping reconciliation", "eventType", "Update", "name", oldObj.GetName(), "oldStatus", oldObj.Status, "newStatus", newObj.Status)
+				} else {
+					setupLog.Info("Predicate: no changes detected, skipping", "eventType", "Update", "name", oldObj.GetName())
+				}
+				return false
+			}
+
+			setupLog.Info("Predicate triggered: spec changed", "eventType", "Update", "name", oldObj.GetName(), "oldSpec", fmt.Sprintf("%#v", oldObj.Spec), "newSpec", fmt.Sprintf("%#v", newObj.Spec))
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			setupLog.Info("Predicate triggered: delete", "eventType", "Delete", "name", e.Object.GetName())
+			return true
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			setupLog.Info("Predicate triggered: create", "eventType", "Create", "name", e.Object.GetName())
+			return true
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			setupLog.Info("Predicate triggered: generic (skipped)", "eventType", "Generic", "name", e.Object.GetName())
+			return false
+		},
+	}
+
+	ownedResourcePredicate := predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			setupLog.Info("=== OWNED RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
+			switch old := e.ObjectOld.(type) {
+			case *appsv1.StatefulSet:
+				new := e.ObjectNew.(*appsv1.StatefulSet)
+				if reflect.DeepEqual(old.Spec, new.Spec) {
+					setupLog.Info("Owned predicate: StatefulSet spec unchanged, skipping", "eventType", "Update", "name", old.GetName())
+					return false
+				}
+				setupLog.Info("Owned predicate: StatefulSet spec changed", "eventType", "Update", "name", old.GetName())
+				return true
+			case *corev1.ConfigMap:
+				new := e.ObjectNew.(*corev1.ConfigMap)
+				if reflect.DeepEqual(old.Data, new.Data) {
+					setupLog.Info("Owned predicate: ConfigMap data unchanged, skipping", "eventType", "Update", "name", old.GetName())
+					return false
+				}
+				setupLog.Info("Owned predicate: ConfigMap data changed", "eventType", "Update", "name", old.GetName())
+				return true
+			case *corev1.Service:
+				new := e.ObjectNew.(*corev1.Service)
+				if reflect.DeepEqual(old.Spec.Ports, new.Spec.Ports) && reflect.DeepEqual(old.Spec.Selector, new.Spec.Selector) {
+					setupLog.Info("Owned predicate: Service ports/selectors unchanged, skipping", "eventType", "Update", "name", old.GetName())
+					return false
+				}
+				setupLog.Info("Owned predicate: Service ports/selectors changed", "eventType", "Update", "name", old.GetName())
+				return true
+			case *corev1.Secret:
+				new := e.ObjectNew.(*corev1.Secret)
+				if reflect.DeepEqual(old.Data, new.Data) {
+					setupLog.Info("Owned predicate: Secret data unchanged, skipping", "eventType", "Update", "name", old.GetName())
+					return false
+				}
+				setupLog.Info("Owned predicate: Secret data changed", "eventType", "Update", "name", old.GetName())
+				return true
+			case *corev1.PersistentVolumeClaim:
+				new := e.ObjectNew.(*corev1.PersistentVolumeClaim)
+				// For PVCs, we typically only care about spec changes, not status changes
+				if reflect.DeepEqual(old.Spec, new.Spec) {
+					setupLog.Info("Owned predicate: PVC spec unchanged, skipping", "eventType", "Update", "name", old.GetName())
+					return false
+				}
+				setupLog.Info("Owned predicate: PVC spec changed", "eventType", "Update", "name", old.GetName())
+				return true
+			default:
+				setupLog.Info("Owned predicate: unknown type, processing", "eventType", "Update", "type", fmt.Sprintf("%T", old), "name", old.GetName())
+				return true
+			}
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			setupLog.Info("Owned predicate: delete", "eventType", "Delete", "name", e.Object.GetName())
+			return true
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			setupLog.Info("Owned predicate: create", "eventType", "Create", "name", e.Object.GetName())
+			return true
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			setupLog.Info("Owned predicate: generic (skipped)", "eventType", "Generic", "name", e.Object.GetName())
+			return false
+		},
+	}
+
+	// Create predicate to only trigger TradeBot reconciliation on FreqUI spec changes, not status changes
+	frequiWatchPredicate := predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.FreqUI)
+			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.FreqUI)
 
 			if !oldOk || !newOk {
 				return true
 			}
 
-			// Only reconcile if spec changed
-			if reflect.DeepEqual(oldObj.Spec, newObj.Spec) {
-				return false
+			// Only trigger TradeBot reconciliation if FreqUI spec changed
+			specChanged := !reflect.DeepEqual(oldObj.Spec, newObj.Spec)
+			if specChanged {
+				setupLog.Info("FreqUI spec changed, triggering TradeBot reconciliation", "frequi", oldObj.Name, "tradeBotRefs", newObj.Spec.TradeBotRefs)
 			}
-
-			return true
+			return specChanged
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Process all delete events
+			frequi := e.Object.(*freqtradev1alpha1.FreqUI)
+			setupLog.Info("FreqUI deleted, triggering TradeBot reconciliation", "frequi", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs)
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			// Process all create events
+			frequi := e.Object.(*freqtradev1alpha1.FreqUI)
+			setupLog.Info("FreqUI created, triggering TradeBot reconciliation", "frequi", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs)
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			// Skip generic events
 			return false
 		},
 	}
 
-	// Create predicates for owned resources to filter out status-only changes
-	ownedResourcePredicate := predicate.Funcs{
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			// For StatefulSet, ignore status changes
-			if _, ok := e.ObjectOld.(*appsv1.StatefulSet); ok {
-				oldSts := e.ObjectOld.(*appsv1.StatefulSet)
-				newSts := e.ObjectNew.(*appsv1.StatefulSet)
-
-				// Only trigger reconciliation if the spec changed
-				return !reflect.DeepEqual(oldSts.Spec, newSts.Spec)
-			}
-
-			// For ConfigMap, only care about data changes
-			if _, ok := e.ObjectOld.(*corev1.ConfigMap); ok {
-				oldCm := e.ObjectOld.(*corev1.ConfigMap)
-				newCm := e.ObjectNew.(*corev1.ConfigMap)
-
-				return !reflect.DeepEqual(oldCm.Data, newCm.Data)
-			}
-
-			// For Service, ignore changes to things like clusterIP
-			if _, ok := e.ObjectOld.(*corev1.Service); ok {
-				oldSvc := e.ObjectOld.(*corev1.Service)
-				newSvc := e.ObjectNew.(*corev1.Service)
-
-				return !reflect.DeepEqual(oldSvc.Spec.Ports, newSvc.Spec.Ports) ||
-					!reflect.DeepEqual(oldSvc.Spec.Selector, newSvc.Spec.Selector)
-			}
-
-			return true
-		},
-		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Always process delete events for owned resources
-			return true
-		},
-		CreateFunc: func(e event.CreateEvent) bool {
-			// Always process create events for owned resources
-			return true
-		},
-		GenericFunc: func(e event.GenericEvent) bool {
-			// Skip generic events
-			return false
-		},
-	}
-
-	// Setup watches for all referenced resources
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&freqtradev1alpha1.TradeBot{}, builder.WithPredicates(mainResourcePredicate)).
-		// Watch owned resources with predicates
+		// Watch FreqUI resources and trigger TradeBot reconciliation when they reference this TradeBot
+		Watches(
+			&freqtradev1alpha1.FreqUI{},
+			handler.EnqueueRequestsFromMapFunc(shared.EnqueueTradeBotsByFreqUIRef(mgr.GetClient())),
+			builder.WithPredicates(frequiWatchPredicate),
+		).
+		Owns(&corev1.Secret{}, builder.WithPredicates(ownedResourcePredicate)).
 		Owns(&corev1.ConfigMap{}, builder.WithPredicates(ownedResourcePredicate)).
 		Owns(&corev1.Service{}, builder.WithPredicates(ownedResourcePredicate)).
 		Owns(&corev1.PersistentVolumeClaim{}, builder.WithPredicates(ownedResourcePredicate)).
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(ownedResourcePredicate)).
-		// Note: Config CRD watching is now handled by individual config controllers
-		// which will trigger TradeBot reconciliation when their configs change
 		WithOptions(controller.Options{
-			MaxConcurrentReconciles: 2,
+			MaxConcurrentReconciles: 1,
 		}).
 		Complete(r)
 }

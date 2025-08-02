@@ -5,7 +5,6 @@ import (
 	"reflect"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
-	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,6 +12,25 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// mergeServiceSpecOverrides merges user overrides from App.ServiceSpec into the default ServiceSpec.
+func mergeServiceSpecOverrides(defaultSpec corev1.ServiceSpec, override *freqtradev1alpha1.ServiceSpec) corev1.ServiceSpec {
+	if override == nil {
+		return defaultSpec
+	}
+
+	if override.Type != "" {
+		defaultSpec.Type = override.Type
+	}
+	if len(override.Ports) > 0 {
+		defaultSpec.Ports = override.Ports
+	}
+	if len(override.Selector) > 0 {
+		defaultSpec.Selector = override.Selector
+	}
+
+	return defaultSpec
+}
 
 // BuildService creates a Service for the bot
 func BuildService(tradeBot freqtradev1alpha1.TradeBot) corev1.Service {
@@ -24,7 +42,7 @@ func BuildService(tradeBot freqtradev1alpha1.TradeBot) corev1.Service {
 			{
 				Name:       "http",
 				Port:       8080,
-				TargetPort: intstr.FromInt(8080),
+				TargetPort: intstr.FromInt32(8080),
 				Protocol:   corev1.ProtocolTCP,
 			},
 		},
@@ -32,14 +50,20 @@ func BuildService(tradeBot freqtradev1alpha1.TradeBot) corev1.Service {
 
 	// Merge with user-provided service configuration
 	finalSpec := baseServiceSpec
-	if tradeBot.Spec.App != nil && !reflect.DeepEqual(tradeBot.Spec.App.ServiceSpec, corev1.ServiceSpec{}) {
-		finalSpec = shared.MergeSpecsWithStrategicPatch(baseServiceSpec, tradeBot.Spec.App.ServiceSpec, &corev1.ServiceSpec{})
+	if tradeBot.Spec.App != nil && tradeBot.Spec.App.ServiceSpec != nil {
+		finalSpec = mergeServiceSpecOverrides(baseServiceSpec, tradeBot.Spec.App.ServiceSpec)
+	}
+
+	annotations := map[string]string{}
+	if tradeBot.Spec.App != nil && tradeBot.Spec.App.ServiceSpec != nil && len(tradeBot.Spec.App.ServiceSpec.Annotations) > 0 {
+		annotations = tradeBot.Spec.App.ServiceSpec.Annotations
 	}
 
 	return corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      tradeBot.Name,
-			Namespace: tradeBot.Namespace,
+			Name:        tradeBot.Name,
+			Namespace:   tradeBot.Namespace,
+			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(&tradeBot, freqtradev1alpha1.GroupVersion.WithKind("TradeBot")),
 			},

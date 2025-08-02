@@ -1,6 +1,7 @@
 package frequi
 
 import (
+	"fmt"
 	"reflect"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,6 +18,8 @@ import (
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	setupLog := ctrl.Log.WithName("frequi-predicate")
+
 	// Create predicates for the main resource (FreqUI)
 	mainResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
@@ -25,26 +28,29 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.FreqUI)
 
 			if !oldOk || !newOk {
+				setupLog.Info("FreqUI predicate: type assertion failed, processing", "eventType", "Update")
 				return true
 			}
 
 			// Only reconcile if spec changed
 			if reflect.DeepEqual(oldObj.Spec, newObj.Spec) {
+				setupLog.V(1).Info("FreqUI predicate: spec unchanged, skipping reconciliation", "eventType", "Update", "name", oldObj.GetName())
 				return false
 			}
 
+			setupLog.Info("FreqUI predicate: spec changed, triggering reconciliation", "eventType", "Update", "name", oldObj.GetName())
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Process all delete events
+			setupLog.Info("FreqUI predicate: delete event, processing", "eventType", "Delete", "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			// Process all create events
+			setupLog.Info("FreqUI predicate: create event, processing", "eventType", "Create", "name", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			// Skip generic events
+			setupLog.V(1).Info("FreqUI predicate: generic event, skipping", "eventType", "Generic", "name", e.Object.GetName())
 			return false
 		},
 	}
@@ -55,18 +61,24 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			// For owned resources, be very conservative about updates
 			// Only reconcile if the generation changed (indicating a spec change)
-			return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+			if generationChanged {
+				setupLog.Info("FreqUI owned resource: generation changed, processing", "eventType", "Update", "type", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName())
+			} else {
+				setupLog.V(1).Info("FreqUI owned resource: generation unchanged, skipping", "eventType", "Update", "type", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName())
+			}
+			return generationChanged
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Always process delete events for owned resources
+			setupLog.Info("FreqUI owned resource: delete event, processing", "eventType", "Delete", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			// Always process create events for owned resources
+			setupLog.Info("FreqUI owned resource: create event, processing", "eventType", "Create", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			// Skip generic events
+			setupLog.V(1).Info("FreqUI owned resource: generic event, skipping", "eventType", "Generic", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return false
 		},
 	}

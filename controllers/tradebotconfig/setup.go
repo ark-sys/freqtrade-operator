@@ -1,4 +1,4 @@
-package strategy
+package tradebotconfig
 
 import (
 	"reflect"
@@ -19,12 +19,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Initialize the StatusUpdater
 	r.StatusUpdater = shared.StatusUpdater{Client: mgr.GetClient()}
 
-	// Create predicates for the main resource (Strategy)
+	// Create predicates for the main resource (Tradebotconfig)
 	mainResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			// Only reconcile if spec changed
-			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.Strategy)
-			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.Strategy)
+			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.TradeBotConfig)
+			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.TradeBotConfig)
 
 			if !oldOk || !newOk {
 				return true
@@ -48,28 +48,28 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// Create predicate to only trigger TradeBot reconciliation on spec changes, not status changes
-	strategyWatchPredicate := predicate.Funcs{
+	tradeBotConfigWatchPredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.Strategy)
-			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.Strategy)
+			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.TradeBotConfig)
+			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.TradeBotConfig)
 
 			if !oldOk || !newOk {
 				return true
 			}
 
-			// Only trigger TradeBot reconciliation if Strategy spec changed
+			// Only trigger TradeBot reconciliation if TradeBotConfig spec changed
 			specChanged := !reflect.DeepEqual(oldObj.Spec, newObj.Spec)
 			if specChanged {
-				ctrl.Log.WithName("strategy-watch").Info("Strategy spec changed, triggering TradeBot reconciliation", "strategy", oldObj.Name)
+				ctrl.Log.WithName("tradebotconfig-watch").Info("TradeBotConfig spec changed, triggering TradeBot reconciliation", "config", oldObj.Name)
 			}
 			return specChanged
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			ctrl.Log.WithName("strategy-watch").Info("Strategy deleted, triggering TradeBot reconciliation", "strategy", e.Object.GetName())
+			ctrl.Log.WithName("tradebotconfig-watch").Info("TradeBotConfig deleted, triggering TradeBot reconciliation", "config", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			ctrl.Log.WithName("strategy-watch").Info("Strategy created, triggering TradeBot reconciliation", "strategy", e.Object.GetName())
+			ctrl.Log.WithName("tradebotconfig-watch").Info("TradeBotConfig created, triggering TradeBot reconciliation", "config", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
@@ -78,12 +78,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&freqtradev1alpha1.Strategy{}, builder.WithPredicates(mainResourcePredicate)).
-		// Trigger TradeBot reconciliation when Strategy changes (with predicate to avoid status-only updates)
+		For(&freqtradev1alpha1.TradeBotConfig{}, builder.WithPredicates(mainResourcePredicate)).
+		// Trigger TradeBot reconciliation when Tradebotconfig changes (with predicate to avoid status-only updates)
 		Watches(
-			&freqtradev1alpha1.Strategy{},
-			handler.EnqueueRequestsFromMapFunc(shared.EnqueueTradeBotsByConfigRef(mgr.GetClient(), "strategy")),
-			builder.WithPredicates(strategyWatchPredicate),
+			&freqtradev1alpha1.TradeBotConfig{},
+			handler.EnqueueRequestsFromMapFunc(shared.EnqueueTradeBotsByConfigRef(mgr.GetClient(), "config")),
+			builder.WithPredicates(tradeBotConfigWatchPredicate),
 		).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 2,

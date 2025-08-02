@@ -57,7 +57,7 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
 									Path:   "/",
-									Port:   intstr.FromInt(80),
+									Port:   intstr.FromInt32(80),
 									Scheme: corev1.URISchemeHTTP,
 								},
 							},
@@ -70,7 +70,7 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 							ProbeHandler: corev1.ProbeHandler{
 								HTTPGet: &corev1.HTTPGetAction{
 									Path:   "/",
-									Port:   intstr.FromInt(80),
+									Port:   intstr.FromInt32(80),
 									Scheme: corev1.URISchemeHTTP,
 								},
 							},

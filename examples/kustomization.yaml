@@ -4,16 +4,10 @@ kind: Kustomization
 namespace: freqtrade-example
 resources:
   - namespace.yaml
-  - exchange-secret.yaml
-  - notification-secret.yaml
-  - whitelist.yaml
-  - blacklist.yaml
-  - exchange.yaml
-  - pairlist_methods.yaml
+  - binance-credentials.yaml
+  - telegream-credentials.yaml
+  - api-server-credentials.yaml
   - strategy.yaml
-  - pricings.yaml
-  - order.yaml
-  - riskmanagement.yaml
-  - notification.yaml
+  - config.yaml
   - tradebot.yaml
-  - frequi.yaml 
+  # - frequi.yaml

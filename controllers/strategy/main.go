@@ -41,7 +41,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Initialize status if empty
 	if strategy.Status.Phase == "" {
-		if err := r.UpdateConfigStatus(ctx, &strategy, "Validating", "Starting validation"); err != nil {
+		if err := r.RetryUpdateConfigStatus(ctx, &strategy, "Validating", "Starting validation", 3); err != nil {
 			logger.Error(err, "Failed to initialize Strategy status")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 		}
@@ -50,7 +50,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Validate Strategy configuration
 	if err := r.validateStrategy(ctx, &strategy); err != nil {
 		logger.Error(err, "Strategy validation failed")
-		if updateErr := r.UpdateConfigStatus(ctx, &strategy, "Invalid", err.Error()); updateErr != nil {
+		if updateErr := r.RetryUpdateConfigStatus(ctx, &strategy, "Invalid", err.Error(), 3); updateErr != nil {
 			logger.Error(updateErr, "Failed to update Strategy status after validation failure")
 		}
 		result := shared.FinishReconciliation("Invalid", err, 30*time.Second)
@@ -58,7 +58,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Update status to valid
-	if err := r.UpdateConfigStatus(ctx, &strategy, "Valid", "Strategy configuration is valid"); err != nil {
+	if err := r.RetryUpdateConfigStatus(ctx, &strategy, "Valid", "Strategy configuration is valid", 3); err != nil {
 		logger.Error(err, "Failed to update Strategy status to valid")
 		result := shared.FinishReconciliation("Valid", err, 30*time.Second)
 		return result.Result, result.Error

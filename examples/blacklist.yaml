@@ -1,8 +1,0 @@
-apiVersion: freqtrade.io/v1alpha1
-kind: PairList
-metadata:
-  name: crypto-blacklist
-  namespace: freqtrade-example
-spec:
-  pairs:
-    - "DOGE/USDT"

@@ -1,0 +1,121 @@
+apiVersion: freqtrade.io/v1alpha1
+kind: TradeBotConfig
+metadata:
+  name: btc-trader-config
+  namespace: freqtrade-example
+spec:
+  bot:
+    trading_mode: spot
+    dry_run: true
+    dry_run_wallet: 1000
+    stake_currency: USDT
+    stake_amount: "unlimited"
+    max_open_trades: 20
+    fiat_display_currency: USD
+
+  # Advanced trading configuration
+  advanced:
+    tradable_balance_ratio: 0.99
+    cancel_open_orders_on_exit: false
+    initial_state: "running"
+    force_entry_enable: false
+
+  # Timeout configuration
+  timeout:
+    entry: 10
+    exit: 10
+    exit_timeout_count: 0
+    unit: "minutes"
+
+  # Exchange configuration
+  exchange:
+    name: binance
+    secretRef: binance-credentials
+    whitelist:
+      pairs:
+        - BTC/USDT
+        - ETH/USDT
+        - LTC/USDT
+        - XRP/USDT
+        - ADA/USDT
+    blacklist:
+      pairs:
+        - DOGE/USDT
+        - BNB/USDT
+    ccxt_config:
+      enableRateLimit: true
+      options:
+        defaultType: spot
+
+    # Strategy configuration
+  pairlist_method:
+    methods:
+      - method: StaticPairList
+        number_assets: 20
+      - method: VolumePairList
+        number_assets: 10
+        sort_key: quoteVolume
+      - method: AgeFilter
+        min_days_listed: 10
+      - method: PriceFilter
+        min_price: 0.00000100
+      - method: SpreadFilter
+        max_spread_ratio: 0.005
+      - method: RangeStabilityFilter
+        lookback_days_range: 10
+      - method: VolatilityFilter
+        lookback_days_volatility: 10
+        min_volatility: 0.05
+
+  entry_pricing:
+    price_side: "bid"
+    use_order_book: false
+    price_last_balance: 0.1
+
+  exit_pricing:
+    price_side: "ask"
+    use_order_book: false
+    price_last_balance: 0.2
+
+  order:
+    types:
+      entry: "limit"
+      exit: "limit"
+      emergency_exit: "market"
+      force_entry: "market"
+      force_exit: "market"
+      stoploss: "market"
+      stoploss_on_exchange: false
+      stoploss_on_exchange_interval: 60
+      stoploss_on_exchange_limit_ratio: 0.9
+
+  risk_management:
+    minimal_roi:
+      "20": 0.2
+      "10": 0.1
+    stoploss: -0.2
+    trailing_stop: false
+
+  # Notification configuration
+  notification:
+    telegram:
+      enabled: true
+      secretRef: telegram-credentials
+      balance_dust_level: 0.01
+      reload: true
+      chat_id: "your-chat-id"
+
+  # API configuration
+  apiServer:
+    enabled: true
+    listen_ip_address: 0.0.0.0
+    listen_port: 8080
+    verbosity: "error"
+    #    secretRef: freqtrade-api-secret
+    username: admin
+    password: admin
+    cors_origins:
+      - http://localhost:8000
+      - http://localhost:8123
+
+  

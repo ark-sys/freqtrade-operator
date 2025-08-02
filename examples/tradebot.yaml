@@ -6,76 +6,22 @@ metadata:
   annotations:
     freqtrade.io/preserve-data: "true"
 spec:
-  bot:
-    bot_name: BTC-Trader
-    trading_mode: spot
-    dry_run: true
-    dry_run_wallet: 1000
-    stake_currency: USDT
-    stake_amount: "unlimited"
-    max_open_trades: 20
-    fiat_display_currency: USD
+  strategy: default-strategy
 
-  # Advanced trading configuration
-  advanced:
-    tradable_balance_ratio: 0.99
-    cancel_open_orders_on_exit: false
-    initial_state: "running"
-    force_entry_enable: false
-  
-  # Timeout configuration
-  timeout:
-    entry: 10
-    exit: 10
-    exit_timeout_count: 0
-    unit: "minutes"
-
-  # The config.json is generated from the combination of the following references
-  references:
-    exchangeRef: binance
-    strategyRef: default-strategy
-    pairlistMethodsRef: default-pairlist-methods
-    entryPricingRef: default-entry-pricing
-    exitPricingRef: default-exit-pricing
-    orderTypesRef: default-order-types
-    riskManagementRef: default-risk
-
-  # API configuration
-  apiServer:
-    enabled: true
-    listen_ip_address: 0.0.0.0
-    listen_port: 8080
-    verbosity: "error"
-#    secretRef: freqtrade-api-secret
-    username: admin
-    password: admin
-    cors_origins:
-      - "https://frequi-example.example.com"
-      - "https://btc-trader.frequi-example.example.com"
-
-  # Deployment configuration
+  config: btc-trader-config
   app:
-    spec:
-      selector:
-        matchLabels:
-          name: btc-trader
-      template:
-        spec:
-          containers:
-            - name: freqtrade
-              image: freqtradeorg/freqtrade:stable
-              ports:
-                - containerPort: 8080
-              resources:
-                requests:
-                  memory: "512Mi"
-                  cpu: "500m"
-                limits:
-                  memory: "1Gi"
-                  cpu: "1"
     pvc:
-      storageClassName: longhorn
+      storageClassName: "longhorn"
+      storageSize: "1Gi"
 
+    pod:
+      resources:
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+        requests:
+          memory: "256Mi"
+          cpu: "100m"
 
 
 

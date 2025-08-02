@@ -24,7 +24,7 @@ func BuildFreqUIService(frequi freqtradev1alpha1.FreqUI) corev1.Service {
 			{
 				Name:       "http",
 				Port:       80,
-				TargetPort: intstr.FromInt(80),
+				TargetPort: intstr.FromInt32(80),
 				Protocol:   corev1.ProtocolTCP,
 			},
 		},

@@ -4,7 +4,7 @@ metadata:
   name: freqtrade-ui
   namespace: freqtrade-example
 spec:
-  host: frequi-example.example.com
+#  host: frequi-example.example.com
   tls:
     - hosts:
         - "frequi-example.example.com"

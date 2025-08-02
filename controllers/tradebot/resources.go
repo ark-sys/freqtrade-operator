@@ -12,16 +12,8 @@ import (
 
 // referencedResources holds all the resources referenced by a TradeBot
 type referencedResources struct {
-	exchange        *freqtradev1alpha1.Exchange
-	pairWhitelist   *freqtradev1alpha1.PairList
-	pairBlacklist   *freqtradev1alpha1.PairList
-	entryPricing    *freqtradev1alpha1.Pricing
-	exitPricing     *freqtradev1alpha1.Pricing
-	order           *freqtradev1alpha1.Order
-	riskManagement  *freqtradev1alpha1.RiskManagement
-	notification    *freqtradev1alpha1.Notification
-	strategy        *freqtradev1alpha1.Strategy
-	pairlistMethods *freqtradev1alpha1.PairlistMethods
+	strategy       *freqtradev1alpha1.Strategy
+	tradebotconfig *freqtradev1alpha1.TradeBotConfig
 }
 
 // fetchReferencedResources retrieves all resources referenced by the TradeBot
@@ -33,100 +25,21 @@ func (r *Reconciler) fetchReferencedResources(
 	logger := log.FromContext(ctx)
 	result := &referencedResources{}
 
-	// Fetch Exchange
-	exchange := &freqtradev1alpha1.Exchange{}
-	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.ExchangeRef, Namespace: namespace}, exchange); err != nil {
-		logger.Error(err, "Failed to fetch Exchange")
+	// Fetch TradeBotConfig
+	tradeBotConfig := &freqtradev1alpha1.TradeBotConfig{}
+	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.Config, Namespace: namespace}, tradeBotConfig); err != nil {
+		logger.Error(err, "Failed to fetch TradeBotConfig")
 		return nil, err
 	}
-	result.exchange = exchange
-
-	// Fetch PairLists referenced by Exchange
-	if exchange.Spec.WhitelistRef != "" {
-		wl := &freqtradev1alpha1.PairList{}
-		if err := r.Get(ctx, types.NamespacedName{Name: exchange.Spec.WhitelistRef, Namespace: namespace}, wl); err != nil {
-			logger.Error(err, "Failed to fetch PairWhitelist")
-			return nil, err
-		}
-		result.pairWhitelist = wl
-	}
-
-	if exchange.Spec.BlacklistRef != "" {
-		bl := &freqtradev1alpha1.PairList{}
-		if err := r.Get(ctx, types.NamespacedName{Name: exchange.Spec.BlacklistRef, Namespace: namespace}, bl); err != nil {
-			logger.Error(err, "Failed to fetch PairBlacklist")
-			return nil, err
-		}
-		result.pairBlacklist = bl
-	}
-
-	// Fetch EntryPricing
-	if tradeBot.Spec.References.EntryPricingRef != "" {
-		ep := &freqtradev1alpha1.Pricing{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.EntryPricingRef, Namespace: namespace}, ep); err != nil {
-			logger.Error(err, "Failed to fetch EntryPricing")
-			return nil, err
-		}
-		result.entryPricing = ep
-	}
-
-	// Fetch ExitPricing
-	if tradeBot.Spec.References.ExitPricingRef != "" {
-		ep := &freqtradev1alpha1.Pricing{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.ExitPricingRef, Namespace: namespace}, ep); err != nil {
-			logger.Error(err, "Failed to fetch ExitPricing")
-			return nil, err
-		}
-		result.exitPricing = ep
-	}
-
-	// Fetch OrderTypes
-	if tradeBot.Spec.References.OrderTypesRef != "" {
-		ot := &freqtradev1alpha1.Order{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.OrderTypesRef, Namespace: namespace}, ot); err != nil {
-			logger.Error(err, "Failed to fetch OrderTypes")
-			return nil, err
-		}
-		result.order = ot
-	}
-
-	// Fetch RiskManagement
-	if tradeBot.Spec.References.RiskManagementRef != "" {
-		rm := &freqtradev1alpha1.RiskManagement{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.RiskManagementRef, Namespace: namespace}, rm); err != nil {
-			logger.Error(err, "Failed to fetch RiskManagement")
-			return nil, err
-		}
-		result.riskManagement = rm
-	}
-
-	// Fetch Notification
-	if tradeBot.Spec.References.NotificationRef != "" {
-		n := &freqtradev1alpha1.Notification{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.NotificationRef, Namespace: namespace}, n); err != nil {
-			logger.Error(err, "Failed to fetch Notification")
-			return nil, err
-		}
-		result.notification = n
-	}
+	result.tradebotconfig = tradeBotConfig
 
 	// Fetch Strategy
 	strategy := &freqtradev1alpha1.Strategy{}
-	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.StrategyRef, Namespace: namespace}, strategy); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.Strategy, Namespace: namespace}, strategy); err != nil {
 		logger.Error(err, "Failed to fetch Strategy")
 		return nil, err
 	}
 	result.strategy = strategy
-
-	// Fetch PairlistMethods
-	if tradeBot.Spec.References.PairlistMethodsRef != "" {
-		pm := &freqtradev1alpha1.PairlistMethods{}
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.PairlistMethodsRef, Namespace: namespace}, pm); err != nil {
-			logger.Error(err, "Failed to fetch PairlistMethods")
-			return nil, err
-		}
-		result.pairlistMethods = pm
-	}
 
 	return result, nil
 }
@@ -140,17 +53,17 @@ func (r *Reconciler) reconcileResources(
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling resources for TradeBot", "name", tradeBot.Name)
 
-	// 1. Create or update ConfigMap for config.json
-	configMap := resources.BuildConfigMap(*tradeBot, configData)
-	if err := resources.ApplyConfigMap(ctx, r.Client, &configMap); err != nil {
-		logger.Error(err, "Failed to apply ConfigMap")
-		return fmt.Errorf("failed to apply ConfigMap: %w", err)
+	// 1. Create a config.json Secret with the TradeBotConfig data
+	configSecret := resources.BuildSecret(*tradeBot, configData)
+	if err := resources.ApplySecret(ctx, r.Client, &configSecret); err != nil {
+		logger.Error(err, "Failed to apply Secret")
+		return fmt.Errorf("failed to apply Secret: %w", err)
 	}
-	logger.Info("ConfigMap applied successfully", "name", configMap.Name)
+	logger.Info("Secret applied successfully", "name", configSecret.Name)
 
-	// 2. Create or update ConfigMap for strategy
+	// 2. Create a ConfigMap for the Strategy script
 	strategy := &freqtradev1alpha1.Strategy{}
-	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.References.StrategyRef, Namespace: tradeBot.Namespace}, strategy); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.Strategy, Namespace: tradeBot.Namespace}, strategy); err != nil {
 		logger.Error(err, "Failed to fetch Strategy for ConfigMap creation")
 		return fmt.Errorf("failed to fetch Strategy for ConfigMap creation: %w", err)
 	}
@@ -171,7 +84,7 @@ func (r *Reconciler) reconcileResources(
 	logger.Info("PVC applied successfully", "name", pvc.Name)
 
 	// 4. Create or update StatefulSet
-	sts := resources.BuildStatefulSet(ctx, r.Client, *tradeBot, configMap.Name, strategyConfigMap.Name, pvc.Name)
+	sts := resources.BuildStatefulSet(ctx, r.Client, *tradeBot, configSecret.Name, strategyConfigMap.Name, pvc.Name)
 	if err := resources.ApplyStatefulSet(ctx, r.Client, &sts); err != nil {
 		logger.Error(err, "Failed to apply StatefulSet")
 		return fmt.Errorf("failed to apply StatefulSet: %w", err)

@@ -3,16 +3,39 @@ package resources
 import (
 	"context"
 	"reflect"
+	"time"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
-	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
+
+// mergePVCSpecOverrides merges user overrides from App.PVCSpec into the default PVC spec.
+func mergePVCSpecOverrides(defaultSpec corev1.PersistentVolumeClaimSpec, override *freqtradev1alpha1.PVCSpec) corev1.PersistentVolumeClaimSpec {
+	if override == nil {
+		return defaultSpec
+	}
+
+	if len(override.AccessModes) > 0 {
+		defaultSpec.AccessModes = override.AccessModes
+	}
+	if override.StorageSize != "" {
+		defaultSpec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse(override.StorageSize)
+	}
+	if override.StorageClassName != "" {
+		defaultSpec.StorageClassName = &override.StorageClassName
+	}
+	if override.VolumeName != "" {
+		defaultSpec.VolumeName = override.VolumeName
+	}
+	return defaultSpec
+}
 
 // BuildUserDataPVC creates a PVC for the bot's user_data directory
 func BuildUserDataPVC(tradeBot freqtradev1alpha1.TradeBot) corev1.PersistentVolumeClaim {
@@ -30,14 +53,25 @@ func BuildUserDataPVC(tradeBot freqtradev1alpha1.TradeBot) corev1.PersistentVolu
 	}
 
 	finalSpec := basePVCSpec
-	if tradeBot.Spec.App != nil && !reflect.DeepEqual(tradeBot.Spec.App.PVCSpec, corev1.PersistentVolumeClaimSpec{}) {
-		finalSpec = shared.MergeSpecsWithStrategicPatch(basePVCSpec, tradeBot.Spec.App.PVCSpec, &corev1.PersistentVolumeClaimSpec{})
+	var annotations map[string]string
+	var labels map[string]string
+
+	if tradeBot.Spec.App != nil && tradeBot.Spec.App.PVCSpec != nil {
+		finalSpec = mergePVCSpecOverrides(basePVCSpec, tradeBot.Spec.App.PVCSpec)
+		if len(tradeBot.Spec.App.PVCSpec.Annotations) > 0 {
+			annotations = tradeBot.Spec.App.PVCSpec.Annotations
+		}
+		if len(tradeBot.Spec.App.PVCSpec.Labels) > 0 {
+			labels = tradeBot.Spec.App.PVCSpec.Labels
+		}
 	}
 
 	return corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      tradeBot.Name + "-user-data",
-			Namespace: tradeBot.Namespace,
+			Name:        tradeBot.Name + "-user-data",
+			Namespace:   tradeBot.Namespace,
+			Annotations: annotations,
+			Labels:      labels,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(&tradeBot, freqtradev1alpha1.GroupVersion.WithKind("TradeBot")),
 			},
@@ -46,39 +80,56 @@ func BuildUserDataPVC(tradeBot freqtradev1alpha1.TradeBot) corev1.PersistentVolu
 	}
 }
 
-// ApplyPVC creates or updates the PVC
+// ApplyPVC creates or updates the PVC with retry logic for resource version conflicts
 func ApplyPVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) error {
-	var existing corev1.PersistentVolumeClaim
-	err := c.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, &existing)
-	if errors.IsNotFound(err) {
-		return c.Create(ctx, pvc)
-	} else if err != nil {
-		return err
-	}
+	logger := log.FromContext(ctx)
 
-	needsUpdate := false
+	// Retry logic for resource version conflicts
+	return wait.PollImmediate(100*time.Millisecond, 2*time.Second, func() (bool, error) {
+		var existing corev1.PersistentVolumeClaim
+		err := c.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, &existing)
+		if errors.IsNotFound(err) {
+			err = c.Create(ctx, pvc)
+			if errors.IsAlreadyExists(err) {
+				// Resource was created by another reconciliation, retry
+				logger.V(1).Info("PVC already exists, retrying", "name", pvc.Name)
+				return false, nil
+			}
+			return true, err
+		} else if err != nil {
+			return true, err
+		}
 
-	// Only allow increasing storage
-	existingQty := existing.Spec.Resources.Requests[corev1.ResourceStorage]
-	newQty := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	if newQty.Cmp(existingQty) > 0 {
-		existing.Spec.Resources.Requests[corev1.ResourceStorage] = newQty
-		needsUpdate = true
-	}
+		needsUpdate := false
 
-	// Update labels and annotations if they differ
-	//if !reflect.DeepEqual(existing.Labels, pvc.Labels) {
-	//	existing.Labels = pvc.Labels
-	//	needsUpdate = true
-	//}
-	//if !reflect.DeepEqual(existing.Annotations, pvc.Annotations) {
-	//	existing.Annotations = pvc.Annotations
-	//	needsUpdate = true
-	//}
+		// Only allow increasing storage
+		existingQty := existing.Spec.Resources.Requests[corev1.ResourceStorage]
+		newQty := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		if newQty.Cmp(existingQty) > 0 {
+			existing.Spec.Resources.Requests[corev1.ResourceStorage] = newQty
+			needsUpdate = true
+		}
 
-	if needsUpdate {
-		return c.Update(ctx, &existing)
-	}
+		// Update labels and annotations if they differ
+		if !reflect.DeepEqual(existing.Labels, pvc.Labels) {
+			existing.Labels = pvc.Labels
+			needsUpdate = true
+		}
+		if !reflect.DeepEqual(existing.Annotations, pvc.Annotations) {
+			existing.Annotations = pvc.Annotations
+			needsUpdate = true
+		}
 
-	return nil
+		if needsUpdate {
+			err = c.Update(ctx, &existing)
+			if errors.IsConflict(err) {
+				// Resource version conflict, retry
+				logger.V(1).Info("PVC resource version conflict, retrying", "name", pvc.Name)
+				return false, nil
+			}
+			return true, err
+		}
+
+		return true, nil
+	})
 }
