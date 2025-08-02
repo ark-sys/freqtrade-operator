@@ -9,12 +9,23 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
+
+// isOwnedByFreqUI checks if a resource is owned by a FreqUI CRD
+func isOwnedByFreqUI(obj client.Object) bool {
+	for _, ownerRef := range obj.GetOwnerReferences() {
+		if ownerRef.Kind == "FreqUI" && ownerRef.APIVersion == "freqtrade.io/v1alpha1" {
+			return true
+		}
+	}
+	return false
+}
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -59,6 +70,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Use a more conservative approach - only reconcile on creation and deletion of owned resources
 	ownedResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
+			// First check if this resource is actually owned by a FreqUI
+			if !isOwnedByFreqUI(e.ObjectOld) {
+				return false // Skip resources not owned by FreqUI
+			}
 			// For owned resources, be very conservative about updates
 			// Only reconcile if the generation changed (indicating a spec change)
 			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
@@ -70,10 +85,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return generationChanged
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
+			// Check if this resource is actually owned by a FreqUI
+			if !isOwnedByFreqUI(e.Object) {
+				return false // Skip resources not owned by FreqUI
+			}
 			setupLog.Info("FreqUI owned resource: delete event, processing", "eventType", "Delete", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
+			// Check if this resource is actually owned by a FreqUI
+			if !isOwnedByFreqUI(e.Object) {
+				return false // Skip resources not owned by FreqUI
+			}
 			setupLog.Info("FreqUI owned resource: create event, processing", "eventType", "Create", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return true
 		},

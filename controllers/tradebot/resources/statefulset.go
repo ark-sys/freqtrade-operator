@@ -23,7 +23,7 @@ func mergePodSpecOverrides(defaultPodSpec corev1.PodSpec, override *freqtradev1a
 		return defaultPodSpec
 	}
 
-	if override.Image == "" {
+	if override.Image != "" {
 		defaultPodSpec.Containers[0].Image = override.Image
 	}
 
@@ -92,7 +92,6 @@ func BuildStatefulSet(ctx context.Context, c client.Client, tradeBot freqtradev1
 	if tradeBot.Spec.App != nil &&
 		tradeBot.Spec.App.PodSpec != nil &&
 		len(tradeBot.Spec.App.PodSpec.VolumeMounts) > 0 {
-		// Optionally, allow image override via PodSpec.Env or similar if needed
 	}
 
 	command := tradeBot.Spec.FreqtradeCommand

@@ -106,7 +106,13 @@ func BuildConfig(
 	}
 
 	// Add notification configuration
-	notificationSecretData, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBotConfig.Spec.Notification.Telegram.SecretRef)
+	var notificationSecretData map[string][]byte
+	if tradeBotConfig.Spec.Notification != nil && tradeBotConfig.Spec.Notification.Telegram != nil {
+		notificationSecretData, err = GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBotConfig.Spec.Notification.Telegram.SecretRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get notification secret data: %w", err)
+		}
+	}
 	notificationConfig, err := BuildNotificationConfig(tradeBotConfig.Spec.Notification, notificationSecretData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Notification config: %w", err)

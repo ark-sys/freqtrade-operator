@@ -18,6 +18,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
+// isOwnedByTradeBot checks if a resource is owned by a TradeBot CRD
+func isOwnedByTradeBot(obj client.Object) bool {
+	for _, ownerRef := range obj.GetOwnerReferences() {
+		if ownerRef.Kind == "TradeBot" && ownerRef.APIVersion == "freqtrade.io/v1alpha1" {
+			return true
+		}
+	}
+	return false
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &freqtradev1alpha1.TradeBot{}, "spec.config", func(obj client.Object) []string {
@@ -83,6 +93,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	ownedResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
+			// First check if this resource is actually owned by a TradeBot
+			if !isOwnedByTradeBot(e.ObjectOld) {
+				return false // Skip resources not owned by TradeBot
+			}
 			setupLog.Info("=== OWNED RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
 			switch old := e.ObjectOld.(type) {
 			case *appsv1.StatefulSet:
@@ -132,10 +146,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
+			// Check if this resource is actually owned by a TradeBot
+			if !isOwnedByTradeBot(e.Object) {
+				return false // Skip resources not owned by TradeBot
+			}
 			setupLog.Info("Owned predicate: delete", "eventType", "Delete", "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
+			// Check if this resource is actually owned by a TradeBot
+			if !isOwnedByTradeBot(e.Object) {
+				return false // Skip resources not owned by TradeBot
+			}
 			setupLog.Info("Owned predicate: create", "eventType", "Create", "name", e.Object.GetName())
 			return true
 		},
