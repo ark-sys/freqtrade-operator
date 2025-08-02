@@ -173,9 +173,18 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+      - Replace=true
 ```
 
+**Important for ArgoCD Users:** 
+- The `ServerSideApply=true` and `Replace=true` sync options are required for proper CRD installation
+- CRDs will be installed in sync wave -1, RBAC resources in wave 0, and the operator deployment in wave 1
+- This ensures proper installation order and prevents CRD-related sync failures
+
 For more ArgoCD examples, see the [examples directory](./examples/).
+
+For detailed ArgoCD configuration guidance, see [ARGOCD-CONFIGURATION.md](./ARGOCD-CONFIGURATION.md).
 
 ## Custom Resource Definitions
 
@@ -221,6 +230,26 @@ kubectl get crd | grep freqtrade.io
 ```bash
 kubectl get clusterrole | grep freqtrade-operator
 kubectl get clusterrolebinding | grep freqtrade-operator
+```
+
+### ArgoCD-Specific Issues
+
+If you're experiencing sync failures with ArgoCD:
+
+1. **CRD Installation Issues**: Ensure your Application uses `ServerSideApply=true` and `Replace=true` sync options
+2. **Resource Too Large**: Some CRDs are >600KB; server-side apply handles this better than client-side apply
+3. **Sync Wave Order**: Check that resources are installing in the correct order (-1 for CRDs, 0 for RBAC, 1 for apps)
+4. **Permission Errors**: Verify your ArgoCD service account has sufficient cluster permissions
+
+```bash
+# Check ArgoCD application status
+argocd app get freqtrade-operator
+
+# Force refresh if using cached manifests
+argocd app hard-refresh freqtrade-operator
+
+# Check sync waves
+kubectl get crds -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.annotations.argocd\.argoproj\.io/sync-wave}{"\n"}{end}' | grep freqtrade
 ```
 
 ## Upgrading

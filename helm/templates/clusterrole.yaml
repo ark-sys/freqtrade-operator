@@ -5,6 +5,8 @@ metadata:
   name: {{ include "freqtrade-operator.fullname" . }}-manager-role
   labels:
     {{- include "freqtrade-operator.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 rules:
 # Freqtrade custom resources
 - apiGroups:
