@@ -23,7 +23,7 @@ spec:
           
           # Check if CRDs are installed
           echo "Checking CRDs..."
-          kubectl get crd | grep freqtrade.io | wc -l | grep -q "11" || (echo "Expected 11 CRDs, found less" && exit 1)
+          kubectl get crd | grep freqtrade.io | wc -l | grep -q "4" || (echo "Expected 4 CRDs, found less" && exit 1)
           
           # Check if controller manager is running
           echo "Checking controller manager pods..."

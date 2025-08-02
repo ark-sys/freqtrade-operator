@@ -182,15 +182,8 @@ For more ArgoCD examples, see the [examples directory](./examples/).
 This chart automatically installs the following CRDs:
 
 - **TradeBots** (`tradebots.freqtrade.io`) - Main trading bot configurations
-- **PairLists** (`pairlists.freqtrade.io`) - Trading pair list configurations [[memory:3563675]]
-- **PairListMethods** (`pairlistmethods.freqtrade.io`) - Methods for filtering trading pairs
+- **TradeBotConfigs** (`tradebotconfigs.freqtrade.io`) - Configurations for individual trade bots
 - **Strategies** (`strategies.freqtrade.io`) - Trading strategy configurations
-- **Exchanges** (`exchanges.freqtrade.io`) - Exchange connection configurations
-- **EntryPricings** (`entrypricings.freqtrade.io`) - Entry pricing configurations
-- **ExitPricings** (`exitpricings.freqtrade.io`) - Exit pricing configurations
-- **OrderTypes** (`ordertypes.freqtrade.io`) - Order type configurations
-- **RiskManagements** (`riskmanagements.freqtrade.io`) - Risk management configurations
-- **Notifications** (`notifications.freqtrade.io`) - Notification configurations
 - **FreqUIs** (`frequis.freqtrade.io`) - FreqUI dashboard configurations
 
 ## Monitoring
