@@ -57,7 +57,7 @@ func ApplySecret(ctx context.Context, c client.Client, secret *corev1.Secret) er
 	// Debug logging to help troubleshoot
 	logger := log.FromContext(ctx)
 	if needsUpdate {
-		logger.Info("Secret data differs, update needed",
+		logger.V(2).Info("Secret data differs, update needed",
 			"secretName", secret.Name,
 			"existingKeys", len(existing.Data),
 			"expectedKeys", len(expectedData))
@@ -65,14 +65,8 @@ func ApplySecret(ctx context.Context, c client.Client, secret *corev1.Secret) er
 		for key := range existing.Data {
 			existingLen := len(existing.Data[key])
 			expectedLen := len(expectedData[key])
-			logger.Info("Key comparison", "key", key, "existingLen", existingLen, "expectedLen", expectedLen)
+			logger.V(2).Info("Key comparison", "key", key, "existingLen", existingLen, "expectedLen", expectedLen)
 		}
-	} else {
-		logger.V(1).Info("Secret data unchanged, no update needed", "secretName", secret.Name)
-	}
-
-	// Only update if there are actual changes
-	if needsUpdate {
 		secret.ResourceVersion = existing.ResourceVersion
 		return c.Update(ctx, secret)
 	}

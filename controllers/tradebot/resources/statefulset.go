@@ -274,14 +274,14 @@ func ApplyStatefulSet(ctx context.Context, c client.Client, sts *appsv1.Stateful
 	logger := log.FromContext(ctx)
 
 	// Retry logic for resource version conflicts
-	return wait.PollImmediate(100*time.Millisecond, 2*time.Second, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		var existing appsv1.StatefulSet
 		err := c.Get(ctx, types.NamespacedName{Name: sts.Name, Namespace: sts.Namespace}, &existing)
 		if errors.IsNotFound(err) {
 			err = c.Create(ctx, sts)
 			if errors.IsAlreadyExists(err) {
 				// Resource was created by another reconciliation, retry
-				logger.V(1).Info("StatefulSet already exists, retrying", "name", sts.Name)
+				logger.V(2).Info("StatefulSet already exists, retrying", "name", sts.Name)
 				return false, nil
 			}
 			return true, err
@@ -306,7 +306,7 @@ func ApplyStatefulSet(ctx context.Context, c client.Client, sts *appsv1.Stateful
 			err = c.Update(ctx, sts)
 			if errors.IsConflict(err) {
 				// Resource version conflict, retry
-				logger.V(1).Info("StatefulSet resource version conflict, retrying", "name", sts.Name)
+				logger.V(2).Info("StatefulSet resource version conflict, retrying", "name", sts.Name)
 				return false, nil
 			}
 			return true, err

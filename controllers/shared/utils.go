@@ -6,9 +6,6 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
-
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,7 +56,7 @@ func (s *StatusUpdater) UpdateConfigStatus(ctx context.Context, obj client.Objec
 			if err := s.Status().Update(ctx, o); err != nil {
 				return fmt.Errorf("failed to update Strategy status: %w", err)
 			}
-			logger.Info("Updated Strategy status", "name", o.Name, "phase", phase)
+			logger.V(2).Info("Updated Strategy status", "name", o.Name, "phase", phase)
 		}
 
 	case *freqtradev1alpha1.TradeBotConfig:
@@ -69,7 +66,7 @@ func (s *StatusUpdater) UpdateConfigStatus(ctx context.Context, obj client.Objec
 			if err := s.Status().Update(ctx, o); err != nil {
 				return fmt.Errorf("failed to update TradeBotConfig status: %w", err)
 			}
-			logger.Info("Updated TradeBotConfig status", "name", o.Name, "phase",
+			logger.V(2).Info("Updated TradeBotConfig status", "name", o.Name, "phase",
 				phase)
 
 		}
@@ -88,7 +85,7 @@ func EnqueueTradeBotsByConfigRef(c client.Client, refField string) handler.MapFu
 
 		var tradeBots freqtradev1alpha1.TradeBotList
 		if err := c.List(ctx, &tradeBots, client.InNamespace(obj.GetNamespace())); err != nil {
-			logger.Error(err, "Failed to list TradeBots", "refField", refField)
+			logger.V(2).Error(err, "Failed to list TradeBots", "refField", refField)
 			return nil
 		}
 
@@ -105,7 +102,7 @@ func EnqueueTradeBotsByConfigRef(c client.Client, refField string) handler.MapFu
 		}
 
 		if len(requests) > 0 {
-			logger.Info("Enqueuing TradeBots for config change",
+			logger.V(1).Info("Enqueuing TradeBots for config change",
 				"configType", refField, "configName", obj.GetName(), "tradeBotCount", len(requests))
 		}
 
@@ -135,7 +132,7 @@ func EnqueueTradeBotsByFreqUIRef(c client.Client) handler.MapFunc {
 		}
 
 		if len(requests) > 0 {
-			logger.Info("Enqueuing TradeBots for FreqUI change",
+			logger.V(1).Info("Enqueuing TradeBots for FreqUI change",
 				"frequiName", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs, "tradeBotCount", len(requests))
 		}
 
@@ -184,29 +181,4 @@ func FinishReconciliation(phase string, err error, requeueAfter time.Duration) R
 		Result: ctrl.Result{RequeueAfter: requeueAfter},
 		Error:  nil,
 	}
-}
-
-func MergeSpecsWithStrategicPatch[T any](defaultSpec, userSpec T, patchMeta any) T {
-	defaultJSON, err := json.Marshal(defaultSpec)
-	if err != nil {
-		// Log error if you have logging setup
-		return defaultSpec
-	}
-
-	userJSON, err := json.Marshal(userSpec)
-	if err != nil {
-		return defaultSpec
-	}
-
-	merged, err := strategicpatch.StrategicMergePatch(defaultJSON, userJSON, patchMeta)
-	if err != nil {
-		return defaultSpec
-	}
-
-	var result T
-	if err := json.Unmarshal(merged, &result); err != nil {
-		return defaultSpec
-	}
-
-	return result
 }

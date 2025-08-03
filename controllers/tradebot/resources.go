@@ -51,7 +51,7 @@ func (r *Reconciler) reconcileResources(
 	configData map[string]string) error {
 
 	logger := log.FromContext(ctx)
-	logger.Info("Reconciling resources for TradeBot", "name", tradeBot.Name)
+	logger.V(2).Info("Reconciling resources for TradeBot", "name", tradeBot.Name)
 
 	// 1. Create a config.json Secret with the TradeBotConfig data
 	configSecret := resources.BuildSecret(*tradeBot, configData)
@@ -59,7 +59,7 @@ func (r *Reconciler) reconcileResources(
 		logger.Error(err, "Failed to apply Secret")
 		return fmt.Errorf("failed to apply Secret: %w", err)
 	}
-	logger.Info("Secret applied successfully", "name", configSecret.Name)
+	logger.V(2).Info("Secret applied successfully", "name", configSecret.Name)
 
 	// 2. Create a ConfigMap for the Strategy script
 	strategy := &freqtradev1alpha1.Strategy{}
@@ -73,7 +73,7 @@ func (r *Reconciler) reconcileResources(
 		logger.Error(err, "Failed to apply Strategy ConfigMap")
 		return fmt.Errorf("failed to apply Strategy ConfigMap: %w", err)
 	}
-	logger.Info("Strategy ConfigMap applied successfully", "name", strategyConfigMap.Name)
+	logger.V(2).Info("Strategy ConfigMap applied successfully", "name", strategyConfigMap.Name)
 
 	// 3. Create or update PVC for user_data
 	pvc := resources.BuildUserDataPVC(*tradeBot)
@@ -81,7 +81,7 @@ func (r *Reconciler) reconcileResources(
 		logger.Error(err, "Failed to apply PVC")
 		return fmt.Errorf("failed to apply PVC: %w", err)
 	}
-	logger.Info("PVC applied successfully", "name", pvc.Name)
+	logger.V(2).Info("PVC applied successfully", "name", pvc.Name)
 
 	// 4. Create or update StatefulSet
 	sts := resources.BuildStatefulSet(ctx, r.Client, *tradeBot, configSecret.Name, strategyConfigMap.Name, pvc.Name)
@@ -89,7 +89,7 @@ func (r *Reconciler) reconcileResources(
 		logger.Error(err, "Failed to apply StatefulSet")
 		return fmt.Errorf("failed to apply StatefulSet: %w", err)
 	}
-	logger.Info("StatefulSet applied successfully", "name", sts.Name)
+	logger.V(2).Info("StatefulSet applied successfully", "name", sts.Name)
 
 	// 5. Create or update Service
 	svc := resources.BuildService(*tradeBot)
@@ -97,7 +97,7 @@ func (r *Reconciler) reconcileResources(
 		logger.Error(err, "Failed to apply Service")
 		return fmt.Errorf("failed to apply Service: %w", err)
 	}
-	logger.Info("Service applied successfully", "name", svc.Name)
+	logger.V(2).Info("Service applied successfully", "name", svc.Name)
 
 	return nil
 }

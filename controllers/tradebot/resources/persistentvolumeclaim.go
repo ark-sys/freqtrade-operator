@@ -85,14 +85,13 @@ func ApplyPVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolume
 	logger := log.FromContext(ctx)
 
 	// Retry logic for resource version conflicts
-	return wait.PollImmediate(100*time.Millisecond, 2*time.Second, func() (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		var existing corev1.PersistentVolumeClaim
 		err := c.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, &existing)
 		if errors.IsNotFound(err) {
 			err = c.Create(ctx, pvc)
 			if errors.IsAlreadyExists(err) {
-				// Resource was created by another reconciliation, retry
-				logger.V(1).Info("PVC already exists, retrying", "name", pvc.Name)
+				logger.V(2).Info("PVC already exists, retrying", "name", pvc.Name)
 				return false, nil
 			}
 			return true, err
@@ -123,8 +122,7 @@ func ApplyPVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolume
 		if needsUpdate {
 			err = c.Update(ctx, &existing)
 			if errors.IsConflict(err) {
-				// Resource version conflict, retry
-				logger.V(1).Info("PVC resource version conflict, retrying", "name", pvc.Name)
+				logger.V(2).Info("PVC resource version conflict, retrying", "name", pvc.Name)
 				return false, nil
 			}
 			return true, err

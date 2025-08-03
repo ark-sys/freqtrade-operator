@@ -30,7 +30,7 @@ type Reconciler struct {
 
 // collectCORSHostsForTradeBot returns a deduplicated, normalized list of CORS hosts.
 func collectCORSHostsForTradeBot(tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1alpha1.FreqUIList) []string {
-	corsHosts := []string{}
+	var corsHosts []string
 	corsSet := make(map[string]struct{})
 
 	for _, frequi := range frequiList.Items {
@@ -106,21 +106,21 @@ func keys(m map[string]string) []string {
 // Reconcile handles the reconciliation loop for TradeBot resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.Info("=== RECONCILE TRIGGERED ===", "namespacedName", req.NamespacedName, "reason", "unknown - need to check controller setup")
+	logger.V(1).Info("=== RECONCILE TRIGGERED ===", "namespacedName", req.NamespacedName, "reason", "unknown - need to check controller setup")
 
 	// 1. Fetch TradeBot
 	var tradeBot freqtradev1alpha1.TradeBot
 	if err := r.Get(ctx, req.NamespacedName, &tradeBot); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("TradeBot resource not found, ignoring since it must be deleted")
+			logger.V(1).Info("TradeBot resource not found, ignoring since it must be deleted")
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get TradeBot resource")
-		logger.Info("Requeue requested", "reason", "get error", "error", err)
+		logger.V(1).Error(err, "Failed to get TradeBot resource")
+		logger.V(2).Info("Requeue requested", "reason", "get error", "error", err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	logger.Info("=== RECONCILING TRADEBOT ===",
+	logger.V(1).Info("=== RECONCILING TRADEBOT ===",
 		"name", tradeBot.Name,
 		"deletionTimestamp", tradeBot.GetDeletionTimestamp(),
 		"finalizers", tradeBot.GetFinalizers(),
@@ -135,53 +135,51 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// 2. Handle deletion if needed
 	if tradeBot.GetDeletionTimestamp() != nil {
-		logger.Info("TradeBot is being deleted", "name", tradeBot.Name)
+		logger.V(1).Info("TradeBot is being deleted", "name", tradeBot.Name)
 		if controllerutil.ContainsFinalizer(&tradeBot, BotFinalizer) {
-			logger.Info("Running finalization logic for TradeBot", "name", tradeBot.Name)
+			logger.V(1).Info("Running finalization logic for TradeBot", "name", tradeBot.Name)
 			if err := r.finalizeTradeBot(ctx, &tradeBot); err != nil {
-				logger.Error(err, "Failed to finalize TradeBot")
-				logger.Info("Requeue requested", "reason", "finalization error", "error", err)
+				logger.V(1).Error(err, "Failed to finalize TradeBot")
+				logger.V(2).Info("Requeue requested", "reason", "finalization error", "error", err)
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 			}
-
 			var latestTradeBot freqtradev1alpha1.TradeBot
 			if getErr := r.Get(ctx, client.ObjectKey{Namespace: tradeBot.Namespace, Name: tradeBot.Name}, &latestTradeBot); getErr != nil {
 				if errors.IsNotFound(getErr) {
-					logger.Info("TradeBot resource not found during finalizer removal, ignoring")
+					logger.V(2).Info("TradeBot resource not found during finalizer removal, ignoring")
 					return ctrl.Result{}, nil
 				}
-				logger.Error(getErr, "Failed to get latest TradeBot before finalizer removal")
-				logger.Info("Requeue requested", "reason", "finalizer removal get error", "error", getErr)
+				logger.V(1).Error(getErr, "Failed to get latest TradeBot before finalizer removal")
+				logger.V(2).Info("Requeue requested", "reason", "finalizer removal get error", "error", getErr)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, getErr
 			}
-
 			controllerutil.RemoveFinalizer(&latestTradeBot, BotFinalizer)
 			if err := r.Update(ctx, &latestTradeBot); err != nil {
-				logger.Error(err, "Failed to remove finalizer from TradeBot")
-				logger.Info("Requeue requested", "reason", "finalizer update error", "error", err)
+				logger.V(1).Error(err, "Failed to remove finalizer from TradeBot")
+				logger.V(2).Info("Requeue requested", "reason", "finalizer update error", "error", err)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 			}
-			logger.Info("Finalizer removed from TradeBot", "name", latestTradeBot.Name)
+			logger.V(1).Info("Finalizer removed from TradeBot", "name", latestTradeBot.Name)
 		}
-		logger.Info("TradeBot deletion handling complete", "name", tradeBot.Name)
+		logger.V(1).Info("TradeBot deletion handling complete", "name", tradeBot.Name)
 		return ctrl.Result{}, nil
 	}
 
 	// 3. Add finalizer if it doesn't exist
 	if !controllerutil.ContainsFinalizer(&tradeBot, BotFinalizer) {
-		logger.Info("Adding finalizer to TradeBot", "name", tradeBot.Name)
+		logger.V(1).Info("Adding finalizer to TradeBot", "name", tradeBot.Name)
 		controllerutil.AddFinalizer(&tradeBot, BotFinalizer)
 		if err := r.Update(ctx, &tradeBot); err != nil {
-			logger.Error(err, "Failed to add finalizer to TradeBot")
-			logger.Info("Requeue requested", "reason", "add finalizer error", "error", err)
+			logger.V(1).Error(err, "Failed to add finalizer to TradeBot")
+			logger.V(2).Info("Requeue requested", "reason", "add finalizer error", "error", err)
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 		}
-		logger.Info("Finalizer added, returning to avoid further processing until update is processed", "name", tradeBot.Name)
+		logger.V(1).Info("Finalizer added, returning to avoid further processing until update is processed", "name", tradeBot.Name)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
 	// 4. Fetch all referenced CRDs
-	logger.Info("Fetching referenced resources for TradeBot", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
+	logger.V(2).Info("Fetching referenced resources for TradeBot", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
 	resources, err := r.fetchReferencedResources(ctx, &tradeBot, req.Namespace)
 	if err != nil {
 		tradeBot.Status.Phase = "Error"
@@ -191,7 +189,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		logger.Info("Requeue requested", "reason", "referenced resources error", "error", err)
 		return r.finishReconciliation(ctx, &tradeBot, statusChanged, 30*time.Second, err)
 	}
-	logger.Info("Fetched referenced resources", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
+	logger.V(2).Info("Fetched referenced resources", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
 
 	// 5. Collect CORS hosts from all FreqUI referencing this TradeBot
 	var frequiList freqtradev1alpha1.FreqUIList
@@ -201,29 +199,29 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, fmt.Errorf("failed to list FreqUI resources: %w", err)
 	}
 	corsHosts := collectCORSHostsForTradeBot(&tradeBot, &frequiList)
-	logger.Info("Collected CORS hosts", "corsHosts", corsHosts)
+	logger.V(2).Info("Collected CORS hosts", "corsHosts", corsHosts)
 	var newStatusMessage string
 	if len(corsHosts) == 0 {
-		logger.Info("No CORS hosts found for TradeBot", "name", tradeBot.Name)
+		logger.V(2).Info("No CORS hosts found for TradeBot", "name", tradeBot.Name)
 		newStatusMessage = "Warning: No CORS hosts configured. API may not be accessible from UIs. Setting default CORS hosts (localhost and BOTNAME.SERVICE.svc.cluster.local)."
 	} else if err := validateCORSHosts(corsHosts); err != nil {
-		logger.Info("CORS host validation warning", "error", err)
+		logger.V(2).Info("CORS host validation warning", "error", err)
 		newStatusMessage = fmt.Sprintf("Warning: Invalid CORS host: %v", err)
 	}
 
-	logger.Info("=== STATUS UPDATE CHECK ===", "oldPhase", tradeBot.Status.Phase, "oldMessage", tradeBot.Status.Message, "newMessage", newStatusMessage)
+	logger.V(2).Info("=== STATUS UPDATE CHECK ===", "oldPhase", tradeBot.Status.Phase, "oldMessage", tradeBot.Status.Message, "newMessage", newStatusMessage)
 	if newStatusMessage != "" && tradeBot.Status.Message != newStatusMessage {
-		logger.Info("=== STATUS MESSAGE CHANGE DETECTED ===", "oldMessage", tradeBot.Status.Message, "newMessage", newStatusMessage)
+		logger.V(2).Info("=== STATUS MESSAGE CHANGE DETECTED ===", "oldMessage", tradeBot.Status.Message, "newMessage", newStatusMessage)
 		tradeBot.Status.Message = newStatusMessage
 		statusChanged = true
 	} else if newStatusMessage != "" {
-		logger.Info("=== STATUS MESSAGE UNCHANGED ===", "message", tradeBot.Status.Message)
+		logger.V(3).Info("=== STATUS MESSAGE UNCHANGED ===", "message", tradeBot.Status.Message)
 	} else {
-		logger.Info("=== NO STATUS MESSAGE TO SET ===")
+		logger.V(3).Info("=== NO STATUS MESSAGE TO SET ===")
 	}
 
 	// 6. Build config.json from TradeBot and referenced TradeBotConfig using configbuilder
-	logger.Info("Building config.json for TradeBot", "name", tradeBot.Name)
+	logger.V(2).Info("Building config.json for TradeBot", "name", tradeBot.Name)
 	configData, err := configbuilder.BuildConfig(
 		ctx, r.Client,
 		&tradeBot,
@@ -238,10 +236,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		logger.Info("Requeue requested", "reason", "config build error", "error", err)
 		return r.finishReconciliation(ctx, &tradeBot, statusChanged, 30*time.Second, err)
 	}
-	logger.Info("Config built successfully", "configDataKeys", keys(configData))
+	logger.V(2).Info("Config built successfully", "configDataKeys", keys(configData))
 
 	// 7. Create or update required resources
-	logger.Info("Reconciling resources", "configDataKeys", keys(configData))
+	logger.V(2).Info("Reconciling resources", "configDataKeys", keys(configData))
 	if err := r.reconcileResources(ctx, &tradeBot, configData); err != nil {
 		logger.Error(err, "Failed to reconcile resources")
 		tradeBot.Status.Phase = "ResourceError"
@@ -250,16 +248,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		logger.Info("Requeue requested", "reason", "resource reconcile error", "error", err)
 		return r.finishReconciliation(ctx, &tradeBot, statusChanged, 30*time.Second, err)
 	}
-	logger.Info("Resources reconciled successfully", "name", tradeBot.Name)
+	logger.V(2).Info("Resources reconciled successfully", "name", tradeBot.Name)
 
-	logger.Info("TradeBot reconciliation completed successfully", "name", tradeBot.Name, "statusChanged", statusChanged, "phase", tradeBot.Status.Phase, "message", tradeBot.Status.Message)
+	logger.V(1).Info("TradeBot reconciliation completed successfully", "name", tradeBot.Name, "statusChanged", statusChanged, "phase", tradeBot.Status.Phase, "message", tradeBot.Status.Message)
 
 	if !statusChanged {
-		logger.Info("=== NO STATUS CHANGE - NOT REQUEUING ===", "name", tradeBot.Name, "currentPhase", tradeBot.Status.Phase, "currentMessage", tradeBot.Status.Message)
+		logger.V(2).Info("=== NO STATUS CHANGE - NOT REQUEUING ===", "name", tradeBot.Name, "currentPhase", tradeBot.Status.Phase, "currentMessage", tradeBot.Status.Message)
 		return ctrl.Result{}, nil
 	}
 
-	logger.Info("=== STATUS CHANGED - FINISHING RECONCILIATION ===", "name", tradeBot.Name, "statusChanged", statusChanged)
+	logger.V(2).Info("=== STATUS CHANGED - FINISHING RECONCILIATION ===", "name", tradeBot.Name, "statusChanged", statusChanged)
 	return r.finishReconciliation(ctx, &tradeBot, statusChanged, 0, nil)
 }
 
@@ -274,7 +272,7 @@ func (r *Reconciler) finishReconciliation(
 	logger := log.FromContext(ctx)
 
 	if statusChanged {
-		logger.Info("=== UPDATING STATUS ===", "name", tradeBot.Name, "newPhase", tradeBot.Status.Phase, "newMessage", tradeBot.Status.Message)
+		logger.V(2).Info("=== UPDATING STATUS ===", "name", tradeBot.Name, "newPhase", tradeBot.Status.Phase, "newMessage", tradeBot.Status.Message)
 
 		var latestTradeBot freqtradev1alpha1.TradeBot
 		if getErr := r.Get(ctx, client.ObjectKey{Namespace: tradeBot.Namespace, Name: tradeBot.Name}, &latestTradeBot); getErr != nil {
@@ -283,7 +281,7 @@ func (r *Reconciler) finishReconciliation(
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, getErr
 		}
 
-		logger.Info("Current status before update", "currentPhase", latestTradeBot.Status.Phase, "currentMessage", latestTradeBot.Status.Message)
+		logger.V(2).Info("Current status before update", "currentPhase", latestTradeBot.Status.Phase, "currentMessage", latestTradeBot.Status.Message)
 		latestTradeBot.Status = tradeBot.Status
 
 		updateErr := r.Status().Update(ctx, &latestTradeBot)
@@ -292,26 +290,26 @@ func (r *Reconciler) finishReconciliation(
 			logger.Info("Requeue requested", "reason", "status update error", "error", updateErr)
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, updateErr
 		}
-		logger.Info("=== STATUS UPDATE SUCCESSFUL ===", "phase", latestTradeBot.Status.Phase, "message", latestTradeBot.Status.Message)
+		logger.V(2).Info("=== STATUS UPDATE SUCCESSFUL ===", "phase", latestTradeBot.Status.Phase, "message", latestTradeBot.Status.Message)
 	} else {
-		logger.Info("=== NO STATUS UPDATE NEEDED ===", "name", tradeBot.Name)
+		logger.V(3).Info("=== NO STATUS UPDATE NEEDED ===", "name", tradeBot.Name)
 	}
 
 	if err != nil {
-		logger.Info("Returning with error after reconciliation", "error", err, "requeueAfter", requeueAfter)
+		logger.V(2).Info("Returning with error after reconciliation", "error", err, "requeueAfter", requeueAfter)
 		return ctrl.Result{RequeueAfter: requeueAfter}, err
 	}
 
 	if statusChanged && requeueAfter == 0 {
-		logger.Info("Status changed, no requeue needed", "statusChanged", statusChanged, "requeueAfter", requeueAfter)
+		logger.V(2).Info("Status changed, no requeue needed", "statusChanged", statusChanged, "requeueAfter", requeueAfter)
 		return ctrl.Result{}, nil
 	}
 
 	if statusChanged && requeueAfter > 0 {
-		logger.Info("Status changed, requeuing", "statusChanged", statusChanged, "requeueAfter", requeueAfter)
+		logger.V(2).Info("Status changed, requeuing", "statusChanged", statusChanged, "requeueAfter", requeueAfter)
 		return ctrl.Result{RequeueAfter: requeueAfter}, nil
 	}
 
-	logger.Info("No status change, no requeue needed", "statusChanged", statusChanged, "requeueAfter", requeueAfter)
+	logger.V(3).Info("No status change, no requeue needed", "statusChanged", statusChanged, "requeueAfter", requeueAfter)
 	return ctrl.Result{}, nil
 }

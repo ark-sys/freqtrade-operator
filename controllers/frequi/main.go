@@ -34,10 +34,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var frequi freqtradev1alpha1.FreqUI
 	if err := r.Get(ctx, req.NamespacedName, &frequi); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("FreqUI resource not found, ignoring since it must be deleted")
+			logger.V(1).Info("FreqUI resource not found, ignoring since it must be deleted")
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get FreqUI resource")
+		logger.V(1).Error(err, "Failed to get FreqUI resource")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -54,7 +54,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// 2. Reconcile all resources
 	if err := r.reconcileAllResources(ctx, &frequi); err != nil {
-		logger.Error(err, "Failed to reconcile resources")
+		logger.V(1).Error(err, "Failed to reconcile resources")
 		frequi.Status.Phase = "ResourceError"
 		frequi.Status.Message = fmt.Sprintf("Failed to reconcile resources: %v", err)
 		statusChanged = true
@@ -64,7 +64,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// 3. Check if deployment is ready
 	deployment := &appsv1.Deployment{}
 	if err := r.Get(ctx, types.NamespacedName{Name: frequi.Name, Namespace: frequi.Namespace}, deployment); err != nil {
-		logger.Error(err, "Failed to get deployment status")
+		logger.V(1).Error(err, "Failed to get deployment status")
 		frequi.Status.Phase = "DeploymentError"
 		frequi.Status.Message = fmt.Sprintf("Failed to get deployment status: %v", err)
 		statusChanged = true
@@ -85,7 +85,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 		// If nothing changed and we're already in Running state, don't requeue
 		if !statusChanged {
-			logger.V(1).Info("FreqUI is running and stable, no requeue needed")
+			logger.V(2).Info("FreqUI is running and stable, no requeue needed")
 			return ctrl.Result{}, nil
 		}
 		// Otherwise, requeue after a longer period
@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	} else {
 		// Status unchanged, just requeue without status update
 		statusChanged = false
-		logger.V(1).Info("App still not ready, requeuing without status update",
+		logger.V(2).Info("App still not ready, requeuing without status update",
 			"name", frequi.Name,
 			"availableReplicas", deployment.Status.AvailableReplicas,
 			"replicas", deployment.Status.Replicas)
@@ -134,10 +134,10 @@ func (r *Reconciler) finishReconciliation(
 	if statusChanged {
 		updateErr := r.retryUpdateFreqUIStatus(ctx, frequi, 3)
 		if updateErr != nil {
-			logger.Error(updateErr, "Failed to update FreqUI status after retries")
+			logger.V(1).Error(updateErr, "Failed to update FreqUI status after retries")
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, updateErr
 		}
-		logger.Info("Updated FreqUI status", "phase", frequi.Status.Phase)
+		logger.V(1).Info("Updated FreqUI status", "phase", frequi.Status.Phase)
 	}
 
 	// Return appropriate result based on error
@@ -148,7 +148,7 @@ func (r *Reconciler) finishReconciliation(
 
 	// If status is "Running" and no changes were made, don't requeue
 	if frequi.Status.Phase == "Running" && !statusChanged {
-		logger.V(1).Info("FreqUI is running and stable, no requeue needed")
+		logger.V(2).Info("FreqUI is running and stable, no requeue needed")
 		return ctrl.Result{}, nil
 	}
 
@@ -168,14 +168,14 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 	if err := resources.ApplyDeployment(ctx, r.Client, &deployment); err != nil {
 		return fmt.Errorf("failed to apply deployment: %w", err)
 	}
-	logger.V(1).Info("Deployment reconciled", "name", deployment.Name)
+	logger.V(2).Info("Deployment reconciled", "name", deployment.Name)
 
 	// 2. Reconcile Service
 	service := resources.BuildFreqUIService(*frequi)
 	if err := resources.ApplyService(ctx, r.Client, &service); err != nil {
 		return fmt.Errorf("failed to apply service: %w", err)
 	}
-	logger.V(1).Info("Service reconciled", "name", service.Name)
+	logger.V(2).Info("Service reconciled", "name", service.Name)
 
 	// 3. Reconcile Ingress if configured
 	var apiRoutes []resources.TradeBotAPIRoute
@@ -199,14 +199,14 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 					PathPrefix:  tradeBotRef,
 				})
 			} else {
-				logger.V(1).Info("Skipping TradeBot API route", "tradeBot", tradeBotRef,
+				logger.V(2).Info("Skipping TradeBot API route", "tradeBot", tradeBotRef,
 					"reason", "TradeBotConfig is not valid or API server is disabled")
 			}
 		} else if !errors.IsNotFound(err) {
 			logger.Error(err, "Failed to get TradeBot for API route", "tradeBot", tradeBotRef)
 			return fmt.Errorf("failed to get TradeBot %s: %w", tradeBotRef, err)
 		} else {
-			logger.V(1).Info("TradeBot not found for API route", "tradeBot", tradeBotRef)
+			logger.V(3).Info("TradeBot not found for API route", "tradeBot", tradeBotRef)
 			// If TradeBot is not found, we skip adding it to the routes
 			continue
 		}
@@ -217,7 +217,7 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 	if err := resources.ApplyIngress(ctx, r.Client, &ingress); err != nil {
 		return fmt.Errorf("failed to apply ingress: %w", err)
 	}
-	logger.V(1).Info("Ingress reconciled", "name", ingress.Name)
+	logger.V(2).Info("Ingress reconciled", "name", ingress.Name)
 
 	return nil
 }
@@ -239,7 +239,7 @@ func (r *Reconciler) retryUpdateFreqUIStatus(ctx context.Context, frequi *freqtr
 		// Try to update the status
 		if err := r.Status().Update(ctx, &latest); err != nil {
 			if errors.IsConflict(err) && i < maxRetries-1 {
-				logger.V(1).Info("FreqUI status update conflict, retrying", "attempt", i+1, "maxRetries", maxRetries)
+				logger.V(2).Info("FreqUI status update conflict, retrying", "attempt", i+1, "maxRetries", maxRetries)
 				time.Sleep(100 * time.Millisecond) // Brief backoff
 				continue
 			}
@@ -248,7 +248,7 @@ func (r *Reconciler) retryUpdateFreqUIStatus(ctx context.Context, frequi *freqtr
 
 		// Update successful
 		if i > 0 {
-			logger.Info("FreqUI status update succeeded after retry", "attempts", i+1)
+			logger.V(2).Info("FreqUI status update succeeded after retry", "attempts", i+1)
 		}
 		return nil
 	}

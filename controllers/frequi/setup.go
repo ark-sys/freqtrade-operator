@@ -39,13 +39,13 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.FreqUI)
 
 			if !oldOk || !newOk {
-				setupLog.Info("FreqUI predicate: type assertion failed, processing", "eventType", "Update")
+				setupLog.V(2).Info("FreqUI predicate: type assertion failed, processing", "eventType", "Update")
 				return true
 			}
 
 			// Only reconcile if spec changed
 			if reflect.DeepEqual(oldObj.Spec, newObj.Spec) {
-				setupLog.V(1).Info("FreqUI predicate: spec unchanged, skipping reconciliation", "eventType", "Update", "name", oldObj.GetName())
+				setupLog.V(2).Info("FreqUI predicate: spec unchanged, skipping reconciliation", "eventType", "Update", "name", oldObj.GetName())
 				return false
 			}
 
@@ -53,15 +53,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			setupLog.Info("FreqUI predicate: delete event, processing", "eventType", "Delete", "name", e.Object.GetName())
+			setupLog.V(2).Info("FreqUI predicate: delete event, processing", "eventType", "Delete", "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			setupLog.Info("FreqUI predicate: create event, processing", "eventType", "Create", "name", e.Object.GetName())
+			setupLog.V(2).Info("FreqUI predicate: create event, processing", "eventType", "Create", "name", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			setupLog.V(1).Info("FreqUI predicate: generic event, skipping", "eventType", "Generic", "name", e.Object.GetName())
+			setupLog.V(3).Info("FreqUI predicate: generic event, skipping", "eventType", "Generic", "name", e.Object.GetName())
 			return false
 		},
 	}
@@ -78,9 +78,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Only reconcile if the generation changed (indicating a spec change)
 			generationChanged := e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
 			if generationChanged {
-				setupLog.Info("FreqUI owned resource: generation changed, processing", "eventType", "Update", "type", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName())
+				setupLog.V(2).Info("FreqUI owned resource: generation changed, processing", "eventType", "Update", "type", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName())
 			} else {
-				setupLog.V(1).Info("FreqUI owned resource: generation unchanged, skipping", "eventType", "Update", "type", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName())
+				setupLog.V(3).Info("FreqUI owned resource: generation unchanged, skipping", "eventType", "Update", "type", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName())
 			}
 			return generationChanged
 		},
@@ -89,7 +89,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if !isOwnedByFreqUI(e.Object) {
 				return false // Skip resources not owned by FreqUI
 			}
-			setupLog.Info("FreqUI owned resource: delete event, processing", "eventType", "Delete", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
+			setupLog.V(2).Info("FreqUI owned resource: delete event, processing", "eventType", "Delete", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
@@ -97,11 +97,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if !isOwnedByFreqUI(e.Object) {
 				return false // Skip resources not owned by FreqUI
 			}
-			setupLog.Info("FreqUI owned resource: create event, processing", "eventType", "Create", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
+			setupLog.V(2).Info("FreqUI owned resource: create event, processing", "eventType", "Create", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			setupLog.V(1).Info("FreqUI owned resource: generic event, skipping", "eventType", "Generic", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
+			setupLog.V(3).Info("FreqUI owned resource: generic event, skipping", "eventType", "Generic", "type", fmt.Sprintf("%T", e.Object), "name", e.Object.GetName())
 			return false
 		},
 	}

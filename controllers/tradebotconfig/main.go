@@ -30,26 +30,26 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var tradebotconfig freqtradev1alpha1.TradeBotConfig
 	if err := r.Get(ctx, req.NamespacedName, &tradebotconfig); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Tradebotconfig resource not found, ignoring since it must be deleted")
+			logger.V(1).Info("Tradebotconfig resource not found, ignoring since it must be deleted")
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get Tradebotconfig resource")
+		logger.V(1).Error(err, "Failed to get Tradebotconfig resource")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// Initialize status if empty
 	if tradebotconfig.Status.Phase == "" {
 		if err := r.RetryUpdateConfigStatus(ctx, &tradebotconfig, "Validating", "Starting validation", 3); err != nil {
-			logger.Error(err, "Failed to initialize Tradebotconfig status")
+			logger.V(1).Error(err, "Failed to initialize Tradebotconfig status")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 		}
 	}
 
 	// Validate Tradebotconfig configuration
 	if err := r.validateTradeBotConfig(ctx, &tradebotconfig); err != nil {
-		logger.Error(err, "Tradebotconfig validation failed")
+		logger.V(1).Error(err, "Tradebotconfig validation failed")
 		if updateErr := r.RetryUpdateConfigStatus(ctx, &tradebotconfig, "Invalid", err.Error(), 3); updateErr != nil {
-			logger.Error(updateErr, "Failed to update Tradebotconfig status after validation failure")
+			logger.V(1).Error(updateErr, "Failed to update Tradebotconfig status after validation failure")
 		}
 		result := shared.FinishReconciliation("Invalid", err, 30*time.Second)
 		return result.Result, result.Error
@@ -57,12 +57,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Update status to valid
 	if err := r.RetryUpdateConfigStatus(ctx, &tradebotconfig, "Valid", "Tradebotconfig configuration is valid", 3); err != nil {
-		logger.Error(err, "Failed to update Tradebotconfig status to valid")
+		logger.V(1).Error(err, "Failed to update Tradebotconfig status to valid")
 		result := shared.FinishReconciliation("Valid", err, 30*time.Second)
 		return result.Result, result.Error
 	}
 
-	logger.Info("Tradebotconfig reconciliation completed successfully", "name", tradebotconfig.Name)
+	logger.V(1).Info("Tradebotconfig reconciliation completed successfully", "name", tradebotconfig.Name)
 	result := shared.FinishReconciliation("Valid", nil, 5*time.Minute)
 	return result.Result, result.Error
 }
@@ -78,6 +78,6 @@ func (r *Reconciler) validateTradeBotConfig(ctx context.Context, tradebotconfig 
 
 	// TODO Check other required fields
 
-	logger.Info("Tradebotconfig validation passed", "name", tradebotconfig.Name)
+	logger.V(2).Info("Tradebotconfig validation passed", "name", tradebotconfig.Name)
 	return nil
 }

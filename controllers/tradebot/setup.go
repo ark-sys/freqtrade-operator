@@ -54,22 +54,22 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	mainResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			setupLog.Info("=== MAIN RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
+			setupLog.V(2).Info("=== MAIN RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
 
 			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.TradeBot)
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.TradeBot)
 
 			if !oldOk || !newOk {
-				setupLog.Info("Predicate triggered: type assertion failed", "eventType", "Update")
+				setupLog.V(2).Info("Predicate triggered: type assertion failed", "eventType", "Update")
 				return true
 			}
 
 			// Check if only status changed (should not trigger reconciliation)
 			if reflect.DeepEqual(oldObj.Spec, newObj.Spec) {
 				if !reflect.DeepEqual(oldObj.Status, newObj.Status) {
-					setupLog.Info("Predicate: ONLY status changed, skipping reconciliation", "eventType", "Update", "name", oldObj.GetName(), "oldStatus", oldObj.Status, "newStatus", newObj.Status)
+					setupLog.V(2).Info("Predicate: ONLY status changed, skipping reconciliation", "eventType", "Update", "name", oldObj.GetName(), "oldStatus", oldObj.Status, "newStatus", newObj.Status)
 				} else {
-					setupLog.Info("Predicate: no changes detected, skipping", "eventType", "Update", "name", oldObj.GetName())
+					setupLog.V(3).Info("Predicate: no changes detected, skipping", "eventType", "Update", "name", oldObj.GetName())
 				}
 				return false
 			}
@@ -78,15 +78,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			setupLog.Info("Predicate triggered: delete", "eventType", "Delete", "name", e.Object.GetName())
+			setupLog.V(2).Info("Predicate triggered: delete", "eventType", "Delete", "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			setupLog.Info("Predicate triggered: create", "eventType", "Create", "name", e.Object.GetName())
+			setupLog.V(2).Info("Predicate triggered: create", "eventType", "Create", "name", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			setupLog.Info("Predicate triggered: generic (skipped)", "eventType", "Generic", "name", e.Object.GetName())
+			setupLog.V(3).Info("Predicate triggered: generic (skipped)", "eventType", "Generic", "name", e.Object.GetName())
 			return false
 		},
 	}
@@ -97,51 +97,51 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if !isOwnedByTradeBot(e.ObjectOld) {
 				return false // Skip resources not owned by TradeBot
 			}
-			setupLog.Info("=== OWNED RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
+			setupLog.V(2).Info("=== OWNED RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
 			switch old := e.ObjectOld.(type) {
 			case *appsv1.StatefulSet:
-				new := e.ObjectNew.(*appsv1.StatefulSet)
-				if reflect.DeepEqual(old.Spec, new.Spec) {
-					setupLog.Info("Owned predicate: StatefulSet spec unchanged, skipping", "eventType", "Update", "name", old.GetName())
+				newObj := e.ObjectNew.(*appsv1.StatefulSet)
+				if reflect.DeepEqual(old.Spec, newObj.Spec) {
+					setupLog.V(2).Info("Owned predicate: StatefulSet spec unchanged, skipping", "eventType", "Update", "name", old.GetName())
 					return false
 				}
 				setupLog.Info("Owned predicate: StatefulSet spec changed", "eventType", "Update", "name", old.GetName())
 				return true
 			case *corev1.ConfigMap:
-				new := e.ObjectNew.(*corev1.ConfigMap)
-				if reflect.DeepEqual(old.Data, new.Data) {
-					setupLog.Info("Owned predicate: ConfigMap data unchanged, skipping", "eventType", "Update", "name", old.GetName())
+				newObj := e.ObjectNew.(*corev1.ConfigMap)
+				if reflect.DeepEqual(old.Data, newObj.Data) {
+					setupLog.V(2).Info("Owned predicate: ConfigMap data unchanged, skipping", "eventType", "Update", "name", old.GetName())
 					return false
 				}
 				setupLog.Info("Owned predicate: ConfigMap data changed", "eventType", "Update", "name", old.GetName())
 				return true
 			case *corev1.Service:
-				new := e.ObjectNew.(*corev1.Service)
-				if reflect.DeepEqual(old.Spec.Ports, new.Spec.Ports) && reflect.DeepEqual(old.Spec.Selector, new.Spec.Selector) {
-					setupLog.Info("Owned predicate: Service ports/selectors unchanged, skipping", "eventType", "Update", "name", old.GetName())
+				newObj := e.ObjectNew.(*corev1.Service)
+				if reflect.DeepEqual(old.Spec.Ports, newObj.Spec.Ports) && reflect.DeepEqual(old.Spec.Selector, newObj.Spec.Selector) {
+					setupLog.V(2).Info("Owned predicate: Service ports/selectors unchanged, skipping", "eventType", "Update", "name", old.GetName())
 					return false
 				}
 				setupLog.Info("Owned predicate: Service ports/selectors changed", "eventType", "Update", "name", old.GetName())
 				return true
 			case *corev1.Secret:
-				new := e.ObjectNew.(*corev1.Secret)
-				if reflect.DeepEqual(old.Data, new.Data) {
-					setupLog.Info("Owned predicate: Secret data unchanged, skipping", "eventType", "Update", "name", old.GetName())
+				newObj := e.ObjectNew.(*corev1.Secret)
+				if reflect.DeepEqual(old.Data, newObj.Data) {
+					setupLog.V(2).Info("Owned predicate: Secret data unchanged, skipping", "eventType", "Update", "name", old.GetName())
 					return false
 				}
 				setupLog.Info("Owned predicate: Secret data changed", "eventType", "Update", "name", old.GetName())
 				return true
 			case *corev1.PersistentVolumeClaim:
-				new := e.ObjectNew.(*corev1.PersistentVolumeClaim)
+				newObj := e.ObjectNew.(*corev1.PersistentVolumeClaim)
 				// For PVCs, we typically only care about spec changes, not status changes
-				if reflect.DeepEqual(old.Spec, new.Spec) {
-					setupLog.Info("Owned predicate: PVC spec unchanged, skipping", "eventType", "Update", "name", old.GetName())
+				if reflect.DeepEqual(old.Spec, newObj.Spec) {
+					setupLog.V(2).Info("Owned predicate: PVC spec unchanged, skipping", "eventType", "Update", "name", old.GetName())
 					return false
 				}
 				setupLog.Info("Owned predicate: PVC spec changed", "eventType", "Update", "name", old.GetName())
 				return true
 			default:
-				setupLog.Info("Owned predicate: unknown type, processing", "eventType", "Update", "type", fmt.Sprintf("%T", old), "name", old.GetName())
+				setupLog.V(3).Info("Owned predicate: unknown type, processing", "eventType", "Update", "type", fmt.Sprintf("%T", old), "name", old.GetName())
 				return true
 			}
 		},
@@ -150,7 +150,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if !isOwnedByTradeBot(e.Object) {
 				return false // Skip resources not owned by TradeBot
 			}
-			setupLog.Info("Owned predicate: delete", "eventType", "Delete", "name", e.Object.GetName())
+			setupLog.V(2).Info("Owned predicate: delete", "eventType", "Delete", "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
@@ -158,11 +158,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if !isOwnedByTradeBot(e.Object) {
 				return false // Skip resources not owned by TradeBot
 			}
-			setupLog.Info("Owned predicate: create", "eventType", "Create", "name", e.Object.GetName())
+			setupLog.V(2).Info("Owned predicate: create", "eventType", "Create", "name", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			setupLog.Info("Owned predicate: generic (skipped)", "eventType", "Generic", "name", e.Object.GetName())
+			setupLog.V(3).Info("Owned predicate: generic (skipped)", "eventType", "Generic", "name", e.Object.GetName())
 			return false
 		},
 	}
@@ -180,18 +180,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// Only trigger TradeBot reconciliation if FreqUI spec changed
 			specChanged := !reflect.DeepEqual(oldObj.Spec, newObj.Spec)
 			if specChanged {
-				setupLog.Info("FreqUI spec changed, triggering TradeBot reconciliation", "frequi", oldObj.Name, "tradeBotRefs", newObj.Spec.TradeBotRefs)
+				setupLog.V(2).Info("FreqUI spec changed, triggering TradeBot reconciliation", "frequi", oldObj.Name, "tradeBotRefs", newObj.Spec.TradeBotRefs)
 			}
 			return specChanged
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			frequi := e.Object.(*freqtradev1alpha1.FreqUI)
-			setupLog.Info("FreqUI deleted, triggering TradeBot reconciliation", "frequi", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs)
+			setupLog.V(2).Info("FreqUI deleted, triggering TradeBot reconciliation", "frequi", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs)
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
 			frequi := e.Object.(*freqtradev1alpha1.FreqUI)
-			setupLog.Info("FreqUI created, triggering TradeBot reconciliation", "frequi", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs)
+			setupLog.V(2).Info("FreqUI created, triggering TradeBot reconciliation", "frequi", frequi.Name, "tradeBotRefs", frequi.Spec.TradeBotRefs)
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {

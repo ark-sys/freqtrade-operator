@@ -27,6 +27,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.TradeBotConfig)
 
 			if !oldOk || !newOk {
+				ctrl.Log.WithName("tradebotconfig-predicate").V(2).Info("Type assertion failed, processing", "eventType", "Update")
 				return true
 			}
 
@@ -34,15 +35,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return !reflect.DeepEqual(oldObj.Spec, newObj.Spec)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			// Process all delete events
+			ctrl.Log.WithName("tradebotconfig-predicate").V(2).Info("Delete event, processing", "eventType", "Delete", "name", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			// Process all create events
+			ctrl.Log.WithName("tradebotconfig-predicate").V(2).Info("Create event, processing", "eventType", "Create", "name", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {
-			// Skip generic events
+			ctrl.Log.WithName("tradebotconfig-predicate").V(3).Info("Generic event, skipping", "eventType", "Generic", "name", e.Object.GetName())
 			return false
 		},
 	}
@@ -54,22 +55,23 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.TradeBotConfig)
 
 			if !oldOk || !newOk {
+				ctrl.Log.WithName("tradebotconfig-watch").V(2).Info("Type assertion failed, processing", "eventType", "Update")
 				return true
 			}
 
 			// Only trigger TradeBot reconciliation if TradeBotConfig spec changed
 			specChanged := !reflect.DeepEqual(oldObj.Spec, newObj.Spec)
 			if specChanged {
-				ctrl.Log.WithName("tradebotconfig-watch").Info("TradeBotConfig spec changed, triggering TradeBot reconciliation", "config", oldObj.Name)
+				ctrl.Log.WithName("tradebotconfig-watch").V(2).Info("TradeBotConfig spec changed, triggering TradeBot reconciliation", "config", oldObj.Name)
 			}
 			return specChanged
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			ctrl.Log.WithName("tradebotconfig-watch").Info("TradeBotConfig deleted, triggering TradeBot reconciliation", "config", e.Object.GetName())
+			ctrl.Log.WithName("tradebotconfig-watch").V(2).Info("TradeBotConfig deleted, triggering TradeBot reconciliation", "config", e.Object.GetName())
 			return true
 		},
 		CreateFunc: func(e event.CreateEvent) bool {
-			ctrl.Log.WithName("tradebotconfig-watch").Info("TradeBotConfig created, triggering TradeBot reconciliation", "config", e.Object.GetName())
+			ctrl.Log.WithName("tradebotconfig-watch").V(2).Info("TradeBotConfig created, triggering TradeBot reconciliation", "config", e.Object.GetName())
 			return true
 		},
 		GenericFunc: func(e event.GenericEvent) bool {

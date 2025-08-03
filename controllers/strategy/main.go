@@ -32,26 +32,26 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	var strategy freqtradev1alpha1.Strategy
 	if err := r.Get(ctx, req.NamespacedName, &strategy); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Strategy resource not found, ignoring since it must be deleted")
+			logger.V(1).Info("Strategy resource not found, ignoring since it must be deleted")
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get Strategy resource")
+		logger.V(1).Error(err, "Failed to get Strategy resource")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// Initialize status if empty
 	if strategy.Status.Phase == "" {
 		if err := r.RetryUpdateConfigStatus(ctx, &strategy, "Validating", "Starting validation", 3); err != nil {
-			logger.Error(err, "Failed to initialize Strategy status")
+			logger.V(1).Error(err, "Failed to initialize Strategy status")
 			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 		}
 	}
 
 	// Validate Strategy configuration
 	if err := r.validateStrategy(ctx, &strategy); err != nil {
-		logger.Error(err, "Strategy validation failed")
+		logger.V(1).Error(err, "Strategy validation failed")
 		if updateErr := r.RetryUpdateConfigStatus(ctx, &strategy, "Invalid", err.Error(), 3); updateErr != nil {
-			logger.Error(updateErr, "Failed to update Strategy status after validation failure")
+			logger.V(1).Error(updateErr, "Failed to update Strategy status after validation failure")
 		}
 		result := shared.FinishReconciliation("Invalid", err, 30*time.Second)
 		return result.Result, result.Error
@@ -59,12 +59,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Update status to valid
 	if err := r.RetryUpdateConfigStatus(ctx, &strategy, "Valid", "Strategy configuration is valid", 3); err != nil {
-		logger.Error(err, "Failed to update Strategy status to valid")
+		logger.V(1).Error(err, "Failed to update Strategy status to valid")
 		result := shared.FinishReconciliation("Valid", err, 30*time.Second)
 		return result.Result, result.Error
 	}
 
-	logger.Info("Strategy reconciliation completed successfully", "name", strategy.Name)
+	logger.V(1).Info("Strategy reconciliation completed successfully", "name", strategy.Name)
 	result := shared.FinishReconciliation("Valid", nil, 5*time.Minute)
 	return result.Result, result.Error
 }
@@ -92,7 +92,7 @@ func (r *Reconciler) validateStrategy(ctx context.Context, strategy *freqtradev1
 		return fmt.Errorf("strategy script validation failed: %w", err)
 	}
 
-	logger.Info("Strategy validation passed", "name", strategy.Name)
+	logger.V(2).Info("Strategy validation passed", "name", strategy.Name)
 	return nil
 }
 

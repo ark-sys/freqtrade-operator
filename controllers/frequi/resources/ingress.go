@@ -22,7 +22,6 @@ type TradeBotAPIRoute struct {
 }
 
 // BuildFreqUIIngress creates an Ingress for FreqUI with subdomain-based API routing
-// BuildFreqUIIngress creates an Ingress for FreqUI with subdomain-based API routing
 func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []TradeBotAPIRoute) networkingv1.Ingress {
 	spec := frequi.Spec
 	pathType := networkingv1.PathTypePrefix
@@ -142,11 +141,11 @@ func ApplyIngress(ctx context.Context, c client.Client, ing *networkingv1.Ingres
 	var existing networkingv1.Ingress
 	err := c.Get(ctx, types.NamespacedName{Name: ing.Name, Namespace: ing.Namespace}, &existing)
 	if errors.IsNotFound(err) {
-		logger.V(1).Info("Creating a new Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
+		logger.V(2).Info("Creating a new Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
 		return c.Create(ctx, ing)
 	} else if err != nil {
 
-		logger.Error(err, "Failed to get Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
+		logger.V(1).Error(err, "Failed to get Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
 		return err
 	}
 
@@ -176,7 +175,7 @@ func ApplyIngress(ctx context.Context, c client.Client, ing *networkingv1.Ingres
 	// Only update if there are actual changes
 	if needsUpdate {
 		ing.ResourceVersion = existing.ResourceVersion
-		logger.V(1).Info("Updating existing Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
+		logger.V(2).Info("Updating existing Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
 		return c.Update(ctx, ing)
 	}
 
