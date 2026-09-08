@@ -1,85 +1,58 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app.kubernetes.io/name: freqtrade-operator
-    app.kubernetes.io/managed-by: kustomize
   name: manager-role
 rules:
 - apiGroups:
-  - freqtrade.io
+  - ""
   resources:
-  - tradebots
-  - strategies
-  - frequis
-  - tradebotconfigs
+  - configmaps
+  - persistentvolumeclaims
+  - secrets
   verbs:
   - create
-  - delete
   - get
   - list
-  - patch
   - update
   - watch
 - apiGroups:
-  - freqtrade.io
+  - ""
   resources:
-  - tradebots/status
-  - strategies/status
-  - frequis/status
-  - tradebotconfigs/status
+  - events
   verbs:
-  - get
+  - create
   - patch
-  - update
-- apiGroups:
-  - freqtrade.io
-  resources:
-  - tradebots/finalizers
-  - strategies/finalizers
-  - frequis/finalizers
-  - tradebotconfigs/finalizers
-  verbs:
-  - update
 - apiGroups:
   - ""
   resources:
-  - pods
   - services
-  - secrets
-  - configmaps
-  - persistentvolumeclaims
   verbs:
   - create
   - delete
   - get
   - list
-  - patch
   - update
   - watch
 - apiGroups:
   - apps
   resources:
   - deployments
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
   - statefulsets
   verbs:
   - create
   - delete
   - get
   - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - networking.k8s.io
-  resources:
-  - ingresses
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
   - update
   - watch
 - apiGroups:
@@ -91,19 +64,50 @@ rules:
   - delete
   - get
   - list
+  - watch
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - frequis
+  - strategies
+  - tradebotconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - frequis/status
+  - strategies/status
+  - tradebotconfigs/status
+  - tradebots/status
+  verbs:
+  - get
   - patch
+  - update
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - tradebots
+  verbs:
+  - get
+  - list
   - update
   - watch
 - apiGroups:
-  - ""
+  - freqtrade.io
   resources:
-  - pods/log
+  - tradebots/finalizers
   verbs:
-  - get
+  - update
 - apiGroups:
-  - ""
+  - networking.k8s.io
   resources:
-  - events
+  - ingresses
   verbs:
+  - create
+  - get
   - list
+  - update
   - watch

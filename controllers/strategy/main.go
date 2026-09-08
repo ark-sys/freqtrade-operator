@@ -23,6 +23,10 @@ type Reconciler struct {
 	shared.StatusUpdater
 }
 
+// +kubebuilder:rbac:groups=freqtrade.io,resources=strategies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=strategies/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=tradebots,verbs=list;watch
+
 // Reconcile handles the reconciliation loop for Strategy resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)

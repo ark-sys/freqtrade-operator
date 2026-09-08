@@ -34,6 +34,11 @@ jobs:
           make manifests generate
           git diff --exit-code
 
+      - name: Verify the Helm chart is in sync with config/
+        run: |
+          make helm-sync
+          git diff --exit-code helm/
+
   govulncheck:
     name: govulncheck
     runs-on: ubuntu-latest

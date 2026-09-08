@@ -11,10 +11,26 @@ spec:
     kind: TradeBot
     listKind: TradeBotList
     plural: tradebots
+    shortNames:
+    - tb
+    - tbot
     singular: tradebot
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.freqtrade_command
+      name: Command
+      type: string
+    - jsonPath: .spec.strategy
+      name: Strategy
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -5621,9 +5637,16 @@ spec:
                           the PVC
                         type: string
                       storageSize:
-                        description: StorageSize defines the size of the storage for
-                          the PVC
-                        type: string
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: |-
+                          StorageSize defines the size of the storage for the PVC. A quantity
+                          value (e.g. "10Gi") is validated by the API server at admission time;
+                          as a plain string this used to reach resource.MustParse in the
+                          reconciler and panic the manager on anything malformed.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       volumeName:
                         description: VolumeName defines the name of the volume to
                           bind to
@@ -5723,24 +5746,126 @@ spec:
                     type: object
                 type: object
               config:
+                description: Reference to the TradeBotConfig resource, same namespace
+                  only (D3)
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
+              data:
+                properties:
+                  downloadArgs:
+                    description: |-
+                      DownloadArgs are optional extra args for "freqtrade download-data".
+                      Example: []string{"--exchange","binance","-t","1m","5m","--days","30"}
+                    items:
+                      type: string
+                    type: array
+                  downloadPolicy:
+                    default: always
+                    description: DownloadPolicy controls when the cache is refreshed
+                      by jobs.
+                    enum:
+                    - always
+                    - ifMissing
+                    - never
+                    type: string
+                  pvcName:
+                    description: |-
+                      PVCName is the name of a shared RWX PVC used as data cache for jobs.
+                      If set, jobs will mount this PVC at /cache and use it as --datadir.
+                    type: string
+                type: object
               freqtrade_arguments:
                 items:
                   type: string
+                maxItems: 64
                 type: array
               freqtrade_command:
-                description: Default is "trade". Can be "backtest" or "plot"
+                default: trade
+                description: Default is "trade". Can be "backtesting" or "hyperopt"
+                enum:
+                - trade
+                - backtesting
+                - hyperopt
+                - download-data
+                - lookahead-analysis
                 type: string
               strategy:
-                description: Reference to the Strategy resource
+                description: Reference to the Strategy resource, same namespace only
+                  (D3)
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
             required:
             - config
             - strategy
             type: object
+            x-kubernetes-validations:
+            - message: spec.data is only meaningful when freqtrade_command is not
+                'trade'
+              rule: '!has(self.data) || self.freqtrade_command != ''trade'''
           status:
             description: TradeBotStatus defines the observed state of TradeBot
             properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               message:
                 type: string
               phase:

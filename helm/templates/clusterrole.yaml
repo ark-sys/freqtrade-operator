@@ -7,105 +7,110 @@ metadata:
     {{- include "freqtrade-operator.labels" . | nindent 4 }}
 rules:
 - apiGroups:
-    - freqtrade.io
+  - ""
   resources:
-    - tradebots
-    - strategies
-    - frequis
-    - tradebotconfigs
+  - configmaps
+  - persistentvolumeclaims
+  - secrets
   verbs:
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - create
+  - get
+  - list
+  - update
+  - watch
 - apiGroups:
-    - freqtrade.io
+  - ""
   resources:
-    - tradebots/status
-    - strategies/status
-    - frequis/status
-    - tradebotconfigs/status
+  - events
   verbs:
-    - get
-    - patch
-    - update
+  - create
+  - patch
 - apiGroups:
-    - freqtrade.io
+  - ""
   resources:
-    - tradebots/finalizers
-    - strategies/finalizers
-    - frequis/finalizers
-    - tradebotconfigs/finalizers
+  - services
   verbs:
-    - update
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
 - apiGroups:
-    - ""
+  - apps
   resources:
-    - pods
-    - services
-    - secrets
-    - configmaps
-    - persistentvolumeclaims
+  - deployments
   verbs:
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - create
+  - get
+  - list
+  - update
+  - watch
 - apiGroups:
-    - apps
+  - apps
   resources:
-    - deployments
-    - statefulsets
+  - statefulsets
   verbs:
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
 - apiGroups:
-    - networking.k8s.io
+  - batch
   resources:
-    - ingresses
+  - jobs
   verbs:
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - create
+  - delete
+  - get
+  - list
+  - watch
 - apiGroups:
-    - batch
+  - freqtrade.io
   resources:
-    - jobs
+  - frequis
+  - strategies
+  - tradebotconfigs
   verbs:
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
+  - get
+  - list
+  - watch
 - apiGroups:
-    - ""
+  - freqtrade.io
   resources:
-    - pods/log
+  - frequis/status
+  - strategies/status
+  - tradebotconfigs/status
+  - tradebots/status
   verbs:
-    - get
+  - get
+  - patch
+  - update
 - apiGroups:
-    - ""
+  - freqtrade.io
   resources:
-    - events
+  - tradebots
   verbs:
-    - list
-    - watch
-
-{{- end }} 
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - tradebots/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+{{- end }}

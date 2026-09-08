@@ -24,6 +24,14 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// +kubebuilder:rbac:groups=freqtrade.io,resources=frequis,verbs=get;list;watch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=frequis/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=tradebots,verbs=get;list;watch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=tradebotconfigs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update
+
 // Reconcile handles the reconciliation loop for FreqUI resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)

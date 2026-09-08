@@ -100,6 +100,10 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
+.PHONY: helm-sync
+helm-sync: manifests ## Sync generated CRDs and RBAC (config/) into the Helm chart.
+	./hack/helm-sync.sh
+
 .PHONY: fmt
 fmt: ## Run go fmt against code.
 	go fmt ./...

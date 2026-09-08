@@ -111,6 +111,20 @@ func keys(m map[string]string) []string {
 	return k
 }
 
+// +kubebuilder:rbac:groups=freqtrade.io,resources=tradebots,verbs=get;list;watch;update
+// +kubebuilder:rbac:groups=freqtrade.io,resources=tradebots/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=tradebots/finalizers,verbs=update
+// +kubebuilder:rbac:groups=freqtrade.io,resources=strategies,verbs=get;list;watch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=tradebotconfigs,verbs=get;list;watch
+// +kubebuilder:rbac:groups=freqtrade.io,resources=frequis,verbs=list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+
 // Reconcile handles the reconciliation loop for TradeBot resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
