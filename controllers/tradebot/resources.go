@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -154,12 +155,19 @@ func (r *Reconciler) pruneStaleWorkloads(
 	logger := log.FromContext(ctx)
 	key := types.NamespacedName{Name: tradeBot.Name, Namespace: tradeBot.Namespace}
 
+	// batchv1.Job specifically does not cascade-delete by default (the API
+	// server orphans its pods unless told otherwise), which also means a
+	// cluster with no garbage-collector controller running never actually
+	// removes the Job object itself. Background propagation makes deletion
+	// unambiguous instead of depending on a per-resource, per-version default.
+	deleteOpts := []client.DeleteOption{client.PropagationPolicy(metav1.DeletePropagationBackground)}
+
 	if effectiveCmd == "trade" {
 		var job batchv1.Job
 		err := r.Get(ctx, key, &job)
 		if err == nil {
 			logger.Info("Deleting stale Job left over from a previous one-shot command", "name", job.Name)
-			if err := r.Delete(ctx, &job); err != nil && !errors.IsNotFound(err) {
+			if err := r.Delete(ctx, &job, deleteOpts...); err != nil && !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to delete stale Job %s: %w", job.Name, err)
 			}
 		} else if !errors.IsNotFound(err) {
@@ -172,7 +180,7 @@ func (r *Reconciler) pruneStaleWorkloads(
 	err := r.Get(ctx, key, &sts)
 	if err == nil {
 		logger.Info("Deleting stale StatefulSet left over from trade mode", "name", sts.Name)
-		if err := r.Delete(ctx, &sts); err != nil && !errors.IsNotFound(err) {
+		if err := r.Delete(ctx, &sts, deleteOpts...); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete stale StatefulSet %s: %w", sts.Name, err)
 		}
 	} else if !errors.IsNotFound(err) {
@@ -183,7 +191,7 @@ func (r *Reconciler) pruneStaleWorkloads(
 	err = r.Get(ctx, key, &svc)
 	if err == nil {
 		logger.Info("Deleting stale Service left over from trade mode", "name", svc.Name)
-		if err := r.Delete(ctx, &svc); err != nil && !errors.IsNotFound(err) {
+		if err := r.Delete(ctx, &svc, deleteOpts...); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete stale Service %s: %w", svc.Name, err)
 		}
 	} else if !errors.IsNotFound(err) {
