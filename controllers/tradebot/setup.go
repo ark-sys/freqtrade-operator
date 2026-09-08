@@ -8,6 +8,7 @@ import (
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -170,6 +171,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Create predicate to only trigger TradeBot reconciliation on FreqUI spec changes, not status changes
 	frequiWatchPredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
+			setupLog.V(2).Info("=== FREQUI UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
 			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.FreqUI)
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.FreqUI)
 
@@ -199,6 +201,45 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 	}
 
+	// Add this alongside the other predicates
+	jobWatchPredicate := predicate.Funcs{
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			setupLog.V(2).Info("=== JOB UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
+			if !isOwnedByTradeBot(e.ObjectOld) {
+				return false
+			}
+			oldJob, okOld := e.ObjectOld.(*batchv1.Job)
+			newJob, okNew := e.ObjectNew.(*batchv1.Job)
+			if !okOld || !okNew {
+				return false
+			}
+			// Trigger on status changes (completion/failure/conditions/time)
+			if oldJob.Status.Succeeded != newJob.Status.Succeeded {
+				return true
+			}
+			if oldJob.Status.Failed != newJob.Status.Failed {
+				return true
+			}
+			if !reflect.DeepEqual(oldJob.Status.Conditions, newJob.Status.Conditions) {
+				return true
+			}
+			if (oldJob.Status.StartTime == nil) != (newJob.Status.StartTime == nil) {
+				return true
+			}
+			if (oldJob.Status.CompletionTime == nil) != (newJob.Status.CompletionTime == nil) {
+				return true
+			}
+			return false
+		},
+		CreateFunc: func(e event.CreateEvent) bool {
+			return isOwnedByTradeBot(e.Object)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return isOwnedByTradeBot(e.Object)
+		},
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&freqtradev1alpha1.TradeBot{}, builder.WithPredicates(mainResourcePredicate)).
 		// Watch FreqUI resources and trigger TradeBot reconciliation when they reference this TradeBot
@@ -212,6 +253,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}, builder.WithPredicates(ownedResourcePredicate)).
 		Owns(&corev1.PersistentVolumeClaim{}, builder.WithPredicates(ownedResourcePredicate)).
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(ownedResourcePredicate)).
+		Owns(&batchv1.Job{}, builder.WithPredicates(jobWatchPredicate)).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: 1,
 		}).

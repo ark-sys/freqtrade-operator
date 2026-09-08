@@ -5724,12 +5724,32 @@ spec:
                 type: object
               config:
                 type: string
+              data:
+                properties:
+                  downloadArgs:
+                    description: |-
+                      DownloadArgs are optional extra args for "freqtrade download-data".
+                      Example: []string{"--exchange","binance","-t","1m","5m","--days","30"}
+                    items:
+                      type: string
+                    type: array
+                  downloadPolicy:
+                    description: |-
+                      DownloadPolicy controls when the cache is refreshed by jobs.
+                      Accepted: "always" (default), "ifMissing", "never".
+                    type: string
+                  pvcName:
+                    description: |-
+                      PVCName is the name of a shared RWX PVC used as data cache for jobs.
+                      If set, jobs will mount this PVC at /cache and use it as --datadir.
+                    type: string
+                type: object
               freqtrade_arguments:
                 items:
                   type: string
                 type: array
               freqtrade_command:
-                description: Default is "trade". Can be "backtest" or "plot"
+                description: Default is "trade". Can be "backtesting" or "hyperopt"
                 type: string
               strategy:
                 description: Reference to the Strategy resource

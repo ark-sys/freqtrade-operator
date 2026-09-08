@@ -3,6 +3,7 @@ package tradebot
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	"github.com/ark-sys/freqtrade-operator/controllers/tradebot/resources"
@@ -67,7 +68,6 @@ func (r *Reconciler) reconcileResources(
 		logger.Error(err, "Failed to fetch Strategy for ConfigMap creation")
 		return fmt.Errorf("failed to fetch Strategy for ConfigMap creation: %w", err)
 	}
-
 	strategyConfigMap := resources.BuildStrategyConfigMap(*tradeBot, *strategy)
 	if err := resources.ApplyConfigMap(ctx, r.Client, &strategyConfigMap); err != nil {
 		logger.Error(err, "Failed to apply Strategy ConfigMap")
@@ -75,29 +75,42 @@ func (r *Reconciler) reconcileResources(
 	}
 	logger.V(2).Info("Strategy ConfigMap applied successfully", "name", strategyConfigMap.Name)
 
-	// 3. Create or update PVC for user_data
-	pvc := resources.BuildUserDataPVC(*tradeBot)
-	if err := resources.ApplyPVC(ctx, r.Client, &pvc); err != nil {
-		logger.Error(err, "Failed to apply PVC")
-		return fmt.Errorf("failed to apply PVC: %w", err)
+	// 3. Branch: trade -> StatefulSet + Service + PVC, else -> Job
+	effectiveCmd := strings.TrimSpace(tradeBot.Spec.FreqtradeCommand)
+	if effectiveCmd == "" {
+		effectiveCmd = "trade"
 	}
-	logger.V(2).Info("PVC applied successfully", "name", pvc.Name)
 
-	// 4. Create or update StatefulSet
-	sts := resources.BuildStatefulSet(ctx, r.Client, *tradeBot, configSecret.Name, strategyConfigMap.Name, pvc.Name)
-	if err := resources.ApplyStatefulSet(ctx, r.Client, &sts); err != nil {
-		logger.Error(err, "Failed to apply StatefulSet")
-		return fmt.Errorf("failed to apply StatefulSet: %w", err)
-	}
-	logger.V(2).Info("StatefulSet applied successfully", "name", sts.Name)
+	if effectiveCmd == "trade" {
+		pvc := resources.BuildUserDataPVC(*tradeBot)
+		if err := resources.ApplyPVC(ctx, r.Client, &pvc); err != nil {
+			logger.Error(err, "Failed to apply PVC")
+			return fmt.Errorf("failed to apply PVC: %w", err)
+		}
+		logger.V(2).Info("PVC applied successfully", "name", pvc.Name)
+		// Stateful, long-running bot
+		sts := resources.BuildStatefulSet(ctx, r.Client, *tradeBot, configSecret.Name, strategyConfigMap.Name, pvc.Name)
+		if err := resources.ApplyStatefulSet(ctx, r.Client, &sts); err != nil {
+			logger.Error(err, "Failed to apply StatefulSet")
+			return fmt.Errorf("failed to apply StatefulSet: %w", err)
+		}
+		logger.V(2).Info("StatefulSet applied successfully", "name", sts.Name)
 
-	// 5. Create or update Service
-	svc := resources.BuildService(*tradeBot)
-	if err := resources.ApplyService(ctx, r.Client, &svc); err != nil {
-		logger.Error(err, "Failed to apply Service")
-		return fmt.Errorf("failed to apply Service: %w", err)
+		svc := resources.BuildService(*tradeBot)
+		if err := resources.ApplyService(ctx, r.Client, &svc); err != nil {
+			logger.Error(err, "Failed to apply Service")
+			return fmt.Errorf("failed to apply Service: %w", err)
+		}
+		logger.V(2).Info("Service applied successfully", "name", svc.Name)
+	} else {
+		// One-shot commands -> Job
+		job := resources.BuildJob(ctx, r.Client, *tradeBot, configSecret.Name, strategyConfigMap.Name, "")
+		if err := resources.ApplyJob(ctx, r.Client, &job); err != nil {
+			logger.Error(err, "Failed to apply Job")
+			return fmt.Errorf("failed to apply Job: %w", err)
+		}
+		logger.V(2).Info("Job applied successfully", "name", job.Name)
 	}
-	logger.V(2).Info("Service applied successfully", "name", svc.Name)
 
 	return nil
 }

@@ -7,7 +7,7 @@ import (
 
 // TradeBotSpec defines the desired state of TradeBot
 type TradeBotSpec struct {
-	// Default is "trade". Can be "backtest" or "plot"
+	// Default is "trade". Can be "backtesting" or "hyperopt"
 	FreqtradeCommand   string   `json:"freqtrade_command,omitempty"`
 	FreqtradeArguments []string `json:"freqtrade_arguments,omitempty"`
 
@@ -17,6 +17,22 @@ type TradeBotSpec struct {
 	Strategy string `json:"strategy"`
 
 	App *TBAppConfig `json:"app,omitempty"`
+
+	Data *DataCacheSpec `json:"data,omitempty"`
+}
+
+type DataCacheSpec struct {
+	// PVCName is the name of a shared RWX PVC used as data cache for jobs.
+	// If set, jobs will mount this PVC at /cache and use it as --datadir.
+	PVCName string `json:"pvcName,omitempty"`
+
+	// DownloadArgs are optional extra args for "freqtrade download-data".
+	// Example: []string{"--exchange","binance","-t","1m","5m","--days","30"}
+	DownloadArgs []string `json:"downloadArgs,omitempty"`
+
+	// DownloadPolicy controls when the cache is refreshed by jobs.
+	// Accepted: "always" (default), "ifMissing", "never".
+	DownloadPolicy string `json:"downloadPolicy,omitempty"`
 }
 
 type TBAppConfig struct {
