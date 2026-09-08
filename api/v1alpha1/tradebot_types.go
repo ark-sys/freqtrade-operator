@@ -95,6 +95,12 @@ type PVCSpec struct {
 type TradeBotStatus struct {
 	Phase   string `json:"phase,omitempty"`
 	Message string `json:"message,omitempty"`
+
+	// +optional
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 //+kubebuilder:object:root=true

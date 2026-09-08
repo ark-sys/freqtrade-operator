@@ -3,8 +3,6 @@ package resources
 
 import (
 	"context"
-	"reflect"
-	"time"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -12,9 +10,18 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+// Job mode is leaving TradeBot entirely once Backtest/Hyperopt land (v1beta1);
+// these are deliberately hardcoded rather than CRD fields until then.
+const (
+	// jobBackoffLimit allows one retry instead of failing permanently after a
+	// single pod failure (the previous BackoffLimit: 0 did exactly that).
+	jobBackoffLimit = int32(1)
+	// jobTTLSecondsAfterFinished reaps a finished Job (and its pod) after 24h
+	// so completed one-shot runs don't accumulate forever.
+	jobTTLSecondsAfterFinished = int32(86400)
 )
 
 // BuildJob creates a Job for one-shot commands (e.g., backtesting, hyperopt)
@@ -46,8 +53,8 @@ func BuildJob(
 		podSpec.RestartPolicy = corev1.RestartPolicyOnFailure
 	}
 
-	// Optional defaults for Job behavior
-	backoff := int32(0)
+	backoff := jobBackoffLimit
+	ttl := jobTTLSecondsAfterFinished
 
 	return batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -59,7 +66,8 @@ func BuildJob(
 			},
 		},
 		Spec: batchv1.JobSpec{
-			BackoffLimit: &backoff,
+			BackoffLimit:            &backoff,
+			TTLSecondsAfterFinished: &ttl,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
@@ -70,49 +78,23 @@ func BuildJob(
 	}
 }
 
-// ApplyJob creates or updates the Job with simple conflict-retry semantics.
-// Note: Some Job fields are immutable after creation; if updates fail, you may
-// choose to delete and recreate in a future iteration.
+// ApplyJob creates the Job if it doesn't already exist. It deliberately never
+// updates: batchv1.Job.Spec.Template is immutable after creation, so an
+// Update here would be rejected by the API server on every single reconcile
+// once the TradeBot's spec drifts from the Job that was first created for it
+// (see reconcileResources, which surfaces that drift as a condition instead).
+// If the Job already exists, job is overwritten with the existing object so
+// the caller can compare what was desired against what's actually running.
 func ApplyJob(ctx context.Context, c client.Client, job *batchv1.Job) error {
-	logger := log.FromContext(ctx)
-
-	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 2*time.Second, true, func(ctx context.Context) (bool, error) {
-		var existing batchv1.Job
-		err := c.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &existing)
-		if errors.IsNotFound(err) {
-			err = c.Create(ctx, job)
-			if errors.IsAlreadyExists(err) {
-				logger.V(2).Info("Job already exists, retrying", "name", job.Name)
-				return false, nil
-			}
-			return true, err
-		} else if err != nil {
-			return true, err
-		}
-
-		// Compare fields that are commonly mutable; Jobs can be restrictive.
-		needsUpdate := false
-		if !reflect.DeepEqual(existing.Spec.Template.Spec, job.Spec.Template.Spec) {
-			needsUpdate = true
-		}
-		if !reflect.DeepEqual(existing.Spec.Template.ObjectMeta.Labels, job.Spec.Template.ObjectMeta.Labels) {
-			needsUpdate = true
-		}
-		if existing.Spec.BackoffLimit == nil || job.Spec.BackoffLimit == nil ||
-			*existing.Spec.BackoffLimit != *job.Spec.BackoffLimit {
-			needsUpdate = true
-		}
-
-		if needsUpdate {
-			job.ResourceVersion = existing.ResourceVersion
-			err = c.Update(ctx, job)
-			if errors.IsConflict(err) {
-				logger.V(2).Info("Job resource version conflict, retrying", "name", job.Name)
-				return false, nil
-			}
-			return true, err
-		}
-
-		return true, nil
-	})
+	var existing batchv1.Job
+	err := c.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &existing)
+	switch {
+	case err == nil:
+		*job = existing
+		return nil
+	case errors.IsNotFound(err):
+		return c.Create(ctx, job)
+	default:
+		return err
+	}
 }
