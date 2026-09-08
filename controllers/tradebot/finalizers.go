@@ -13,72 +13,94 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// finalizeTradeBot performs cleanup operations when a TradeBot is being deleted
-func (r *Reconciler) finalizeTradeBot(ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot) error {
+// defaultFinalizerGracePeriod is how long finalizeTradeBot waits for the
+// StatefulSet to scale down before giving up and removing the finalizer
+// anyway, when Reconciler.FinalizerGracePeriod is unset.
+const defaultFinalizerGracePeriod = 2 * time.Minute
+
+// finalizeTradeBot drives StatefulSet scale-down and PVC preservation
+// forward by one step and reports whether cleanup is complete. It never
+// blocks: MaxConcurrentReconciles is 1, so a reconcile that waits inline
+// for the StatefulSet to actually scale down would stall every other
+// TradeBot's reconciliation for as long as it waits. The caller is expected
+// to requeue when this returns (false, nil) and re-check on the next pass.
+func (r *Reconciler) finalizeTradeBot(ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot) (bool, error) {
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("Finalizing TradeBot", "name", tradeBot.Name)
 
-	// 1. Get the StatefulSet to check if it exists
 	var sts appsv1.StatefulSet
 	stsName := types.NamespacedName{Name: tradeBot.Name, Namespace: tradeBot.Namespace}
-	stsErr := r.Get(ctx, stsName, &sts)
+	err := r.Get(ctx, stsName, &sts)
 
-	// 2. If the StatefulSet exists, scale it down to 0 to ensure graceful termination
-	if stsErr == nil {
-		logger.V(1).Info("Scaling down StatefulSet before deletion", "name", sts.Name)
-
-		// Only scale down if not already at 0
-		if sts.Spec.Replicas == nil || *sts.Spec.Replicas > 0 {
-			replicas := int32(0)
-			sts.Spec.Replicas = &replicas
-			if err := r.Update(ctx, &sts); err != nil {
-				// If update fails due to conflict, try to get latest version
-				if errors.IsConflict(err) {
-					logger.V(2).Info("Conflict updating StatefulSet, retrying with latest version")
-					var latestSts appsv1.StatefulSet
-					if getErr := r.Get(ctx, stsName, &latestSts); getErr != nil {
-						if errors.IsNotFound(getErr) {
-							// StatefulSet is gone, continue
-							logger.V(3).Info("StatefulSet no longer exists, continuing finalization")
-						} else {
-							logger.V(1).Error(getErr, "Failed to get latest StatefulSet")
-							return getErr
-						}
-					} else {
-						// Try scaling down the latest version
-						replicas := int32(0)
-						latestSts.Spec.Replicas = &replicas
-						if updateErr := r.Update(ctx, &latestSts); updateErr != nil {
-							logger.V(1).Error(updateErr, "Failed to scale down StatefulSet on retry")
-							return updateErr
-						}
-					}
-				} else {
-					logger.V(1).Error(err, "Failed to scale down StatefulSet")
-					return err
-				}
-			}
-
-			// Wait for the StatefulSet to scale down, but with timeout
-			if err := r.waitForStatefulSetScaleDown(ctx, stsName); err != nil {
-				logger.Error(err, "Failed to wait for StatefulSet scale down, but continuing cleanup")
-				// Don't return error here - we want to continue with cleanup even if scaling fails
+	switch {
+	case errors.IsNotFound(err):
+		// Nothing to scale down.
+	case err != nil:
+		logger.Error(err, "Failed to get StatefulSet during finalization")
+		return false, err
+	default:
+		scaledDown, err := r.ensureStatefulSetScaledDown(ctx, &sts)
+		if err != nil {
+			return false, err
+		}
+		if !scaledDown {
+			if r.finalizerDeadlinePassed(tradeBot) {
+				// TODO(P4-1): also record a warning Event once every
+				// controller has an EventRecorder wired up.
+				logger.Info("StatefulSet did not scale down within the grace period, removing finalizer anyway",
+					"name", sts.Name, "gracePeriod", r.finalizerGracePeriod())
+			} else {
+				return false, nil
 			}
 		}
-		logger.V(1).Info("StatefulSet scaled down successfully", "name", sts.Name)
-	} else if !errors.IsNotFound(stsErr) {
-		logger.Error(stsErr, "Failed to get StatefulSet during finalization")
-		return stsErr
 	}
 
-	// 3. Handle PVC preservation logic
 	if err := r.handlePVCPreservation(ctx, tradeBot); err != nil {
 		logger.Error(err, "Failed to handle PVC preservation, but continuing cleanup")
-		// Don't return error here - we don't want PVC issues to block deletion
+		// Don't block deletion on PVC issues.
 	}
 
 	logger.Info("TradeBot finalization completed successfully", "name", tradeBot.Name)
-	return nil
+	return true, nil
+}
+
+// ensureStatefulSetScaledDown requests replicas=0 if that hasn't been
+// requested yet, and reports whether the StatefulSet has actually finished
+// scaling down. A scale-down request just issued has, by definition, not
+// taken effect yet, so it always reports false - the next reconcile (driven
+// by the caller's requeue) observes the result via a fresh Get.
+func (r *Reconciler) ensureStatefulSetScaledDown(ctx context.Context, sts *appsv1.StatefulSet) (bool, error) {
+	logger := log.FromContext(ctx)
+
+	if sts.Spec.Replicas == nil || *sts.Spec.Replicas != 0 {
+		logger.V(1).Info("Scaling down StatefulSet before deletion", "name", sts.Name)
+		replicas := int32(0)
+		sts.Spec.Replicas = &replicas
+		if err := r.Update(ctx, sts); err != nil && !errors.IsConflict(err) {
+			logger.Error(err, "Failed to scale down StatefulSet")
+			return false, err
+		}
+		// A conflict just means someone else updated it concurrently; the
+		// next reconcile's Get will see the current state either way.
+		return false, nil
+	}
+
+	return sts.Status.Replicas == 0 && sts.Status.ReadyReplicas == 0, nil
+}
+
+func (r *Reconciler) finalizerGracePeriod() time.Duration {
+	if r.FinalizerGracePeriod > 0 {
+		return r.FinalizerGracePeriod
+	}
+	return defaultFinalizerGracePeriod
+}
+
+func (r *Reconciler) finalizerDeadlinePassed(tradeBot *freqtradev1alpha1.TradeBot) bool {
+	dt := tradeBot.GetDeletionTimestamp()
+	if dt == nil {
+		return false
+	}
+	return time.Since(dt.Time) > r.finalizerGracePeriod()
 }
 
 // handlePVCPreservation handles the PVC preservation logic
@@ -129,46 +151,4 @@ func (r *Reconciler) handlePVCPreservation(ctx context.Context, tradeBot *freqtr
 	}
 
 	return nil
-}
-
-// waitForStatefulSetScaleDown waits for the StatefulSet to scale down to 0 replicas
-func (r *Reconciler) waitForStatefulSetScaleDown(ctx context.Context, namespacedName types.NamespacedName) error {
-	logger := log.FromContext(ctx)
-
-	// Create a timeout context - don't wait forever
-	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-timeoutCtx.Done():
-			logger.V(3).Info("Timeout waiting for StatefulSet to scale down, continuing with cleanup")
-			return nil // Don't block deletion on timeout
-		case <-ticker.C:
-			var sts appsv1.StatefulSet
-			if err := r.Get(ctx, namespacedName, &sts); err != nil {
-				if errors.IsNotFound(err) {
-					// StatefulSet is gone, which is fine
-					logger.V(3).Info("StatefulSet no longer exists")
-					return nil
-				}
-				logger.Error(err, "Failed to get StatefulSet while waiting for scale down")
-				return nil // Don't block on transient errors
-			}
-
-			// Check if the StatefulSet is scaled down
-			if sts.Status.Replicas == 0 && sts.Status.ReadyReplicas == 0 {
-				logger.V(1).Info("StatefulSet is fully scaled down", "name", sts.Name)
-				return nil
-			}
-			// Log progress
-			logger.V(2).Info("Still waiting for StatefulSet to scale down",
-				"name", sts.Name,
-				"current", sts.Status.Replicas,
-				"ready", sts.Status.ReadyReplicas)
-		}
-	}
 }

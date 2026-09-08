@@ -29,6 +29,11 @@ const BotFinalizer = "freqtrade.io/finalizer"
 type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// FinalizerGracePeriod bounds how long finalizeTradeBot waits for a
+	// TradeBot's StatefulSet to scale down before removing the finalizer
+	// anyway. Zero means use defaultFinalizerGracePeriod.
+	FinalizerGracePeriod time.Duration
 }
 
 // collectCORSHostsForTradeBot returns a deduplicated, normalized list of CORS hosts.
@@ -144,10 +149,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		logger.V(1).Info("TradeBot is being deleted", "name", tradeBot.Name)
 		if controllerutil.ContainsFinalizer(&tradeBot, BotFinalizer) {
 			logger.V(1).Info("Running finalization logic for TradeBot", "name", tradeBot.Name)
-			if err := r.finalizeTradeBot(ctx, &tradeBot); err != nil {
+			done, err := r.finalizeTradeBot(ctx, &tradeBot)
+			if err != nil {
 				logger.V(1).Error(err, "Failed to finalize TradeBot")
 				logger.V(2).Info("Requeue requested", "reason", "finalization error", "error", err)
 				return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+			}
+			if !done {
+				// Cleanup is still in progress (StatefulSet scale-down hasn't
+				// landed yet, or we're inside the grace period). Requeue
+				// instead of blocking this worker - MaxConcurrentReconciles
+				// is 1, so a blocking wait here would stall every other
+				// TradeBot's reconciliation too.
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 			var latestTradeBot freqtradev1alpha1.TradeBot
 			if getErr := r.Get(ctx, client.ObjectKey{Namespace: tradeBot.Namespace, Name: tradeBot.Name}, &latestTradeBot); getErr != nil {
