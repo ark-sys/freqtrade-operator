@@ -58,10 +58,6 @@ func BuildConfig(
 	exchangeSecretData, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBotConfig.Spec.Exchange.SecretRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get exchange secret data: %w", err)
-
-	} else {
-		fmt.Println("Exchange secret data retrieved successfully")
-
 	}
 
 	exchangeConfig, err := BuildExchangeConfig(tradeBotConfig.Spec.Exchange, exchangeSecretData)

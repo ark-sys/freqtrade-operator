@@ -55,28 +55,21 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	mainResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			setupLog.V(2).Info("=== MAIN RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
-
 			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.TradeBot)
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.TradeBot)
 
 			if !oldOk || !newOk {
-				setupLog.V(2).Info("Predicate triggered: type assertion failed", "eventType", "Update")
 				return true
 			}
 
-			// Check if only status changed (should not trigger reconciliation)
-			if reflect.DeepEqual(oldObj.Spec, newObj.Spec) {
-				if !reflect.DeepEqual(oldObj.Status, newObj.Status) {
-					setupLog.V(2).Info("Predicate: ONLY status changed, skipping reconciliation", "eventType", "Update", "name", oldObj.GetName(), "oldStatus", oldObj.Status, "newStatus", newObj.Status)
-				} else {
-					setupLog.V(3).Info("Predicate: no changes detected, skipping", "eventType", "Update", "name", oldObj.GetName())
-				}
-				return false
+			// Only trigger reconciliation on a spec change; a status-only
+			// update was written by this controller and would otherwise
+			// cause it to immediately reconcile itself again.
+			specChanged := !reflect.DeepEqual(oldObj.Spec, newObj.Spec)
+			if specChanged {
+				setupLog.V(1).Info("TradeBot spec changed", "name", oldObj.GetName(), "generation", newObj.GetGeneration())
 			}
-
-			setupLog.Info("Predicate triggered: spec changed", "eventType", "Update", "name", oldObj.GetName(), "oldSpec", fmt.Sprintf("%#v", oldObj.Spec), "newSpec", fmt.Sprintf("%#v", newObj.Spec))
-			return true
+			return specChanged
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			setupLog.V(2).Info("Predicate triggered: delete", "eventType", "Delete", "name", e.Object.GetName())
@@ -98,7 +91,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if !isOwnedByTradeBot(e.ObjectOld) {
 				return false // Skip resources not owned by TradeBot
 			}
-			setupLog.V(2).Info("=== OWNED RESOURCE UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
 			switch old := e.ObjectOld.(type) {
 			case *appsv1.StatefulSet:
 				newObj := e.ObjectNew.(*appsv1.StatefulSet)
@@ -171,7 +163,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Create predicate to only trigger TradeBot reconciliation on FreqUI spec changes, not status changes
 	frequiWatchPredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			setupLog.V(2).Info("=== FREQUI UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
 			oldObj, oldOk := e.ObjectOld.(*freqtradev1alpha1.FreqUI)
 			newObj, newOk := e.ObjectNew.(*freqtradev1alpha1.FreqUI)
 
@@ -204,7 +195,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Add this alongside the other predicates
 	jobWatchPredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {
-			setupLog.V(2).Info("=== JOB UPDATE EVENT ===", "eventType", "Update", "objectType", fmt.Sprintf("%T", e.ObjectOld), "name", e.ObjectOld.GetName(), "namespace", e.ObjectOld.GetNamespace())
 			if !isOwnedByTradeBot(e.ObjectOld) {
 				return false
 			}

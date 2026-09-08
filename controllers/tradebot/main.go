@@ -114,7 +114,6 @@ func keys(m map[string]string) []string {
 // Reconcile handles the reconciliation loop for TradeBot resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.V(1).Info("=== RECONCILE TRIGGERED ===", "namespacedName", req.NamespacedName, "reason", "unknown - need to check controller setup")
 
 	// 1. Fetch TradeBot
 	var tradeBot freqtradev1alpha1.TradeBot
@@ -124,20 +123,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return ctrl.Result{}, nil
 		}
 		logger.V(1).Error(err, "Failed to get TradeBot resource")
-		logger.V(2).Info("Requeue requested", "reason", "get error", "error", err)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	logger.V(1).Info("=== RECONCILING TRADEBOT ===",
-		"name", tradeBot.Name,
-		"deletionTimestamp", tradeBot.GetDeletionTimestamp(),
-		"finalizers", tradeBot.GetFinalizers(),
-		"phase", tradeBot.Status.Phase,
-		"message", tradeBot.Status.Message,
-		"spec", tradeBot.Spec,
-		"generation", tradeBot.Generation,
-		"resourceVersion", tradeBot.ResourceVersion,
-	)
+	logger.V(1).Info("Reconciling TradeBot", "name", tradeBot.Name, "generation", tradeBot.Generation, "phase", tradeBot.Status.Phase)
 
 	// Snapshot status on entry; finishReconciliation diffs against this to decide
 	// whether a status write is needed, instead of hand-tracking a bool across
