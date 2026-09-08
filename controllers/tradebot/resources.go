@@ -148,7 +148,9 @@ func (r *Reconciler) reconcileResources(
 // mode's workload running - an orphaned StatefulSet is a bot still trading
 // on stale config, which is why this runs before the current mode's
 // resources are applied, not after.
-func (r *Reconciler) pruneStaleWorkloads(ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot, effectiveCmd string) error {
+func (r *Reconciler) pruneStaleWorkloads(
+	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot, effectiveCmd string,
+) error {
 	logger := log.FromContext(ctx)
 	key := types.NamespacedName{Name: tradeBot.Name, Namespace: tradeBot.Namespace}
 

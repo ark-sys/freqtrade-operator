@@ -263,7 +263,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // updateWorkloadStatus reflects the state of the workload TradeBot owns (a
 // StatefulSet in trade mode, a Job otherwise) into tradeBot.Status, and
 // returns how soon to requeue to re-check a not-yet-ready workload.
-func (r *Reconciler) updateWorkloadStatus(ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot) (time.Duration, error) {
+func (r *Reconciler) updateWorkloadStatus(
+	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot,
+) (time.Duration, error) {
 	effectiveCmd := strings.TrimSpace(tradeBot.Spec.FreqtradeCommand)
 	if effectiveCmd == "" {
 		effectiveCmd = "trade"

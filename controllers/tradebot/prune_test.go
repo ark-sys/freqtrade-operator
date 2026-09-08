@@ -49,12 +49,13 @@ func TestPruneStaleWorkloads(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
+		key := types.NamespacedName{Name: "my-bot", Namespace: "trading"}
 		var gotSts appsv1.StatefulSet
-		if err := c.Get(context.Background(), types.NamespacedName{Name: "my-bot", Namespace: "trading"}, &gotSts); !errors.IsNotFound(err) {
+		if err := c.Get(context.Background(), key, &gotSts); !errors.IsNotFound(err) {
 			t.Errorf("expected the stale StatefulSet to be deleted, got err=%v", err)
 		}
 		var gotSvc corev1.Service
-		if err := c.Get(context.Background(), types.NamespacedName{Name: "my-bot", Namespace: "trading"}, &gotSvc); !errors.IsNotFound(err) {
+		if err := c.Get(context.Background(), key, &gotSvc); !errors.IsNotFound(err) {
 			t.Errorf("expected the stale Service to be deleted, got err=%v", err)
 		}
 	})
