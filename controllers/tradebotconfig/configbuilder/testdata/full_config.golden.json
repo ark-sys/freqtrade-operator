@@ -1,0 +1,283 @@
+{
+  "amend_last_stake_amount": true,
+  "amount_reserve_percent": 0.05,
+  "api_server": {
+    "CORS_origins": [
+      "http://localhost:8080",
+      "https://full-bot.frequi.example.com"
+    ],
+    "enable_openapi": false,
+    "enabled": true,
+    "jwt_secret_key": "test-jwt-secret",
+    "listen_ip_address": "0.0.0.0",
+    "listen_port": 8080,
+    "password": "test-password",
+    "username": "test-user",
+    "verbosity": "error"
+  },
+  "available_capital": 10000,
+  "backtest_breakdown": [
+    "day",
+    "week"
+  ],
+  "block_bad_exchanges": true,
+  "bot_name": "my-bot",
+  "cancel_open_orders_on_exit": true,
+  "custom_price_max_distance_ratio": 0.02,
+  "dataformat_ohlcv": "feather",
+  "dataformat_trades": "jsongz",
+  "db_url": "sqlite:////freqtrade/user_data/tradesv3.sqlite",
+  "disable_dataframe_checks": false,
+  "disable_param_export": false,
+  "discord": {
+    "enabled": true,
+    "entry_fill": [
+      {
+        "Trade ID": "{trade_id}"
+      }
+    ],
+    "exit_fill": [
+      {
+        "Trade ID": "{trade_id}"
+      }
+    ],
+    "webhook_url": "https://discord.example.com/webhook"
+  },
+  "download_trades": false,
+  "dry_run": true,
+  "dry_run_wallet": 1000,
+  "entry_pricing": {
+    "check_depth_of_market": {
+      "bids_to_ask_delta": 1,
+      "enabled": true
+    },
+    "order_book_top": 1,
+    "price_last_balance": 0,
+    "price_side": "same",
+    "use_order_book": true
+  },
+  "exchange": {
+    "ccxt_config": {
+      "enableRateLimit": true
+    },
+    "enable_ws": true,
+    "key": "test-api-key",
+    "log_responses": false,
+    "market_refresh_interval": 60,
+    "name": "binance",
+    "outdated_offset": 5,
+    "pair_blacklist": [
+      "SCAM/USDT"
+    ],
+    "pair_whitelist": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "secret": "test-api-secret",
+    "unkown_fee_rate": false
+  },
+  "exit_pricing": {
+    "order_book_top": 1,
+    "price_side": "other",
+    "use_order_book": true
+  },
+  "exit_profit_offset": 0.01,
+  "exit_profit_only": true,
+  "export": "trades",
+  "fee": 0.001,
+  "fiat_display_currency": "USD",
+  "force_entry_enable": false,
+  "freqai": {
+    "activate_tensorboard": false,
+    "backtest_period_days": 7,
+    "continue_learning": false,
+    "conv_width": 2,
+    "data_kitchen_thread_count": 4,
+    "data_split_parameters": {
+      "random_state": 42,
+      "shuffle": false,
+      "test_size": 0.25
+    },
+    "enabled": true,
+    "expiration_hours": 1,
+    "feature_parameters": {
+      "buffer_train_data_candles": 5,
+      "di_threshold": 0.5,
+      "include_corr_pairlist": [
+        "BTC/USDT",
+        "ETH/USDT"
+      ],
+      "include_shifted_candles": 2,
+      "include_timeframes": [
+        "5m",
+        "15m"
+      ],
+      "indicator_periods_candles": [
+        10,
+        20
+      ],
+      "label_period_candles": 20,
+      "plot_feature_importances": 1,
+      "principal_component_analysis": false,
+      "shuffle_after_split": false,
+      "svm_params": {
+        "nu": 0.1,
+        "shuffle": true
+      },
+      "use_svm_to_remove_outliers": true,
+      "weight_factor": 0.9
+    },
+    "fit_live_predictions_candles": 100,
+    "identifier": "freqai-model",
+    "keras": false,
+    "live_retrain_hours": 0,
+    "model_training_parameters": {},
+    "purge_old_models": 2,
+    "rl_config": {
+      "add_state_info": true,
+      "cpu_count": 4,
+      "drop_ohlc_from_features": false,
+      "max_trade_duration_candles": 300,
+      "max_training_drawdown_pct": 0.8,
+      "model_reward_parameters": {
+        "profit_aim": 0.02,
+        "rr": 1
+      },
+      "model_type": "PPO",
+      "net_arch": [
+        128,
+        128
+      ],
+      "policy_type": "MlpPolicy",
+      "progress_bar": true,
+      "randomize_starting_position": true,
+      "train_cycles": 10
+    },
+    "save_backtest_models": true,
+    "train_period_days": 30,
+    "wait_for_training_iteration_on_reload": true,
+    "write_metrics_to_disk": true
+  },
+  "ignore_buying_expired_candle_after": 300,
+  "ignore_roi_if_entry_signal": true,
+  "initial_state": "running",
+  "internals": {
+    "interval": 60,
+    "process_throttle_secs": 5,
+    "sd_notify": false
+  },
+  "last_stake_amount_min_ratio": 0.5,
+  "liquidation_buffer": 0.05,
+  "logging": {
+    "version": 1
+  },
+  "lookahead_analysis_export_filename": "lookahead.txt",
+  "margin_mode": "isolated",
+  "max_entry_position_adjustment": 1,
+  "max_open_trades": 5,
+  "minimal_roi": {
+    "0": 0.1
+  },
+  "minimum_trade_amount": 10,
+  "new_pairs_days_ago": 60,
+  "order_time_in_force": {
+    "entry": "GTC",
+    "exit": "GTC"
+  },
+  "order_types": {
+    "emergency_exit": "market",
+    "entry": "limit",
+    "exit": "limit",
+    "force_entry": "market",
+    "force_exit": "market",
+    "stoploss": "market",
+    "stoploss_on_exchange": false,
+    "stoploss_on_exchange_interval": 60,
+    "stoploss_on_exchange_limit_ratio": 0.99
+  },
+  "orderflow": {
+    "cache_size": 1000,
+    "imbalance_ratio": 3,
+    "imbalance_volume": 1,
+    "max_candles": 1500,
+    "scale": 0.5,
+    "stacked_imbalance_range": 3
+  },
+  "pairlists": [
+    {
+      "allow_inactive": true,
+      "method": "StaticPairList"
+    },
+    {
+      "method": "VolumePairList",
+      "number_assets": 20,
+      "refresh_period": 60,
+      "sort_key": "quoteVolume"
+    },
+    {
+      "method": "AgeFilter",
+      "min_days_listed": 10
+    }
+  ],
+  "position_adjustment": "adjust",
+  "process_only_new_candles": true,
+  "reduce_df_footprint": false,
+  "stake_amount": "unlimited",
+  "stake_currency": "USDT",
+  "startup_candle": [
+    200,
+    400
+  ],
+  "stoploss": -0.1,
+  "targeted_trade_amount": 20,
+  "telegram": {
+    "allow_custom_messages": true,
+    "authorized_users": [
+      "12345"
+    ],
+    "balance_dust_level": 0.01,
+    "chat_id": "test-chat-id",
+    "enabled": true,
+    "reload": true,
+    "settings": {
+      "entry": "on",
+      "entry_cancel": "on",
+      "entry_fill": "on",
+      "exit": "on",
+      "exit_cancel": "on",
+      "exit_fill": "on",
+      "protection_trigger": "on",
+      "protection_trigger_global": "on",
+      "startup": "on",
+      "status": "on",
+      "warning": "on"
+    },
+    "token": "test-telegram-token",
+    "topic_id": "42"
+  },
+  "tradable_balance_ratio": 0.99,
+  "trading_mode": "spot",
+  "trailing_only_offset_is_reached": true,
+  "trailing_stop": true,
+  "trailing_stop_positive": 0.01,
+  "trailing_stop_positive_offset": 0.02,
+  "unfilledtimeout": {
+    "entry": 10,
+    "exit": 10,
+    "exit_timeout_count": 0,
+    "unit": "minutes"
+  },
+  "use_exit_signal": true,
+  "webhook": {
+    "allow_custom_messages": true,
+    "enabled": true,
+    "url": "https://hooks.example.com/notify",
+    "webhookentry": "entry",
+    "webhookentrycancel": "entry_cancel",
+    "webhookentryfill": "entry_fill",
+    "webhookexit": "exit",
+    "webhookexitcancel": "exit_cancel",
+    "webhookexitfill": "exit_fill",
+    "webhookstatus": "status"
+  }
+}
