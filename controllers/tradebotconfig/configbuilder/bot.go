@@ -406,7 +406,7 @@ func BuildTradeBotConfig(tradeBotName string, tradeBotConfig *v1alpha1.TradeBotC
 	}
 
 	// ExperimentalConfig
-	if tradeBotConfig.Spec.Experimental != nil {
+	if tradeBotConfig.Spec.Experimental != nil && tradeBotConfig.Spec.Experimental.BlockBadExchanges != nil {
 		cfg["block_bad_exchanges"] = *tradeBotConfig.Spec.Experimental.BlockBadExchanges
 	}
 

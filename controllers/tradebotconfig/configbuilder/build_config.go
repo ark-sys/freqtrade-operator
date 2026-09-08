@@ -3,6 +3,7 @@ package configbuilder
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -10,6 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// ErrMissingExchange is returned when a TradeBotConfig has no exchange section.
+// Exchange is an optional pointer at the API level, but Freqtrade cannot start
+// without one, so BuildConfig treats it as effectively required.
+var ErrMissingExchange = errors.New("tradeBotConfig.spec.exchange is required")
 
 // BuildConfig merges all configuration sections into a complete Freqtrade config
 func BuildConfig(
@@ -19,11 +25,19 @@ func BuildConfig(
 	tradeBotConfig *v1alpha1.TradeBotConfig,
 	extraCorsHosts []string,
 ) (map[string]string, error) {
+	if tradeBotConfig.Spec.Exchange == nil {
+		return nil, ErrMissingExchange
+	}
+
 	// Create the main config map
 	config := make(map[string]interface{})
 
-	// Retrieve apiCredentials if any
-	apiCredentials, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBotConfig.Spec.APIServer.SecretRef)
+	// Retrieve apiCredentials if any. APIServer is optional; keep the secret ref empty when unset.
+	var apiServerSecretRef string
+	if tradeBotConfig.Spec.APIServer != nil {
+		apiServerSecretRef = tradeBotConfig.Spec.APIServer.SecretRef
+	}
+	apiCredentials, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, apiServerSecretRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get API credentials: %w", err)
 	}

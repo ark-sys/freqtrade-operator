@@ -148,7 +148,7 @@ func BuildNotificationConfig(
 	}
 
 	// Webhook configuration
-	if notification.Webhook != nil && *notification.Webhook.Enabled {
+	if notification.Webhook != nil && notification.Webhook.Enabled != nil && *notification.Webhook.Enabled {
 		webhook := map[string]interface{}{
 			"enabled": true,
 			"url":     notification.Webhook.URL,
@@ -182,7 +182,9 @@ func BuildNotificationConfig(
 			webhook["webhookstatus"] = notification.Webhook.Status
 		}
 
-		webhook["allow_custom_messages"] = *notification.Webhook.AllowCustomMessages
+		if notification.Webhook.AllowCustomMessages != nil {
+			webhook["allow_custom_messages"] = *notification.Webhook.AllowCustomMessages
+		}
 
 		cfg["webhook"] = webhook
 	}
