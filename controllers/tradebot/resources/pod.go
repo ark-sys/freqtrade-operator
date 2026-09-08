@@ -151,9 +151,27 @@ func BuildPod(
 		if tradeBot.Spec.Data != nil && len(tradeBot.Spec.Data.DownloadArgs) > 0 {
 			dlArgs = append(dlArgs, tradeBot.Spec.Data.DownloadArgs...)
 		}
-		// Respect DownloadPolicy: default "always"; "never" skips; "ifMissing" kept same for simplicity
 		policy := strings.ToLower(strings.TrimSpace(tradeBot.Spec.Data.DownloadPolicy))
-		if policy == "" || policy == "always" || policy == "ifmissing" {
+		if policy == "" {
+			policy = "always"
+		}
+		switch policy {
+		case "never":
+			// No init container: use whatever is already on the cache PVC.
+		case "ifmissing":
+			// Only download when the cache looks empty. dlArgs are passed as
+			// positional parameters ("$@") after "--", not interpolated into
+			// the script text, so nothing here can inject shell commands.
+			script := `if [ -z "$(ls -A /cache 2>/dev/null)" ]; then exec freqtrade "$@"; fi`
+			initContainers = append(initContainers, corev1.Container{
+				Name:            "init-download-data",
+				Image:           image,
+				ImagePullPolicy: corev1.PullAlways,
+				Command:         []string{"sh", "-c", script, "init-download-data"},
+				Args:            dlArgs,
+				VolumeMounts:    initDownloadMounts,
+			})
+		default: // "always"
 			initContainers = append(initContainers, corev1.Container{
 				Name:            "init-download-data",
 				Image:           image,

@@ -2,18 +2,28 @@ package v1alpha1
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // TradeBotSpec defines the desired state of TradeBot
+// +kubebuilder:validation:XValidation:rule="!has(self.data) || self.freqtrade_command != 'trade'",message="spec.data is only meaningful when freqtrade_command is not 'trade'"
 type TradeBotSpec struct {
 	// Default is "trade". Can be "backtesting" or "hyperopt"
-	FreqtradeCommand   string   `json:"freqtrade_command,omitempty"`
+	// +kubebuilder:validation:Enum=trade;backtesting;hyperopt;download-data;lookahead-analysis
+	// +kubebuilder:default=trade
+	FreqtradeCommand string `json:"freqtrade_command,omitempty"`
+	// +kubebuilder:validation:MaxItems=64
 	FreqtradeArguments []string `json:"freqtrade_arguments,omitempty"`
 
+	// Reference to the TradeBotConfig resource, same namespace only (D3)
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Config string `json:"config"`
 
-	// Reference to the Strategy resource
+	// Reference to the Strategy resource, same namespace only (D3)
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	Strategy string `json:"strategy"`
 
 	App *TBAppConfig `json:"app,omitempty"`
@@ -31,7 +41,8 @@ type DataCacheSpec struct {
 	DownloadArgs []string `json:"downloadArgs,omitempty"`
 
 	// DownloadPolicy controls when the cache is refreshed by jobs.
-	// Accepted: "always" (default), "ifMissing", "never".
+	// +kubebuilder:validation:Enum=always;ifMissing;never
+	// +kubebuilder:default=always
 	DownloadPolicy string `json:"downloadPolicy,omitempty"`
 }
 
@@ -79,8 +90,11 @@ type ServiceSpec struct {
 type PVCSpec struct {
 	// AccessModes defines the access modes for the PVC (e.g., ReadWriteOnce, ReadOnlyMany)
 	AccessModes []v1.PersistentVolumeAccessMode `json:"accessModes,omitempty"`
-	// StorageSize defines the size of the storage for the PVC
-	StorageSize string `json:"storageSize,omitempty"` // Size of the storage for the PVC
+	// StorageSize defines the size of the storage for the PVC. A quantity
+	// value (e.g. "10Gi") is validated by the API server at admission time;
+	// as a plain string this used to reach resource.MustParse in the
+	// reconciler and panic the manager on anything malformed.
+	StorageSize *resource.Quantity `json:"storageSize,omitempty"`
 	// StorageClassName defines the storage class for the PVC
 	StorageClassName string `json:"storageClassName,omitempty"`
 	// VolumeName defines the name of the volume to bind to
@@ -105,6 +119,11 @@ type TradeBotStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Command",type=string,JSONPath=`.spec.freqtrade_command`
+//+kubebuilder:printcolumn:name="Strategy",type=string,JSONPath=`.spec.strategy`
+//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+//+kubebuilder:resource:shortName=tb;tbot
 
 type TradeBot struct {
 	metav1.TypeMeta   `json:",inline"`

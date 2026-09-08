@@ -25,8 +25,8 @@ func mergePVCSpecOverrides(defaultSpec corev1.PersistentVolumeClaimSpec, overrid
 	if len(override.AccessModes) > 0 {
 		defaultSpec.AccessModes = override.AccessModes
 	}
-	if override.StorageSize != "" {
-		defaultSpec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse(override.StorageSize)
+	if override.StorageSize != nil {
+		defaultSpec.Resources.Requests[corev1.ResourceStorage] = *override.StorageSize
 	}
 	if override.StorageClassName != "" {
 		defaultSpec.StorageClassName = &override.StorageClassName

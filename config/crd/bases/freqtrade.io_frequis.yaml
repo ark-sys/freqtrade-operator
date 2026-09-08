@@ -11,10 +11,25 @@ spec:
     kind: FreqUI
     listKind: FreqUIList
     plural: frequis
+    shortNames:
+    - fui
     singular: frequi
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.host
+      name: Host
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.url
+      name: URL
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: FreqUI is the Schema for the frequis API

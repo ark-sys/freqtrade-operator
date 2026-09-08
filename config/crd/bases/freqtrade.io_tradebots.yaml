@@ -11,10 +11,26 @@ spec:
     kind: TradeBot
     listKind: TradeBotList
     plural: tradebots
+    shortNames:
+    - tb
+    - tbot
     singular: tradebot
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.freqtrade_command
+      name: Command
+      type: string
+    - jsonPath: .spec.strategy
+      name: Strategy
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -5621,9 +5637,16 @@ spec:
                           the PVC
                         type: string
                       storageSize:
-                        description: StorageSize defines the size of the storage for
-                          the PVC
-                        type: string
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: |-
+                          StorageSize defines the size of the storage for the PVC. A quantity
+                          value (e.g. "10Gi") is validated by the API server at admission time;
+                          as a plain string this used to reach resource.MustParse in the
+                          reconciler and panic the manager on anything malformed.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
                       volumeName:
                         description: VolumeName defines the name of the volume to
                           bind to
@@ -5723,6 +5746,10 @@ spec:
                     type: object
                 type: object
               config:
+                description: Reference to the TradeBotConfig resource, same namespace
+                  only (D3)
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
               data:
                 properties:
@@ -5734,9 +5761,13 @@ spec:
                       type: string
                     type: array
                   downloadPolicy:
-                    description: |-
-                      DownloadPolicy controls when the cache is refreshed by jobs.
-                      Accepted: "always" (default), "ifMissing", "never".
+                    default: always
+                    description: DownloadPolicy controls when the cache is refreshed
+                      by jobs.
+                    enum:
+                    - always
+                    - ifMissing
+                    - never
                     type: string
                   pvcName:
                     description: |-
@@ -5747,17 +5778,32 @@ spec:
               freqtrade_arguments:
                 items:
                   type: string
+                maxItems: 64
                 type: array
               freqtrade_command:
+                default: trade
                 description: Default is "trade". Can be "backtesting" or "hyperopt"
+                enum:
+                - trade
+                - backtesting
+                - hyperopt
+                - download-data
+                - lookahead-analysis
                 type: string
               strategy:
-                description: Reference to the Strategy resource
+                description: Reference to the Strategy resource, same namespace only
+                  (D3)
+                minLength: 1
+                pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
             required:
             - config
             - strategy
             type: object
+            x-kubernetes-validations:
+            - message: spec.data is only meaningful when freqtrade_command is not
+                'trade'
+              rule: '!has(self.data) || self.freqtrade_command != ''trade'''
           status:
             description: TradeBotStatus defines the observed state of TradeBot
             properties:

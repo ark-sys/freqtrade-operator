@@ -32,18 +32,21 @@ type TradeBotConfigSpec struct {
 
 type BotConfig struct {
 	// Bot configuration
-	BotName                string   `json:"bot_name,omitempty"`
-	TradingMode            string   `json:"trading_mode,omitempty"`
-	DryRun                 *bool    `json:"dry_run,omitempty"`
-	DryRunWallet           *float64 `json:"dry_run_wallet,omitempty"`
-	StakeCurrency          string   `json:"stake_currency,omitempty"`
-	StakeAmount            string   `json:"stake_amount,omitempty"`
-	MaxOpenTrades          *int     `json:"max_open_trades,omitempty"`
-	FiatDisplayCurrency    string   `json:"fiat_display_currency,omitempty"`
-	DBUrl                  string   `json:"db_url,omitempty"`
-	Export                 string   `json:"export,omitempty"`
-	DisableParamExport     *bool    `json:"disable_param_export,omitempty"`
-	DisableDataframeChecks *bool    `json:"disable_dataframe_checks,omitempty"`
+	BotName string `json:"bot_name,omitempty"`
+	// +kubebuilder:validation:Enum=spot;margin;futures
+	TradingMode string `json:"trading_mode,omitempty"`
+	DryRun      *bool  `json:"dry_run,omitempty"`
+	// +kubebuilder:validation:Minimum=0
+	DryRunWallet  *float64 `json:"dry_run_wallet,omitempty"`
+	StakeCurrency string   `json:"stake_currency,omitempty"`
+	StakeAmount   string   `json:"stake_amount,omitempty"`
+	// +kubebuilder:validation:Minimum=-1
+	MaxOpenTrades          *int   `json:"max_open_trades,omitempty"`
+	FiatDisplayCurrency    string `json:"fiat_display_currency,omitempty"`
+	DBUrl                  string `json:"db_url,omitempty"`
+	Export                 string `json:"export,omitempty"`
+	DisableParamExport     *bool  `json:"disable_param_export,omitempty"`
+	DisableDataframeChecks *bool  `json:"disable_dataframe_checks,omitempty"`
 }
 
 type AIConfig struct {
@@ -359,6 +362,7 @@ type Flow struct {
 }
 
 // RiskManagementSpec defines the desired state of RiskManagement
+// +kubebuilder:validation:XValidation:rule="!has(self.trailing_stop_positive_offset) || !has(self.trailing_stop_positive) || self.trailing_stop_positive_offset > self.trailing_stop_positive",message="trailing_stop_positive_offset must be greater than trailing_stop_positive"
 type RiskManagementSpec struct {
 	MinimalROI                  map[string]*float64 `json:"minimal_roi,omitempty"`
 	Stoploss                    *float64            `json:"stoploss,omitempty"`
@@ -382,8 +386,10 @@ type RiskManagementSpec struct {
 }
 
 type APIServerConfig struct {
-	Enabled       *bool    `json:"enabled,omitempty"`
-	ListenIP      string   `json:"listen_ip_address,omitempty"`
+	Enabled  *bool  `json:"enabled,omitempty"`
+	ListenIP string `json:"listen_ip_address,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	ListenPort    *int     `json:"listen_port,omitempty"`
 	Verbosity     string   `json:"verbosity,omitempty"`
 	EnableOpenAPI *bool    `json:"enable_openapi,omitempty"`
@@ -470,6 +476,11 @@ type TradeBotConfigStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Exchange",type=string,JSONPath=`.spec.exchange.name`
+//+kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.bot.dry_run`
+//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+//+kubebuilder:resource:shortName=tbc
 
 type TradeBotConfig struct {
 	metav1.TypeMeta   `json:",inline"`

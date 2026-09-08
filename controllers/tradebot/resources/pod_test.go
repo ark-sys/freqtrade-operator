@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"strings"
 	"testing"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -154,6 +155,40 @@ func TestBuildPod_DownloadPolicyNeverSkipsDownload(t *testing.T) {
 	// step is skipped, so a pre-populated cache can still be used.
 	if volumeNamed(spec, "cache") == nil {
 		t.Error("expected the cache volume to still be present with DownloadPolicy=never")
+	}
+}
+
+// TestBuildPod_DownloadPolicyIfMissingOnlyDownloadsWhenEmpty covers the real
+// "ifMissing" semantics: previously this policy value existed in the API
+// but behaved identically to "always" (P1-1 - "do not ship a lie"). The
+// init container now wraps the freqtrade invocation in a shell conditional;
+// dlArgs are passed as positional parameters after the script text ($@),
+// never interpolated into it, so nothing here is a shell-injection risk.
+func TestBuildPod_DownloadPolicyIfMissingOnlyDownloadsWhenEmpty(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		Spec: freqtradev1alpha1.TradeBotSpec{
+			Data: &freqtradev1alpha1.DataCacheSpec{PVCName: "shared-cache", DownloadPolicy: "ifMissing"},
+		},
+	}
+
+	spec := BuildPod(tradeBot, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
+
+	dl := initContainerNamed(spec, "init-download-data")
+	if dl == nil {
+		t.Fatal("expected a download-data init container with DownloadPolicy=ifMissing")
+	}
+	if len(dl.Command) < 3 || dl.Command[0] != "sh" || dl.Command[1] != "-c" {
+		t.Fatalf("expected a shell conditional, got Command=%v", dl.Command)
+	}
+	if !strings.Contains(dl.Command[2], "ls -A /cache") {
+		t.Errorf("expected the script to check whether /cache is empty, got %q", dl.Command[2])
+	}
+	if !strings.Contains(dl.Command[2], `"$@"`) {
+		t.Errorf("expected the script to forward args via \"$@\" rather than interpolating them, got %q", dl.Command[2])
+	}
+	if !containsArg(dl.Args, "download-data") {
+		t.Errorf("expected the freqtrade subcommand to be passed as a positional arg, got %v", dl.Args)
 	}
 }
 

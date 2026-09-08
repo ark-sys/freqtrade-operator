@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -354,6 +355,70 @@ var _ = Describe("TradeBot controller", func() {
 				corsOrigins, _ := apiServer["CORS_origins"].([]interface{})
 				g.Expect(corsOrigins).To(ContainElement("https://frequi.example.com"))
 			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+		})
+	})
+
+	// P1-1's acceptance criterion: bad input is rejected synchronously by
+	// the API server (CRD schema validation), not accepted and left to fail
+	// later inside the reconciler.
+	Describe("CRD schema validation (P1-1)", func() {
+		It("rejects an unrecognized freqtrade_command", func() {
+			ctx := context.Background()
+			tradeBot := newTestTradeBot("bot-invalid-command", "irrelevant", "irrelevant", "not-a-real-command")
+			err := k8sClient.Create(ctx, tradeBot)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsInvalid(err)).To(BeTrue())
+		})
+
+		It("rejects a malformed PVC storage size", func() {
+			ctx := context.Background()
+			obj := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "freqtrade.io/v1alpha1",
+					"kind":       "TradeBot",
+					"metadata": map[string]interface{}{
+						"name":      "bot-invalid-storage",
+						"namespace": testNamespace,
+					},
+					"spec": map[string]interface{}{
+						"config":   "irrelevant",
+						"strategy": "irrelevant",
+						"app": map[string]interface{}{
+							"pvc": map[string]interface{}{
+								"storageSize": "not-a-quantity",
+							},
+						},
+					},
+				},
+			}
+			err := k8sClient.Create(ctx, obj)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsInvalid(err)).To(BeTrue())
+		})
+
+		It("rejects trailing_stop_positive_offset that isn't greater than trailing_stop_positive", func() {
+			ctx := context.Background()
+			obj := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "freqtrade.io/v1alpha1",
+					"kind":       "TradeBotConfig",
+					"metadata": map[string]interface{}{
+						"name":      "config-invalid-trailing-stop",
+						"namespace": testNamespace,
+					},
+					"spec": map[string]interface{}{
+						"bot":      map[string]interface{}{},
+						"exchange": map[string]interface{}{"name": "binance"},
+						"risk_management": map[string]interface{}{
+							"trailing_stop_positive":        0.02,
+							"trailing_stop_positive_offset": 0.01, // must be > positive, this is backwards
+						},
+					},
+				},
+			}
+			err := k8sClient.Create(ctx, obj)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsInvalid(err)).To(BeTrue())
 		})
 	})
 })

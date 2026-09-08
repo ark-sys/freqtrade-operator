@@ -38,7 +38,7 @@ func TestBuildUserDataPVC_Overrides(t *testing.T) {
 			App: &freqtradev1alpha1.TBAppConfig{
 				PVCSpec: &freqtradev1alpha1.PVCSpec{
 					AccessModes:      []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
-					StorageSize:      "10Gi",
+					StorageSize:      quantityPtr("10Gi"),
 					StorageClassName: "fast-ssd",
 					VolumeName:       "pv-precreated",
 					Annotations:      map[string]string{"backup.example.com/exclude": "true"},
@@ -104,4 +104,9 @@ func TestMergePVCSpecOverrides_PartialOverrideOnlyTouchesSetFields(t *testing.T)
 	if got.StorageClassName == nil || *got.StorageClassName != "fast-ssd" {
 		t.Errorf("expected storage class overridden, got %v", got.StorageClassName)
 	}
+}
+
+func quantityPtr(s string) *resource.Quantity {
+	q := resource.MustParse(s)
+	return &q
 }

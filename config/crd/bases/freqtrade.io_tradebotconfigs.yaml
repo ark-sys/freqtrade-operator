@@ -11,10 +11,25 @@ spec:
     kind: TradeBotConfig
     listKind: TradeBotConfigList
     plural: tradebotconfigs
+    shortNames:
+    - tbc
     singular: tradebotconfig
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.exchange.name
+      name: Exchange
+      type: string
+    - jsonPath: .spec.bot.dry_run
+      name: DryRun
+      type: boolean
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -188,6 +203,8 @@ spec:
                   listen_ip_address:
                     type: string
                   listen_port:
+                    maximum: 65535
+                    minimum: 1
                     type: integer
                   password:
                     type: string
@@ -212,18 +229,24 @@ spec:
                   dry_run:
                     type: boolean
                   dry_run_wallet:
+                    minimum: 0
                     type: number
                   export:
                     type: string
                   fiat_display_currency:
                     type: string
                   max_open_trades:
+                    minimum: -1
                     type: integer
                   stake_amount:
                     type: string
                   stake_currency:
                     type: string
                   trading_mode:
+                    enum:
+                    - spot
+                    - margin
+                    - futures
                     type: string
                 type: object
               data:
@@ -665,6 +688,10 @@ spec:
                   use_exit_signal:
                     type: boolean
                 type: object
+                x-kubernetes-validations:
+                - message: trailing_stop_positive_offset must be greater than trailing_stop_positive
+                  rule: '!has(self.trailing_stop_positive_offset) || !has(self.trailing_stop_positive)
+                    || self.trailing_stop_positive_offset > self.trailing_stop_positive'
               timeout:
                 description: UnfilledTimeoutConfig defines timeout settings for unfilled
                   orders

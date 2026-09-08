@@ -20,6 +20,10 @@ type StrategyStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Name",type=string,JSONPath=`.spec.name`
+//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+//+kubebuilder:resource:shortName=strat
 
 type Strategy struct {
 	metav1.TypeMeta   `json:",inline"`

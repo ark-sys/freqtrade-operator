@@ -1174,6 +1174,11 @@ func (in *PVCSpec) DeepCopyInto(out *PVCSpec) {
 		*out = make([]corev1.PersistentVolumeAccessMode, len(*in))
 		copy(*out, *in)
 	}
+	if in.StorageSize != nil {
+		in, out := &in.StorageSize, &out.StorageSize
+		x := (*in).DeepCopy()
+		*out = &x
+	}
 	if in.Annotations != nil {
 		in, out := &in.Annotations, &out.Annotations
 		*out = make(map[string]string, len(*in))

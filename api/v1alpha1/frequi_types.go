@@ -118,6 +118,11 @@ type FreqUIStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Host",type=string,JSONPath=`.spec.host`
+//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
+//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+//+kubebuilder:resource:shortName=fui
 
 // FreqUI is the Schema for the frequis API
 type FreqUI struct {
