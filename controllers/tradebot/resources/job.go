@@ -18,26 +18,13 @@ import (
 )
 
 // BuildJob creates a Job for one-shot commands (e.g., backtesting, hyperopt)
-// using the reusable PodSpec from BuildPod. It reads freqtrade command/args from
-// TradeBot.Spec to decide the execution mode.
+// using the reusable PodSpec from BuildPod. strategyName is the resolved
+// Strategy.Spec.Name; the caller is responsible for having already fetched
+// and validated the referenced Strategy exists.
 func BuildJob(
-	ctx context.Context,
-	c client.Client,
 	tradeBot freqtradev1alpha1.TradeBot,
-	configSecretName, strategyConfigMapName, pvcName string,
+	strategyName, configSecretName, strategyConfigMapName, pvcName string,
 ) batchv1.Job {
-	// Resolve strategy name (python class/file) from the Strategy CR
-	var strategy freqtradev1alpha1.Strategy
-	if err := c.Get(ctx, types.NamespacedName{Namespace: tradeBot.Namespace, Name: tradeBot.Spec.Strategy}, &strategy); err != nil {
-		// If Strategy not found, return empty Job (caller should handle)
-		if errors.IsNotFound(err) {
-			return batchv1.Job{}
-		}
-		// Hard fail on unexpected errors to surface during reconcile
-		panic(err)
-	}
-	strategyName := strategy.Spec.Name
-
 	freqCommand := tradeBot.Spec.FreqtradeCommand
 	if freqCommand == "" {
 		freqCommand = "trade"

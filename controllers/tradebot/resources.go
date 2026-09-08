@@ -45,10 +45,14 @@ func (r *Reconciler) fetchReferencedResources(
 	return result, nil
 }
 
-// reconcileResources creates or updates all resources needed by the TradeBot
+// reconcileResources creates or updates all resources needed by the TradeBot.
+// strategy must be the already-resolved Strategy referenced by tradeBot.Spec.Strategy
+// (fetchReferencedResources fetches it once per reconcile; this stops a second,
+// redundant fetch here and lets Build{StatefulSet,Job} stay pure functions).
 func (r *Reconciler) reconcileResources(
 	ctx context.Context,
 	tradeBot *freqtradev1alpha1.TradeBot,
+	strategy *freqtradev1alpha1.Strategy,
 	configData map[string]string) error {
 
 	logger := log.FromContext(ctx)
@@ -63,11 +67,6 @@ func (r *Reconciler) reconcileResources(
 	logger.V(2).Info("Secret applied successfully", "name", configSecret.Name)
 
 	// 2. Create a ConfigMap for the Strategy script
-	strategy := &freqtradev1alpha1.Strategy{}
-	if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.Strategy, Namespace: tradeBot.Namespace}, strategy); err != nil {
-		logger.Error(err, "Failed to fetch Strategy for ConfigMap creation")
-		return fmt.Errorf("failed to fetch Strategy for ConfigMap creation: %w", err)
-	}
 	strategyConfigMap := resources.BuildStrategyConfigMap(*tradeBot, *strategy)
 	if err := resources.ApplyConfigMap(ctx, r.Client, &strategyConfigMap); err != nil {
 		logger.Error(err, "Failed to apply Strategy ConfigMap")
@@ -89,7 +88,7 @@ func (r *Reconciler) reconcileResources(
 		}
 		logger.V(2).Info("PVC applied successfully", "name", pvc.Name)
 		// Stateful, long-running bot
-		sts := resources.BuildStatefulSet(ctx, r.Client, *tradeBot, configSecret.Name, strategyConfigMap.Name, pvc.Name)
+		sts := resources.BuildStatefulSet(*tradeBot, strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, pvc.Name)
 		if err := resources.ApplyStatefulSet(ctx, r.Client, &sts); err != nil {
 			logger.Error(err, "Failed to apply StatefulSet")
 			return fmt.Errorf("failed to apply StatefulSet: %w", err)
@@ -104,7 +103,7 @@ func (r *Reconciler) reconcileResources(
 		logger.V(2).Info("Service applied successfully", "name", svc.Name)
 	} else {
 		// One-shot commands -> Job
-		job := resources.BuildJob(ctx, r.Client, *tradeBot, configSecret.Name, strategyConfigMap.Name, "")
+		job := resources.BuildJob(*tradeBot, strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, "")
 		if err := resources.ApplyJob(ctx, r.Client, &job); err != nil {
 			logger.Error(err, "Failed to apply Job")
 			return fmt.Errorf("failed to apply Job: %w", err)

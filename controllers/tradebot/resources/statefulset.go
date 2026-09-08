@@ -17,19 +17,10 @@ import (
 )
 
 // BuildStatefulSet creates a StatefulSet for the bot, merging App.PodSpec overrides.
-func BuildStatefulSet(ctx context.Context, c client.Client, tradeBot freqtradev1alpha1.TradeBot, configSecretName, strategyConfigMapName, pvcName string) appsv1.StatefulSet {
+// strategyName is the resolved Strategy.Spec.Name; the caller is responsible for
+// having already fetched and validated the referenced Strategy exists.
+func BuildStatefulSet(tradeBot freqtradev1alpha1.TradeBot, strategyName, configSecretName, strategyConfigMapName, pvcName string) appsv1.StatefulSet {
 	replicas := int32(1)
-
-	// Fetch the referenced Strategy resource to resolve the Python strategy name.
-	var strategy freqtradev1alpha1.Strategy
-	err := c.Get(ctx, types.NamespacedName{Namespace: tradeBot.Namespace, Name: tradeBot.Spec.Strategy}, &strategy)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return appsv1.StatefulSet{}
-		}
-		panic(err)
-	}
-	strategyName := strategy.Spec.Name
 
 	// Build the reusable PodSpec for trade mode.
 	podSpec := BuildPod(

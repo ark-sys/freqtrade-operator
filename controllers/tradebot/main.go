@@ -240,7 +240,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// 7. Create or update required resources
 	logger.V(2).Info("Reconciling resources", "configDataKeys", keys(configData))
-	if err := r.reconcileResources(ctx, &tradeBot, configData); err != nil {
+	if err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData); err != nil {
 		logger.Error(err, "Failed to reconcile resources")
 		tradeBot.Status.Phase = "ResourceError"
 		tradeBot.Status.Message = fmt.Sprintf("Failed to reconcile resources: %v", err)
