@@ -75,18 +75,38 @@ func TestPruneStaleWorkloads(t *testing.T) {
 }
 
 func TestSetWorkloadImmutableCondition(t *testing.T) {
-	t.Run("spec changed sets the condition true", func(t *testing.T) {
-		tradeBot := &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Generation: 3}}
-		setWorkloadImmutableCondition(tradeBot, true)
+	newFakeTradeBot := func(t *testing.T, tradeBot *freqtradev1alpha1.TradeBot) (*Reconciler, *freqtradev1alpha1.TradeBot) {
+		t.Helper()
+		scheme := newWorkloadStatusScheme(t)
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tradeBot).WithStatusSubresource(tradeBot).Build()
+		return &Reconciler{Client: c}, tradeBot
+	}
+	getTradeBot := func(t *testing.T, r *Reconciler, name string) *freqtradev1alpha1.TradeBot {
+		t.Helper()
+		var got freqtradev1alpha1.TradeBot
+		if err := r.Get(context.Background(), types.NamespacedName{Name: name}, &got); err != nil {
+			t.Fatalf("failed to get TradeBot: %v", err)
+		}
+		return &got
+	}
 
-		cond := findCondition(tradeBot.Status.Conditions, "WorkloadImmutable")
+	t.Run("spec changed sets the condition true", func(t *testing.T) {
+		seed := &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Generation: 3}}
+		r, tradeBot := newFakeTradeBot(t, seed)
+
+		if err := r.setWorkloadImmutableCondition(context.Background(), tradeBot, true); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := getTradeBot(t, r, "my-bot")
+		cond := findCondition(got.Status.Conditions, freqtradev1alpha1.ConditionWorkloadImmutable)
 		if cond == nil {
 			t.Fatal("expected a WorkloadImmutable condition")
 		}
 		if cond.Status != metav1.ConditionTrue {
 			t.Errorf("expected status True, got %v", cond.Status)
 		}
-		if cond.Reason != "SpecChangeIgnored" {
+		if cond.Reason != freqtradev1alpha1.ReasonSpecChangeIgnored {
 			t.Errorf("expected reason SpecChangeIgnored, got %v", cond.Reason)
 		}
 		if cond.Message == "" {
@@ -98,11 +118,18 @@ func TestSetWorkloadImmutableCondition(t *testing.T) {
 	})
 
 	t.Run("spec unchanged clears a previously-set condition", func(t *testing.T) {
-		tradeBot := &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot"}}
-		setWorkloadImmutableCondition(tradeBot, true)
-		setWorkloadImmutableCondition(tradeBot, false)
+		r, tradeBot := newFakeTradeBot(t, &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot"}})
 
-		cond := findCondition(tradeBot.Status.Conditions, "WorkloadImmutable")
+		if err := r.setWorkloadImmutableCondition(context.Background(), tradeBot, true); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		tradeBot = getTradeBot(t, r, "my-bot")
+		if err := r.setWorkloadImmutableCondition(context.Background(), tradeBot, false); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		got := getTradeBot(t, r, "my-bot")
+		cond := findCondition(got.Status.Conditions, freqtradev1alpha1.ConditionWorkloadImmutable)
 		if cond == nil {
 			t.Fatal("expected a WorkloadImmutable condition")
 		}

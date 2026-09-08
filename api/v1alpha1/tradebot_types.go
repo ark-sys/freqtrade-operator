@@ -107,6 +107,8 @@ type PVCSpec struct {
 
 // TradeBotStatus defines the observed state of TradeBot
 type TradeBotStatus struct {
+	// Phase is a derived, human-facing summary for the printer column only -
+	// it is never the source of truth. Conditions are.
 	Phase   string `json:"phase,omitempty"`
 	Message string `json:"message,omitempty"`
 
@@ -115,6 +117,11 @@ type TradeBotStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ObservedGeneration is the most recent metadata.generation this status
+	// was computed from, so a client can tell whether it reflects the spec
+	// it just applied.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true

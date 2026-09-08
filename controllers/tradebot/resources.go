@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	"github.com/ark-sys/freqtrade-operator/controllers/tradebot/resources"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -137,7 +138,9 @@ func (r *Reconciler) reconcileResources(
 		jobSpecChanged = !reflect.DeepEqual(desiredJob.Spec.Template.Spec, appliedJob.Spec.Template.Spec)
 	}
 
-	setWorkloadImmutableCondition(tradeBot, jobSpecChanged)
+	if err := r.setWorkloadImmutableCondition(ctx, tradeBot, jobSpecChanged); err != nil {
+		return fmt.Errorf("failed to update WorkloadImmutable condition: %w", err)
+	}
 
 	return nil
 }
@@ -205,24 +208,36 @@ func (r *Reconciler) pruneStaleWorkloads(
 // spec no longer matches the Job actually running: Job.Spec.Template is
 // immutable after creation (see ApplyJob), so the changed spec was silently
 // not applied unless we say so here.
-func setWorkloadImmutableCondition(tradeBot *freqtradev1alpha1.TradeBot, specChanged bool) {
-	condition := metav1.Condition{
-		Type:               "WorkloadImmutable",
-		Status:             metav1.ConditionFalse,
-		Reason:             "SpecMatchesWorkload",
-		Message:            "",
-		ObservedGeneration: tradeBot.Generation,
-	}
-	if specChanged {
-		condition.Status = metav1.ConditionTrue
-		condition.Reason = "SpecChangeIgnored"
-		condition.Message = fmt.Sprintf(
-			"TradeBot spec changed after Job %q was created; batchv1.Job.spec.template is immutable, "+
-				"so the change was not applied. Delete and recreate this TradeBot to run with the new spec. "+
-				"Results from the current run are on an emptyDir and will be lost when its pod is gone "+
-				"(per-run result PVCs are planned for a future Backtest/Hyperopt CRD).",
-			tradeBot.Name,
-		)
-	}
-	meta.SetStatusCondition(&tradeBot.Status.Conditions, condition)
+//
+// This does its own PatchStatus round-trip rather than mutating
+// tradeBot.Status.Conditions in memory for the caller's later status write
+// to pick up: Reconcile's own final PatchStatus call re-fetches tradeBot
+// from scratch (that's how PatchStatus avoids conflicts), which would
+// silently discard an in-memory-only condition set earlier in the same
+// pass. A separate, immediate patch is the only way this condition
+// actually survives.
+func (r *Reconciler) setWorkloadImmutableCondition(
+	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot, specChanged bool,
+) error {
+	return shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+		condition := metav1.Condition{
+			Type:               freqtradev1alpha1.ConditionWorkloadImmutable,
+			Status:             metav1.ConditionFalse,
+			Reason:             freqtradev1alpha1.ReasonSpecMatchesWorkload,
+			Message:            "",
+			ObservedGeneration: tradeBot.Generation,
+		}
+		if specChanged {
+			condition.Status = metav1.ConditionTrue
+			condition.Reason = freqtradev1alpha1.ReasonSpecChangeIgnored
+			condition.Message = fmt.Sprintf(
+				"TradeBot spec changed after Job %q was created; batchv1.Job.spec.template is immutable, "+
+					"so the change was not applied. Delete and recreate this TradeBot to run with the new spec. "+
+					"Results from the current run are on an emptyDir and will be lost when its pod is gone "+
+					"(per-run result PVCs are planned for a future Backtest/Hyperopt CRD).",
+				tradeBot.Name,
+			)
+		}
+		meta.SetStatusCondition(&tradeBot.Status.Conditions, condition)
+	})
 }

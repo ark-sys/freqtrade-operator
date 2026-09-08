@@ -3,11 +3,10 @@ package shared
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -16,66 +15,48 @@ import (
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
 
-// StatusUpdater provides common status update functionality for config controllers
-type StatusUpdater struct {
-	client.Client
+// ConditionedObject is any CRD whose status carries the standard
+// Conditions/ObservedGeneration pair - all four CRDs in this operator
+// (TradeBot, FreqUI, Strategy, TradeBotConfig each implement
+// SetObservedGeneration alongside the generated accessors on ObjectMeta).
+type ConditionedObject interface {
+	client.Object
+	SetObservedGeneration(generation int64)
 }
 
-func (s *StatusUpdater) RetryUpdateConfigStatus(ctx context.Context, obj client.Object, phase, message string, maxRetries int) error {
-	var lastErr error
-	for i := 0; i < maxRetries; i++ {
-		lastErr = s.UpdateConfigStatus(ctx, obj, phase, message)
-		if lastErr == nil {
+// PatchStatus re-fetches obj (in place - obj must be a pointer, and mutate
+// must operate on that same pointer, typically via closure capture of the
+// caller's already-typed variable), lets mutate compute the desired status
+// - normally one or more meta.SetStatusCondition calls plus a Phase/Message
+// derived from the resulting condition set - sets ObservedGeneration to the
+// object's current generation, and writes the result only if something
+// actually changed (so reconciling an unchanged object costs zero API
+// writes, not even a no-op status Update). The whole sequence is retried on
+// write conflicts instead of a fixed sleep: mutate must be idempotent (safe
+// to call again against a newer copy of obj), which holds naturally since
+// it recomputes conditions from the same inputs each time rather than
+// accumulating changes. meta.SetStatusCondition itself is idempotent too -
+// it only bumps LastTransitionTime when Status actually flips - so calling
+// it with the same Type/Status/Reason/Message on an unchanged object is a
+// true no-op that the equality check below correctly detects.
+//
+// This replaces the old StatusUpdater, which type-switched over concrete
+// CRD types and returned "unsupported object type" for anything it didn't
+// special-case (notably TradeBot and FreqUI). One helper now serves all
+// four CRDs without knowing which one it's holding.
+func PatchStatus(ctx context.Context, c client.Client, obj ConditionedObject, mutate func()) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+			return err
+		}
+		before := obj.DeepCopyObject()
+		mutate()
+		obj.SetObservedGeneration(obj.GetGeneration())
+		if equality.Semantic.DeepEqual(before, obj) {
 			return nil
 		}
-		if !errors.IsConflict(lastErr) {
-			return lastErr
-		}
-		// Brief backoff before retrying
-		time.Sleep(100 * time.Millisecond)
-	}
-	return lastErr
-}
-
-// UpdateConfigStatus updates the status of a config CRD with phase and message
-func (s *StatusUpdater) UpdateConfigStatus(ctx context.Context, obj client.Object, phase, message string) error {
-	logger := log.FromContext(ctx)
-
-	// Get the latest version to avoid conflicts
-	latest := obj.DeepCopyObject().(client.Object)
-	if err := s.Get(ctx, client.ObjectKeyFromObject(obj), latest); err != nil {
-		return fmt.Errorf("failed to get latest version: %w", err)
-	}
-
-	// Update status based on object type
-	switch o := latest.(type) {
-	case *freqtradev1alpha1.Strategy:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update Strategy status: %w", err)
-			}
-			logger.V(2).Info("Updated Strategy status", "name", o.Name, "phase", phase)
-		}
-
-	case *freqtradev1alpha1.TradeBotConfig:
-		if o.Status.Phase != phase || o.Status.Message != message {
-			o.Status.Phase = phase
-			o.Status.Message = message
-			if err := s.Status().Update(ctx, o); err != nil {
-				return fmt.Errorf("failed to update TradeBotConfig status: %w", err)
-			}
-			logger.V(2).Info("Updated TradeBotConfig status", "name", o.Name, "phase",
-				phase)
-
-		}
-
-	default:
-		return fmt.Errorf("unsupported object type: %T", latest)
-	}
-
-	return nil
+		return c.Status().Update(ctx, obj)
+	})
 }
 
 // EnqueueTradeBotsByConfigRef creates a handler function that enqueues TradeBots referencing a config CRD
@@ -151,34 +132,4 @@ func shouldEnqueueTradeBot(bot *freqtradev1alpha1.TradeBot, configName, refField
 		return tradebotconfigRef == configName
 	}
 	return false
-}
-
-// ReconcileResult represents the result of a reconciliation operation
-type ReconcileResult struct {
-	Result ctrl.Result
-	Error  error
-}
-
-// FinishReconciliation handles common reconciliation completion logic
-func FinishReconciliation(phase string, err error, requeueAfter time.Duration) ReconcileResult {
-	if err != nil {
-		return ReconcileResult{
-			Result: ctrl.Result{RequeueAfter: requeueAfter},
-			Error:  err,
-		}
-	}
-
-	if phase == "Valid" {
-		// Config is valid and stable, don't requeue frequently
-		return ReconcileResult{
-			Result: ctrl.Result{},
-			Error:  nil,
-		}
-	}
-
-	// For other phases, requeue more frequently
-	return ReconcileResult{
-		Result: ctrl.Result{RequeueAfter: requeueAfter},
-		Error:  nil,
-	}
 }

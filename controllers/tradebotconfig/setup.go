@@ -16,9 +16,6 @@ import (
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Initialize the StatusUpdater
-	r.StatusUpdater = shared.StatusUpdater{Client: mgr.GetClient()}
-
 	// Create predicates for the main resource (Tradebotconfig)
 	mainResourcePredicate := predicate.Funcs{
 		UpdateFunc: func(e event.UpdateEvent) bool {

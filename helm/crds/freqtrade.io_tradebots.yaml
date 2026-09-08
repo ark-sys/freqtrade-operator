@@ -5868,7 +5868,17 @@ spec:
                 x-kubernetes-list-type: map
               message:
                 type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation this status
+                  was computed from, so a client can tell whether it reflects the spec
+                  it just applied.
+                format: int64
+                type: integer
               phase:
+                description: |-
+                  Phase is a derived, human-facing summary for the printer column only -
+                  it is never the source of truth. Conditions are.
                 type: string
             type: object
         type: object

@@ -33,19 +33,18 @@ func newWorkloadStatusScheme(t *testing.T) *runtime.Scheme {
 	return scheme
 }
 
-// TestUpdateWorkloadStatus_TradeMode covers the acceptance criterion for
-// P0-3: phase is derived from the StatefulSet on the success path, so a
-// previously-set error phase clears once the workload comes up, and a
-// requeue is scheduled while it's not yet ready.
-func TestUpdateWorkloadStatus_TradeMode(t *testing.T) {
+// TestComputeWorkloadStatus_TradeMode covers the P0-3 acceptance criterion:
+// workload health is derived from the StatefulSet, so a requeue is
+// scheduled while it's not yet ready.
+func TestComputeWorkloadStatus_TradeMode(t *testing.T) {
 	tests := []struct {
 		name          string
 		readyReplicas int32
-		wantPhase     string
+		wantReady     bool
 		wantRequeue   bool
 	}{
-		{name: "not ready yet", readyReplicas: 0, wantPhase: "Pending", wantRequeue: true},
-		{name: "ready", readyReplicas: 1, wantPhase: "Running", wantRequeue: false},
+		{name: "not ready yet", readyReplicas: 0, wantReady: false, wantRequeue: true},
+		{name: "ready", readyReplicas: 1, wantReady: true, wantRequeue: false},
 	}
 
 	for _, tt := range tests {
@@ -60,37 +59,35 @@ func TestUpdateWorkloadStatus_TradeMode(t *testing.T) {
 
 			tradeBot := &freqtradev1alpha1.TradeBot{
 				ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
-				Status:     freqtradev1alpha1.TradeBotStatus{Phase: "ConfigError", Message: "stale error from a previous reconcile"},
 			}
 
-			requeueAfter, err := r.updateWorkloadStatus(context.Background(), tradeBot)
+			got, err := r.computeWorkloadStatus(context.Background(), tradeBot)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if tradeBot.Status.Phase != tt.wantPhase {
-				t.Errorf("expected phase %q, got %q", tt.wantPhase, tradeBot.Status.Phase)
+			if got.ready != tt.wantReady {
+				t.Errorf("expected ready=%v, got %+v", tt.wantReady, got)
 			}
-			if tt.wantPhase == "Running" && tradeBot.Status.Message != "" {
-				t.Errorf("expected Message cleared once Running, got %q", tradeBot.Status.Message)
-			}
-			if (requeueAfter > 0) != tt.wantRequeue {
-				t.Errorf("expected requeue=%v, got requeueAfter=%v", tt.wantRequeue, requeueAfter)
+			if (got.requeueAfter > 0) != tt.wantRequeue {
+				t.Errorf("expected requeue=%v, got requeueAfter=%v", tt.wantRequeue, got.requeueAfter)
 			}
 		})
 	}
 }
 
-func TestUpdateWorkloadStatus_JobMode(t *testing.T) {
+func TestComputeWorkloadStatus_JobMode(t *testing.T) {
 	tests := []struct {
-		name        string
-		jobStatus   batchv1.JobStatus
-		wantPhase   string
-		wantRequeue bool
+		name          string
+		jobStatus     batchv1.JobStatus
+		wantReady     bool
+		wantSucceeded bool
+		wantFailed    bool
+		wantRequeue   bool
 	}{
-		{name: "succeeded", jobStatus: batchv1.JobStatus{Succeeded: 1}, wantPhase: "Succeeded", wantRequeue: false},
-		{name: "failed", jobStatus: batchv1.JobStatus{Failed: 1}, wantPhase: "Failed", wantRequeue: false},
-		{name: "active", jobStatus: batchv1.JobStatus{Active: 1}, wantPhase: "Running", wantRequeue: true},
-		{name: "not started", jobStatus: batchv1.JobStatus{}, wantPhase: "Pending", wantRequeue: true},
+		{name: "succeeded", jobStatus: batchv1.JobStatus{Succeeded: 1}, wantSucceeded: true, wantRequeue: false},
+		{name: "failed", jobStatus: batchv1.JobStatus{Failed: 1}, wantFailed: true, wantRequeue: false},
+		{name: "active", jobStatus: batchv1.JobStatus{Active: 1}, wantRequeue: true},
+		{name: "not started", jobStatus: batchv1.JobStatus{}, wantRequeue: true},
 	}
 
 	for _, tt := range tests {
@@ -108,15 +105,100 @@ func TestUpdateWorkloadStatus_JobMode(t *testing.T) {
 				Spec:       freqtradev1alpha1.TradeBotSpec{FreqtradeCommand: "backtesting"},
 			}
 
-			requeueAfter, err := r.updateWorkloadStatus(context.Background(), tradeBot)
+			got, err := r.computeWorkloadStatus(context.Background(), tradeBot)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if tradeBot.Status.Phase != tt.wantPhase {
-				t.Errorf("expected phase %q, got %q", tt.wantPhase, tradeBot.Status.Phase)
+			if got.ready != tt.wantReady || got.succeeded != tt.wantSucceeded || got.failed != tt.wantFailed {
+				t.Errorf("expected ready=%v succeeded=%v failed=%v, got %+v",
+					tt.wantReady, tt.wantSucceeded, tt.wantFailed, got)
 			}
-			if (requeueAfter > 0) != tt.wantRequeue {
-				t.Errorf("expected requeue=%v, got requeueAfter=%v", tt.wantRequeue, requeueAfter)
+			if (got.requeueAfter > 0) != tt.wantRequeue {
+				t.Errorf("expected requeue=%v, got requeueAfter=%v", tt.wantRequeue, got.requeueAfter)
+			}
+		})
+	}
+}
+
+// cond builds a metav1.Condition with just the fields deriveTradeBotPhase
+// looks at, to keep TestDeriveTradeBotPhase's table readable.
+func cond(condType string, status metav1.ConditionStatus, reason string) metav1.Condition {
+	return metav1.Condition{Type: condType, Status: status, Reason: reason}
+}
+
+// TestDeriveTradeBotPhase covers the human-facing Phase computed from
+// Conditions - Phase is never itself the source of truth (P1-3).
+func TestDeriveTradeBotPhase(t *testing.T) {
+	const (
+		configResolved = freqtradev1alpha1.ConditionConfigResolved
+		workloadReady  = freqtradev1alpha1.ConditionWorkloadReady
+		asExpected     = freqtradev1alpha1.ReasonAsExpected
+	)
+
+	tests := []struct {
+		name       string
+		conditions []metav1.Condition
+		want       string
+	}{
+		{name: "no conditions yet", conditions: nil, want: ""},
+		{
+			name: "config not resolved, reference not found",
+			conditions: []metav1.Condition{
+				cond(configResolved, metav1.ConditionFalse, freqtradev1alpha1.ReasonReferenceNotFound),
+			},
+			want: "Error",
+		},
+		{
+			name:       "config not resolved, other reason",
+			conditions: []metav1.Condition{cond(configResolved, metav1.ConditionFalse, freqtradev1alpha1.ReasonConfigInvalid)},
+			want:       "ConfigError",
+		},
+		{
+			name: "workload healthy",
+			conditions: []metav1.Condition{
+				cond(configResolved, metav1.ConditionTrue, asExpected),
+				cond(workloadReady, metav1.ConditionTrue, freqtradev1alpha1.ReasonWorkloadHealthy),
+			},
+			want: "Running",
+		},
+		{
+			name: "workload succeeded",
+			conditions: []metav1.Condition{
+				cond(configResolved, metav1.ConditionTrue, asExpected),
+				cond(workloadReady, metav1.ConditionTrue, freqtradev1alpha1.ReasonWorkloadSucceeded),
+			},
+			want: "Succeeded",
+		},
+		{
+			name: "workload failed",
+			conditions: []metav1.Condition{
+				cond(configResolved, metav1.ConditionTrue, asExpected),
+				cond(workloadReady, metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadFailed),
+			},
+			want: "Failed",
+		},
+		{
+			name: "workload progressing",
+			conditions: []metav1.Condition{
+				cond(configResolved, metav1.ConditionTrue, asExpected),
+				cond(workloadReady, metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadProgressing),
+			},
+			want: "Pending",
+		},
+		{
+			name: "resource error",
+			conditions: []metav1.Condition{
+				cond(configResolved, metav1.ConditionTrue, asExpected),
+				cond(workloadReady, metav1.ConditionFalse, freqtradev1alpha1.ReasonReconcileError),
+			},
+			want: "ResourceError",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := deriveTradeBotPhase(tt.conditions); got != tt.want {
+				t.Errorf("deriveTradeBotPhase() = %q, want %q", got, tt.want)
 			}
 		})
 	}

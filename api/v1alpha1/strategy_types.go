@@ -14,8 +14,20 @@ type StrategySpec struct {
 
 // StrategyStatus defines the observed state of Strategy
 type StrategyStatus struct {
+	// Phase is a derived, human-facing summary for the printer column only -
+	// it is never the source of truth. Conditions are.
 	Phase   string `json:"phase,omitempty"`
 	Message string `json:"message,omitempty"`
+
+	// +optional
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ObservedGeneration is the most recent metadata.generation this status
+	// was computed from.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true

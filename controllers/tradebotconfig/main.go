@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -18,7 +20,6 @@ import (
 type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	shared.StatusUpdater
 }
 
 // +kubebuilder:rbac:groups=freqtrade.io,resources=tradebotconfigs,verbs=get;list;watch
@@ -28,7 +29,7 @@ type Reconciler struct {
 // Reconcile handles the reconciliation loop for Tradebotconfig resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.V(1).Info("Starting Tradebotconfig reconciliation", "namespacedName", req.NamespacedName)
+	logger.V(1).Info("Reconciling TradeBotConfig", "namespacedName", req.NamespacedName)
 
 	// Fetch Tradebotconfig resource
 	var tradebotconfig freqtradev1alpha1.TradeBotConfig
@@ -37,38 +38,56 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logger.V(1).Info("Tradebotconfig resource not found, ignoring since it must be deleted")
 			return ctrl.Result{}, nil
 		}
-		logger.V(1).Error(err, "Failed to get Tradebotconfig resource")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Initialize status if empty
-	if tradebotconfig.Status.Phase == "" {
-		if err := r.RetryUpdateConfigStatus(ctx, &tradebotconfig, "Validating", "Starting validation", 3); err != nil {
-			logger.V(1).Error(err, "Failed to initialize Tradebotconfig status")
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+	// TradeBotConfig has no external references and no owned workload, so
+	// validation is a pure, synchronous function of its own spec: Ready is
+	// the only condition it ever sets.
+	validateErr := r.validateTradeBotConfig(ctx, &tradebotconfig)
+
+	if err := shared.PatchStatus(ctx, r.Client, &tradebotconfig, func() {
+		condition := metav1.Condition{
+			Type:    freqtradev1alpha1.ConditionReady,
+			Status:  metav1.ConditionTrue,
+			Reason:  freqtradev1alpha1.ReasonAsExpected,
+			Message: "TradeBotConfig configuration is valid",
 		}
+		if validateErr != nil {
+			condition.Status = metav1.ConditionFalse
+			condition.Reason = freqtradev1alpha1.ReasonConfigInvalid
+			condition.Message = validateErr.Error()
+		}
+		meta.SetStatusCondition(&tradebotconfig.Status.Conditions, condition)
+		tradebotconfig.Status.Phase = deriveTradeBotConfigPhase(tradebotconfig.Status.Conditions)
+	}); err != nil {
+		logger.Error(err, "Failed to update TradeBotConfig status")
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 	}
 
-	// Validate Tradebotconfig configuration
-	if err := r.validateTradeBotConfig(ctx, &tradebotconfig); err != nil {
-		logger.V(1).Error(err, "Tradebotconfig validation failed")
-		if updateErr := r.RetryUpdateConfigStatus(ctx, &tradebotconfig, "Invalid", err.Error(), 3); updateErr != nil {
-			logger.V(1).Error(updateErr, "Failed to update Tradebotconfig status after validation failure")
-		}
-		result := shared.FinishReconciliation("Invalid", err, 30*time.Second)
-		return result.Result, result.Error
-	}
-
-	// Update status to valid
-	if err := r.RetryUpdateConfigStatus(ctx, &tradebotconfig, "Valid", "Tradebotconfig configuration is valid", 3); err != nil {
-		logger.V(1).Error(err, "Failed to update Tradebotconfig status to valid")
-		result := shared.FinishReconciliation("Valid", err, 30*time.Second)
-		return result.Result, result.Error
+	if validateErr != nil {
+		logger.V(1).Error(validateErr, "TradeBotConfig validation failed")
+		// Nothing to retry: re-validating an unchanged spec always
+		// produces the same result. The next reconcile the user's own edit
+		// triggers is what can change the outcome.
+		return ctrl.Result{}, nil
 	}
 
 	logger.V(1).Info("Tradebotconfig reconciliation completed successfully", "name", tradebotconfig.Name)
-	result := shared.FinishReconciliation("Valid", nil, 5*time.Minute)
-	return result.Result, result.Error
+	return ctrl.Result{}, nil
+}
+
+// deriveTradeBotConfigPhase computes the human-facing Phase from Conditions
+// - it is never itself the source of truth.
+func deriveTradeBotConfigPhase(conditions []metav1.Condition) string {
+	ready := meta.FindStatusCondition(conditions, freqtradev1alpha1.ConditionReady)
+	if ready == nil {
+		return "Validating"
+	}
+	if ready.Status == metav1.ConditionTrue {
+		return "Valid"
+	}
+	return "Invalid"
 }
 
 // validateTradebotconfig performs validation of Tradebotconfig configuration

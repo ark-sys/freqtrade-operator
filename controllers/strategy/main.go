@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,7 +22,6 @@ import (
 type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	shared.StatusUpdater
 }
 
 // +kubebuilder:rbac:groups=freqtrade.io,resources=strategies,verbs=get;list;watch
@@ -30,7 +31,7 @@ type Reconciler struct {
 // Reconcile handles the reconciliation loop for Strategy resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.V(1).Info("Starting Strategy reconciliation", "namespacedName", req.NamespacedName)
+	logger.V(1).Info("Reconciling Strategy", "namespacedName", req.NamespacedName)
 
 	// Fetch Strategy resource
 	var strategy freqtradev1alpha1.Strategy
@@ -39,38 +40,56 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logger.V(1).Info("Strategy resource not found, ignoring since it must be deleted")
 			return ctrl.Result{}, nil
 		}
-		logger.V(1).Error(err, "Failed to get Strategy resource")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Initialize status if empty
-	if strategy.Status.Phase == "" {
-		if err := r.RetryUpdateConfigStatus(ctx, &strategy, "Validating", "Starting validation", 3); err != nil {
-			logger.V(1).Error(err, "Failed to initialize Strategy status")
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+	// Strategy has no external references and no owned workload, so
+	// validation is a pure, synchronous function of its own spec: Ready is
+	// the only condition it ever sets.
+	validateErr := r.validateStrategy(ctx, &strategy)
+
+	if err := shared.PatchStatus(ctx, r.Client, &strategy, func() {
+		condition := metav1.Condition{
+			Type:    freqtradev1alpha1.ConditionReady,
+			Status:  metav1.ConditionTrue,
+			Reason:  freqtradev1alpha1.ReasonAsExpected,
+			Message: "Strategy configuration is valid",
 		}
+		if validateErr != nil {
+			condition.Status = metav1.ConditionFalse
+			condition.Reason = freqtradev1alpha1.ReasonConfigInvalid
+			condition.Message = validateErr.Error()
+		}
+		meta.SetStatusCondition(&strategy.Status.Conditions, condition)
+		strategy.Status.Phase = deriveStrategyPhase(strategy.Status.Conditions)
+	}); err != nil {
+		logger.Error(err, "Failed to update Strategy status")
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 	}
 
-	// Validate Strategy configuration
-	if err := r.validateStrategy(ctx, &strategy); err != nil {
-		logger.V(1).Error(err, "Strategy validation failed")
-		if updateErr := r.RetryUpdateConfigStatus(ctx, &strategy, "Invalid", err.Error(), 3); updateErr != nil {
-			logger.V(1).Error(updateErr, "Failed to update Strategy status after validation failure")
-		}
-		result := shared.FinishReconciliation("Invalid", err, 30*time.Second)
-		return result.Result, result.Error
-	}
-
-	// Update status to valid
-	if err := r.RetryUpdateConfigStatus(ctx, &strategy, "Valid", "Strategy configuration is valid", 3); err != nil {
-		logger.V(1).Error(err, "Failed to update Strategy status to valid")
-		result := shared.FinishReconciliation("Valid", err, 30*time.Second)
-		return result.Result, result.Error
+	if validateErr != nil {
+		logger.V(1).Error(validateErr, "Strategy validation failed")
+		// Nothing to retry: re-validating an unchanged spec always
+		// produces the same result. The next reconcile the user's own edit
+		// triggers is what can change the outcome.
+		return ctrl.Result{}, nil
 	}
 
 	logger.V(1).Info("Strategy reconciliation completed successfully", "name", strategy.Name)
-	result := shared.FinishReconciliation("Valid", nil, 5*time.Minute)
-	return result.Result, result.Error
+	return ctrl.Result{}, nil
+}
+
+// deriveStrategyPhase computes the human-facing Phase from Conditions - it
+// is never itself the source of truth.
+func deriveStrategyPhase(conditions []metav1.Condition) string {
+	ready := meta.FindStatusCondition(conditions, freqtradev1alpha1.ConditionReady)
+	if ready == nil {
+		return "Validating"
+	}
+	if ready.Status == metav1.ConditionTrue {
+		return "Valid"
+	}
+	return "Invalid"
 }
 
 // validateStrategy performs validation of Strategy configuration

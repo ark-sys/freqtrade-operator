@@ -4,17 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	"github.com/ark-sys/freqtrade-operator/controllers/tradebotconfig/configbuilder"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -142,11 +144,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	logger.V(1).Info("Reconciling TradeBot", "name", tradeBot.Name, "generation", tradeBot.Generation, "phase", tradeBot.Status.Phase)
 
-	// Snapshot status on entry; finishReconciliation diffs against this to decide
-	// whether a status write is needed, instead of hand-tracking a bool across
-	// every branch below (see controllers/frequi/main.go for the same pattern).
-	originalStatus := tradeBot.Status.DeepCopy()
-
 	// 2. Handle deletion if needed
 	if tradeBot.GetDeletionTimestamp() != nil {
 		logger.V(1).Info("TradeBot is being deleted", "name", tradeBot.Name)
@@ -205,10 +202,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger.V(2).Info("Fetching referenced resources for TradeBot", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
 	resources, err := r.fetchReferencedResources(ctx, &tradeBot, req.Namespace)
 	if err != nil {
-		tradeBot.Status.Phase = "Error"
-		tradeBot.Status.Message = fmt.Sprintf("Failed to fetch referenced resources: %v", err)
+		reason := freqtradev1alpha1.ReasonReconcileError
+		if errors.IsNotFound(err) {
+			reason = freqtradev1alpha1.ReasonReferenceNotFound
+		}
 		logger.Error(err, "Failed to fetch referenced resources")
-		return r.finishReconciliation(ctx, &tradeBot, originalStatus, 30*time.Second, err)
+		return r.failReconcile(ctx, &tradeBot, freqtradev1alpha1.ConditionConfigResolved, reason,
+			fmt.Sprintf("Failed to fetch referenced resources: %v", err), err)
 	}
 	logger.V(2).Info("Fetched referenced resources", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
 
@@ -237,9 +237,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	)
 	if err != nil {
 		logger.Error(err, "Failed to build config")
-		tradeBot.Status.Phase = "ConfigError"
-		tradeBot.Status.Message = fmt.Sprintf("Failed to build configuration: %v", err)
-		return r.finishReconciliation(ctx, &tradeBot, originalStatus, 30*time.Second, err)
+		reason := freqtradev1alpha1.ReasonConfigInvalid
+		if errors.IsNotFound(err) {
+			reason = freqtradev1alpha1.ReasonSecretMissing
+		}
+		return r.failReconcile(ctx, &tradeBot, freqtradev1alpha1.ConditionConfigResolved, reason,
+			fmt.Sprintf("Failed to build configuration: %v", err), err)
 	}
 	logger.V(2).Info("Config built successfully", "configDataKeys", keys(configData))
 
@@ -247,39 +250,87 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger.V(2).Info("Reconciling resources", "configDataKeys", keys(configData))
 	if err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData); err != nil {
 		logger.Error(err, "Failed to reconcile resources")
-		tradeBot.Status.Phase = "ResourceError"
-		tradeBot.Status.Message = fmt.Sprintf("Failed to reconcile resources: %v", err)
-		return r.finishReconciliation(ctx, &tradeBot, originalStatus, 30*time.Second, err)
+		return r.failReconcile(
+			ctx, &tradeBot, freqtradev1alpha1.ConditionWorkloadReady, freqtradev1alpha1.ReasonReconcileError,
+			fmt.Sprintf("Failed to reconcile resources: %v", err), err,
+		)
 	}
 	logger.V(2).Info("Resources reconciled successfully", "name", tradeBot.Name)
 
 	// 8. Success path: reflect the underlying workload's state into status.
-	// This is what actually clears a stale ConfigError/ResourceError phase
-	// left over from a previous failed reconcile.
-	requeueAfter, err := r.updateWorkloadStatus(ctx, &tradeBot)
+	// This is what actually clears a stale ConfigResolved/WorkloadReady=False
+	// condition left over from a previous failed reconcile.
+	workload, err := r.computeWorkloadStatus(ctx, &tradeBot)
 	if err != nil {
 		logger.Error(err, "Failed to read workload status")
-		tradeBot.Status.Phase = "Error"
-		tradeBot.Status.Message = fmt.Sprintf("Failed to read workload status: %v", err)
-		return r.finishReconciliation(ctx, &tradeBot, originalStatus, 30*time.Second, err)
+		return r.failReconcile(
+			ctx, &tradeBot, freqtradev1alpha1.ConditionWorkloadReady, freqtradev1alpha1.ReasonReconcileError,
+			fmt.Sprintf("Failed to read workload status: %v", err), err,
+		)
 	}
+
 	// A CORS misconfiguration doesn't stop the bot from running, but it is
 	// actionable operator feedback, so it takes priority over a routine
-	// "Running"/"Pending" message.
+	// workload status message.
+	message := workload.message
 	if corsWarning != "" {
-		tradeBot.Status.Message = corsWarning
+		message = corsWarning
 	}
 
-	logger.V(1).Info("TradeBot reconciliation completed successfully", "name", tradeBot.Name, "phase", tradeBot.Status.Phase, "message", tradeBot.Status.Message)
-	return r.finishReconciliation(ctx, &tradeBot, originalStatus, requeueAfter, nil)
+	if err := shared.PatchStatus(ctx, r.Client, &tradeBot, func() {
+		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+			Type:    freqtradev1alpha1.ConditionConfigResolved,
+			Status:  metav1.ConditionTrue,
+			Reason:  freqtradev1alpha1.ReasonAsExpected,
+			Message: "",
+		})
+		var status metav1.ConditionStatus
+		var reason string
+		switch {
+		case workload.failed:
+			status, reason = metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadFailed
+		case workload.succeeded:
+			status, reason = metav1.ConditionTrue, freqtradev1alpha1.ReasonWorkloadSucceeded
+		case workload.ready:
+			status, reason = metav1.ConditionTrue, freqtradev1alpha1.ReasonWorkloadHealthy
+		default:
+			status, reason = metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadProgressing
+		}
+		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+			Type: freqtradev1alpha1.ConditionWorkloadReady, Status: status, Reason: reason, Message: workload.message,
+		})
+		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+			Type: freqtradev1alpha1.ConditionReady, Status: status, Reason: reason, Message: message,
+		})
+		tradeBot.Status.Phase = deriveTradeBotPhase(tradeBot.Status.Conditions)
+		tradeBot.Status.Message = message
+	}); err != nil {
+		logger.Error(err, "Failed to update TradeBot status")
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, err
+	}
+
+	logger.V(1).Info("TradeBot reconciliation completed successfully",
+		"name", tradeBot.Name, "phase", tradeBot.Status.Phase, "message", message)
+	return ctrl.Result{RequeueAfter: workload.requeueAfter}, nil
 }
 
-// updateWorkloadStatus reflects the state of the workload TradeBot owns (a
-// StatefulSet in trade mode, a Job otherwise) into tradeBot.Status, and
-// returns how soon to requeue to re-check a not-yet-ready workload.
-func (r *Reconciler) updateWorkloadStatus(
+// workloadStatus is the raw outcome of inspecting the workload TradeBot
+// owns, before it's translated into conditions. Exactly one of ready,
+// succeeded, or failed is true unless the workload is still progressing (an
+// unstarted/not-yet-ready StatefulSet or Job), in which case none are.
+type workloadStatus struct {
+	ready        bool
+	succeeded    bool
+	failed       bool
+	message      string
+	requeueAfter time.Duration
+}
+
+// computeWorkloadStatus inspects the workload TradeBot owns (a StatefulSet
+// in trade mode, a Job otherwise).
+func (r *Reconciler) computeWorkloadStatus(
 	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot,
-) (time.Duration, error) {
+) (workloadStatus, error) {
 	effectiveCmd := strings.TrimSpace(tradeBot.Spec.FreqtradeCommand)
 	if effectiveCmd == "" {
 		effectiveCmd = "trade"
@@ -290,70 +341,87 @@ func (r *Reconciler) updateWorkloadStatus(
 	if effectiveCmd == "trade" {
 		var sts appsv1.StatefulSet
 		if err := r.Get(ctx, key, &sts); err != nil {
-			return 0, fmt.Errorf("failed to get StatefulSet: %w", err)
+			return workloadStatus{}, fmt.Errorf("failed to get StatefulSet: %w", err)
 		}
 		if sts.Status.ReadyReplicas < 1 {
-			tradeBot.Status.Phase = "Pending"
-			tradeBot.Status.Message = fmt.Sprintf("Waiting for StatefulSet to become ready (%d ready)", sts.Status.ReadyReplicas)
-			return 15 * time.Second, nil
+			return workloadStatus{
+				message:      fmt.Sprintf("Waiting for StatefulSet to become ready (%d ready)", sts.Status.ReadyReplicas),
+				requeueAfter: 15 * time.Second,
+			}, nil
 		}
-		tradeBot.Status.Phase = "Running"
-		tradeBot.Status.Message = ""
-		return 0, nil
+		return workloadStatus{ready: true}, nil
 	}
 
 	var job batchv1.Job
 	if err := r.Get(ctx, key, &job); err != nil {
-		return 0, fmt.Errorf("failed to get Job: %w", err)
+		return workloadStatus{}, fmt.Errorf("failed to get Job: %w", err)
 	}
 	switch {
 	case job.Status.Succeeded > 0:
-		tradeBot.Status.Phase = "Succeeded"
-		tradeBot.Status.Message = ""
-		return 0, nil
+		return workloadStatus{succeeded: true}, nil
 	case job.Status.Failed > 0:
-		tradeBot.Status.Phase = "Failed"
-		tradeBot.Status.Message = "Job failed; check pod logs"
-		return 0, nil
+		return workloadStatus{failed: true, message: "Job failed; check pod logs"}, nil
 	case job.Status.Active > 0:
-		tradeBot.Status.Phase = "Running"
-		tradeBot.Status.Message = ""
-		return 15 * time.Second, nil
+		return workloadStatus{message: "Job is running", requeueAfter: 15 * time.Second}, nil
 	default:
-		tradeBot.Status.Phase = "Pending"
-		tradeBot.Status.Message = "Waiting for Job to start"
-		return 15 * time.Second, nil
+		return workloadStatus{message: "Waiting for Job to start", requeueAfter: 15 * time.Second}, nil
 	}
 }
 
-// finishReconciliation writes tradeBot.Status if it differs from originalStatus
-// (the snapshot taken at the top of Reconcile) and returns the requeue result.
-func (r *Reconciler) finishReconciliation(
-	ctx context.Context,
-	tradeBot *freqtradev1alpha1.TradeBot,
-	originalStatus *freqtradev1alpha1.TradeBotStatus,
-	requeueAfter time.Duration,
-	err error) (ctrl.Result, error) {
+// deriveTradeBotPhase computes the human-facing Phase from Conditions - it
+// is never itself the source of truth.
+func deriveTradeBotPhase(conditions []metav1.Condition) string {
+	configResolved := meta.FindStatusCondition(conditions, freqtradev1alpha1.ConditionConfigResolved)
+	if configResolved != nil && configResolved.Status == metav1.ConditionFalse {
+		if configResolved.Reason == freqtradev1alpha1.ReasonReferenceNotFound {
+			return "Error"
+		}
+		return "ConfigError"
+	}
+	c := meta.FindStatusCondition(conditions, freqtradev1alpha1.ConditionWorkloadReady)
+	if c == nil {
+		return ""
+	}
+	switch c.Reason {
+	case freqtradev1alpha1.ReasonWorkloadHealthy:
+		return "Running"
+	case freqtradev1alpha1.ReasonWorkloadSucceeded:
+		return "Succeeded"
+	case freqtradev1alpha1.ReasonWorkloadFailed:
+		return "Failed"
+	case freqtradev1alpha1.ReasonReconcileError:
+		return "ResourceError"
+	default:
+		return "Pending"
+	}
+}
 
+// failReconcileRequeueAfter is how soon a failed reconcile re-checks, when
+// the failure itself isn't returned as an error (see failReconcile).
+const failReconcileRequeueAfter = 30 * time.Second
+
+// failReconcile sets conditionType and Ready to False with the given
+// reason/message, derives Phase from the result, and returns a ctrl.Result:
+// failReconcileRequeueAfter is honored when err is nil, otherwise
+// controller-runtime's own exponential backoff takes over (its Result is
+// ignored whenever a non-nil error is also returned).
+func (r *Reconciler) failReconcile(
+	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot,
+	conditionType, reason, message string, err error,
+) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-
-	if !reflect.DeepEqual(originalStatus, &tradeBot.Status) {
-		var latestTradeBot freqtradev1alpha1.TradeBot
-		if getErr := r.Get(ctx, client.ObjectKeyFromObject(tradeBot), &latestTradeBot); getErr != nil {
-			logger.Error(getErr, "Failed to get latest TradeBot before status update")
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, getErr
-		}
-
-		latestTradeBot.Status = tradeBot.Status
-		if updateErr := r.Status().Update(ctx, &latestTradeBot); updateErr != nil {
-			logger.Error(updateErr, "Failed to update TradeBot status")
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, updateErr
-		}
-		logger.V(1).Info("Updated TradeBot status", "name", tradeBot.Name, "phase", latestTradeBot.Status.Phase)
+	if patchErr := shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+			Type: conditionType, Status: metav1.ConditionFalse, Reason: reason, Message: message,
+		})
+		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+			Type: freqtradev1alpha1.ConditionReady, Status: metav1.ConditionFalse, Reason: reason, Message: message,
+		})
+		tradeBot.Status.Phase = deriveTradeBotPhase(tradeBot.Status.Conditions)
+		tradeBot.Status.Message = message
+	}); patchErr != nil {
+		logger.Error(patchErr, "Failed to update TradeBot status")
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, patchErr
 	}
-
-	if err != nil {
-		return ctrl.Result{RequeueAfter: requeueAfter}, err
-	}
-	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	return ctrl.Result{RequeueAfter: failReconcileRequeueAfter}, err
 }

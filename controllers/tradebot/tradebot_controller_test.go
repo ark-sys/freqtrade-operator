@@ -37,11 +37,11 @@ func newTestTradeBotConfig(name string) *freqtradev1alpha1.TradeBotConfig {
 		Spec: freqtradev1alpha1.TradeBotConfigSpec{
 			// Bot has no omitempty on its json tag, so controller-gen already
 			// marks spec.bot required in the generated CRD schema even
-			// without an explicit kubebuilder marker (P1-1 hasn't landed
-			// yet). Exchange is effectively required for a different reason
-			// (P0-1). Everything else can be left nil for these tests, which
-			// only care that config.json renders successfully, not its
-			// content (that's P5-1's job).
+			// without an explicit kubebuilder marker. Exchange is
+			// effectively required for a different reason (P0-1). Everything
+			// else can be left nil for these tests, which only care that
+			// config.json renders successfully, not its content (that's
+			// P5-1's job).
 			Bot:      &freqtradev1alpha1.BotConfig{},
 			Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance"},
 			// APIServer must be non-nil for the api_server section (and so
@@ -421,4 +421,49 @@ var _ = Describe("TradeBot controller", func() {
 			Expect(errors.IsInvalid(err)).To(BeTrue())
 		})
 	})
+
+	// P1-3's acceptance criterion: status.conditions carries the standard
+	// shape (lastTransitionTime/observedGeneration/reason/message), and
+	// observedGeneration at the status root tracks metadata.generation.
+	Describe("status.conditions (P1-3)", func() {
+		It("reports ConfigResolved and WorkloadReady with the standard condition shape", func() {
+			ctx := context.Background()
+			strategy := newTestStrategy("strategy-conditions")
+			config := newTestTradeBotConfig("config-conditions")
+			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
+			Expect(k8sClient.Create(ctx, config)).To(Succeed())
+
+			tradeBot := newTestTradeBot("bot-conditions", strategy.Name, config.Name, "trade")
+			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
+			key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
+
+			Eventually(func(g Gomega) {
+				var latest freqtradev1alpha1.TradeBot
+				g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
+				g.Expect(latest.Status.ObservedGeneration).To(Equal(latest.Generation))
+
+				configResolved := findStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionConfigResolved)
+				g.Expect(configResolved).NotTo(BeNil())
+				g.Expect(configResolved.Status).To(Equal(metav1.ConditionTrue))
+				g.Expect(configResolved.Reason).NotTo(BeEmpty())
+				g.Expect(configResolved.LastTransitionTime.IsZero()).To(BeFalse())
+
+				workloadReady := findStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionWorkloadReady)
+				g.Expect(workloadReady).NotTo(BeNil())
+				g.Expect(workloadReady.Reason).NotTo(BeEmpty())
+
+				ready := findStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionReady)
+				g.Expect(ready).NotTo(BeNil())
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+		})
+	})
 })
+
+func findStatusCondition(conditions []metav1.Condition, condType string) *metav1.Condition {
+	for i := range conditions {
+		if conditions[i].Type == condType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}
