@@ -24,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 )
 
 // This suite covers what's actually true against the current TradeBot
@@ -51,6 +52,16 @@ var _ = BeforeSuite(func() {
 
 	testCtx, testCancel = context.WithCancel(context.Background())
 
+	// Registered before testEnv.Start(), not after: envtest's own
+	// CRDInstallOptions auto-detects conversion.Convertible types (P6-5)
+	// by inspecting the scheme it defaults to (client-go's global
+	// scheme.Scheme, same singleton as below) at CRD-install time, which
+	// happens inside Start() itself - registering these afterward would
+	// leave the conversion webhook unwired for this suite's own tests
+	// with no error, just silently not applied.
+	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(freqtradev1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+
 	By("bootstrapping the envtest environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
@@ -64,8 +75,6 @@ var _ = BeforeSuite(func() {
 	testCfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(testCfg).NotTo(BeNil())
-
-	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	k8sClient, err = client.New(testCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())

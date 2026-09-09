@@ -75,6 +75,14 @@ const (
 	// ReasonReconcileError: a generic, otherwise-unclassified error occurred
 	// while reconciling (a List/Get/Create/Update call failed).
 	ReasonReconcileError = "ReconcileError"
+	// ReasonJobModeRemoved: spec.freqtrade_command is set to a one-shot
+	// command (P6-4) - TradeBot is trade-only now that v1beta1 has no
+	// field for it at all; Backtest (D1, P6-1) is the replacement. Normal
+	// create/update traffic can never actually produce this - the
+	// conversion webhook already rejects it, since v1beta1 is the storage
+	// version - this only ever fires for a TradeBot stored as v1alpha1
+	// bytes from before that migration.
+	ReasonJobModeRemoved = "JobModeRemoved"
 	// ReasonPendingRestart is the ConfigDrift=True reason (P2-4): the
 	// rendered config changed but spec.updateStrategy is Manual, so the
 	// StatefulSet pod template was deliberately left untouched. The

@@ -7,11 +7,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
 
 // This file covers P2-1: replacing the hand-rolled ApplyX functions (get ->
@@ -77,47 +74,6 @@ var _ = Describe("server-side apply (P2-1)", func() {
 			g.Expect(sts.OwnerReferences[0].Name).To(Equal(tradeBot.Name))
 			g.Expect(sts.OwnerReferences[0].Controller).NotTo(BeNil())
 			g.Expect(*sts.OwnerReferences[0].Controller).To(BeTrue())
-		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-	})
-
-	It("surfaces a real spec.template drift on a Job-mode TradeBot as WorkloadImmutable via a genuine reconcile", func() {
-		ctx := context.Background()
-		strategy := newTestStrategy("ssa-job-drift-strategy")
-		Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
-		config := newTestTradeBotConfig("ssa-job-drift-config")
-		Expect(k8sClient.Create(ctx, config)).To(Succeed())
-
-		tradeBot := newTestTradeBot("ssa-job-drift-bot", strategy.Name, config.Name, "backtesting")
-		Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
-		key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
-
-		Eventually(func(g Gomega) {
-			var latest freqtradev1alpha1.TradeBot
-			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
-			cond := findStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionWorkloadImmutable)
-			g.Expect(cond).NotTo(BeNil())
-			g.Expect(cond.Status).To(Equal(metav1.ConditionFalse))
-		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-		// Change something that reaches the Job's immutable spec.template -
-		// freqtrade_arguments flow straight into the container args BuildJob
-		// builds. This update itself matches mainResourcePredicate (it's a
-		// spec change), so the background controller reconciles it on its
-		// own; a direct extra Reconcile call here would race that one
-		// (nothing serializes the two, since MaxConcurrentReconciles only
-		// governs the manager's own work queue), so this waits for it via
-		// Eventually instead, like every other spec in this suite does.
-		var latest freqtradev1alpha1.TradeBot
-		Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
-		latest.Spec.FreqtradeArguments = []string{"--timerange", "20240101-20240201"}
-		Expect(k8sClient.Update(ctx, &latest)).To(Succeed())
-
-		Eventually(func(g Gomega) {
-			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
-			cond := findStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionWorkloadImmutable)
-			g.Expect(cond).NotTo(BeNil())
-			g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
-			g.Expect(cond.Reason).To(Equal(freqtradev1alpha1.ReasonSpecChangeIgnored))
 		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 	})
 })

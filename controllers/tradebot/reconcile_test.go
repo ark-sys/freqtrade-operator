@@ -72,3 +72,50 @@ func TestReconcile_MissingReference(t *testing.T) {
 		})
 	}
 }
+
+// TestReconcile_RejectsJobMode covers Reconcile's own defensive guard
+// (P6-4/P6-5) against a Job-mode TradeBot (freqtrade_command set to a
+// one-shot command) - normal create/update traffic can never actually
+// reach this: v1beta1 is the storage version, so the conversion webhook
+// already rejects it (see api/v1alpha1/tradebot_conversion.go and
+// controllers/tradebot/conversion_test.go). This exercises Reconcile
+// against a fake client specifically because a fake client has no
+// conversion webhook at all, letting this construct the one state that
+// check can't reach: a TradeBot already stored as v1alpha1 bytes from
+// before the migration to v1beta1 as storage version.
+func TestReconcile_RejectsJobMode(t *testing.T) {
+	scheme := newWorkloadStatusScheme(t)
+	tradeBot := &freqtradev1alpha1.TradeBot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "my-bot", Namespace: "trading", Finalizers: []string{BotFinalizer},
+		},
+		Spec: freqtradev1alpha1.TradeBotSpec{
+			FreqtradeCommand: "backtesting", Strategy: "some-strategy", Config: "some-config",
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tradeBot).WithStatusSubresource(tradeBot).Build()
+	r := &Reconciler{Client: c, Scheme: scheme}
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "my-bot", Namespace: "trading"}}
+	if _, err := r.Reconcile(context.Background(), req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got freqtradev1alpha1.TradeBot
+	if err := c.Get(context.Background(), req.NamespacedName, &got); err != nil {
+		t.Fatalf("failed to get TradeBot: %v", err)
+	}
+	cond := findStatusCondition(got.Status.Conditions, freqtradev1alpha1.ConditionConfigResolved)
+	if cond == nil || cond.Status != metav1.ConditionFalse || cond.Reason != freqtradev1alpha1.ReasonJobModeRemoved {
+		t.Fatalf("expected ConfigResolved=False/JobModeRemoved, got %+v", got.Status.Conditions)
+	}
+
+	// Confirms this never even attempted resource reconciliation - a
+	// missing Strategy/TradeBotConfig (both "some-strategy"/"some-config"
+	// here, neither seeded) would otherwise surface as its own,
+	// different-reason failure first.
+	err := c.Get(context.Background(), req.NamespacedName, &appsv1.StatefulSet{})
+	if !apierrors.IsNotFound(err) {
+		t.Errorf("expected no StatefulSet to be created, got err=%v", err)
+	}
+}

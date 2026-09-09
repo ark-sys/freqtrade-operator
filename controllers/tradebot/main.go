@@ -13,7 +13,6 @@ import (
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -180,7 +179,6 @@ func keys(m map[string]string) []string {
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile handles the reconciliation loop for TradeBot resources
@@ -252,6 +250,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		logger.V(1).Info("Finalizer added, returning to avoid further processing until update is processed", "name", tradeBot.Name)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	// 3.5. Reject Job mode outright (P6-4): TradeBot is trade-only now that
+	// v1beta1 has no FreqtradeCommand/FreqtradeArguments/Data fields at
+	// all - Backtest is their replacement (D1, P6-1). Normal create/update
+	// traffic can never actually reach this point with a non-trade command
+	// set: v1beta1 is the storage version, so the conversion webhook
+	// (api/v1alpha1/tradebot_conversion.go) already rejects it at the API
+	// layer, on every write. This is a second, independent guard for the
+	// one path that check can't cover - a TradeBot stored as v1alpha1
+	// bytes from before this migration, which a plain Get (this reconciler
+	// requests v1alpha1, a version-matched read needs no conversion at
+	// all) can still read back successfully. Silently treating it as
+	// trade-mode instead would be actively wrong, not just unsupported -
+	// see the ground rules on financial risk.
+	if cmd := strings.TrimSpace(tradeBot.Spec.FreqtradeCommand); cmd != "" && cmd != "trade" {
+		return r.failReconcile(
+			ctx, &tradeBot, freqtradev1alpha1.ConditionConfigResolved, freqtradev1alpha1.ReasonJobModeRemoved,
+			fmt.Sprintf("spec.freqtrade_command=%q is no longer supported - TradeBot is trade-only; "+
+				"recreate this as a Backtest instead", cmd), nil,
+		)
 	}
 
 	// 4. Fetch all referenced CRDs
@@ -356,17 +375,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			Reason:  freqtradev1alpha1.ReasonAsExpected,
 			Message: "",
 		})
-		var status metav1.ConditionStatus
-		var reason string
-		switch {
-		case workload.failed:
-			status, reason = metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadFailed
-		case workload.succeeded:
-			status, reason = metav1.ConditionTrue, freqtradev1alpha1.ReasonWorkloadSucceeded
-		case workload.ready:
+		status, reason := metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadProgressing
+		if workload.ready {
 			status, reason = metav1.ConditionTrue, freqtradev1alpha1.ReasonWorkloadHealthy
-		default:
-			status, reason = metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadProgressing
 		}
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type: freqtradev1alpha1.ConditionWorkloadReady, Status: status, Reason: reason, Message: workload.message,
@@ -374,8 +385,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type: freqtradev1alpha1.ConditionReady, Status: status, Reason: reason, Message: message,
 		})
-		meta.SetStatusCondition(&tradeBot.Status.Conditions,
-			workloadImmutableCondition(tradeBot.Name, tradeBot.Generation, outcome.jobSpecChanged))
 		meta.SetStatusCondition(&tradeBot.Status.Conditions,
 			configDriftCondition(tradeBot.Name, tradeBot.Namespace, tradeBot.Generation, outcome.configDrift))
 		tradeBot.Status.AppliedConfigHash = outcome.appliedConfigHash
@@ -450,52 +459,29 @@ func (r *Reconciler) recordLifecycleEvents(tradeBot *freqtradev1alpha1.TradeBot,
 // unstarted/not-yet-ready StatefulSet or Job), in which case none are.
 type workloadStatus struct {
 	ready        bool
-	succeeded    bool
-	failed       bool
 	message      string
 	requeueAfter time.Duration
 }
 
-// computeWorkloadStatus inspects the workload TradeBot owns (a StatefulSet
-// in trade mode, a Job otherwise).
+// computeWorkloadStatus inspects the StatefulSet TradeBot owns. Trade-only
+// (P6-4) - by the time this runs, Reconcile has already rejected anything
+// else (see its own step 3.5), so there's no Job branch here anymore.
 func (r *Reconciler) computeWorkloadStatus(
 	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot,
 ) (workloadStatus, error) {
-	effectiveCmd := strings.TrimSpace(tradeBot.Spec.FreqtradeCommand)
-	if effectiveCmd == "" {
-		effectiveCmd = "trade"
-	}
-
 	key := client.ObjectKeyFromObject(tradeBot)
 
-	if effectiveCmd == "trade" {
-		var sts appsv1.StatefulSet
-		if err := r.Get(ctx, key, &sts); err != nil {
-			return workloadStatus{}, fmt.Errorf("failed to get StatefulSet: %w", err)
-		}
-		if sts.Status.ReadyReplicas < 1 {
-			return workloadStatus{
-				message:      fmt.Sprintf("Waiting for StatefulSet to become ready (%d ready)", sts.Status.ReadyReplicas),
-				requeueAfter: 15 * time.Second,
-			}, nil
-		}
-		return workloadStatus{ready: true}, nil
+	var sts appsv1.StatefulSet
+	if err := r.Get(ctx, key, &sts); err != nil {
+		return workloadStatus{}, fmt.Errorf("failed to get StatefulSet: %w", err)
 	}
-
-	var job batchv1.Job
-	if err := r.Get(ctx, key, &job); err != nil {
-		return workloadStatus{}, fmt.Errorf("failed to get Job: %w", err)
+	if sts.Status.ReadyReplicas < 1 {
+		return workloadStatus{
+			message:      fmt.Sprintf("Waiting for StatefulSet to become ready (%d ready)", sts.Status.ReadyReplicas),
+			requeueAfter: 15 * time.Second,
+		}, nil
 	}
-	switch {
-	case job.Status.Succeeded > 0:
-		return workloadStatus{succeeded: true}, nil
-	case job.Status.Failed > 0:
-		return workloadStatus{failed: true, message: "Job failed; check pod logs"}, nil
-	case job.Status.Active > 0:
-		return workloadStatus{message: "Job is running", requeueAfter: 15 * time.Second}, nil
-	default:
-		return workloadStatus{message: "Waiting for Job to start", requeueAfter: 15 * time.Second}, nil
-	}
+	return workloadStatus{ready: true}, nil
 }
 
 // deriveTradeBotPhase computes the human-facing Phase from Conditions - it
@@ -515,10 +501,6 @@ func deriveTradeBotPhase(conditions []metav1.Condition) string {
 	switch c.Reason {
 	case freqtradev1alpha1.ReasonWorkloadHealthy:
 		return "Running"
-	case freqtradev1alpha1.ReasonWorkloadSucceeded:
-		return "Succeeded"
-	case freqtradev1alpha1.ReasonWorkloadFailed:
-		return "Failed"
 	case freqtradev1alpha1.ReasonReconcileError:
 		return "ResourceError"
 	default:

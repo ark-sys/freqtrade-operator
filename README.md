@@ -156,35 +156,14 @@ The `examples/` directory contains example resources for deploying a complete Fr
 - `frequi.yaml`: FreqUI deployment
 
 
-## Different ways to deploy a TradeBot 
+## Deploying a TradeBot
 
-The default command executed by an instance of a TradeBot is `trade`. This command materializes the TradeBot resource as a StatefulSet that binds configuration and strategy from referenced resources.
-The `trade` command can be overridden by setting the `command` field in the TradeBot resource. This allows for different ways to deploy a TradeBot.
-
-### Using the `trade` command
-
-The `trade` command is used to run a live trading bot. It can be used to trade a strategy in a live environment.
-This command materializes the TradeBot resource as a StatefulSet that binds configuration and strategy from referenced resources.
-The `trade` command is used when no command is specified.
-
-### Using the `backtesting` command
-
-The `backtesting` command is used to backtest a strategy. It can be used to test a strategy before deploying it to a live environment.
-This command materializes the TradeBot resource as a Job that runs the backtesting command.
-
-> New in `v1beta1`: [Backtest runs](#backtest-runs-v1beta1) below is a dedicated CRD for this, with typed parameters,
-> a per-run results PVC, and real `kubectl get backtests` columns. `TradeBot`'s own `backtesting` command still works
-> today and isn't going away yet, but `Backtest` is the better fit for anything beyond a one-off run.
-
-### Using the `hyperopt` command
-
-The `hyperopt` command is used to run a hyperopt. It can be used to find the best parameters for a strategy.
-This command materializes the TradeBot resource as a Job that runs the hyperopt command.
-
-### Using the `plot` command
-
-The `plot` command is used to plot the results of a backtest. It can be used to visualize the results of a backtest.
-This command materializes the TradeBot resource as a Job that runs the plot command.
+`TradeBot` is trade-only (`v1beta1`, P6-4): it always materializes as a StatefulSet running a live bot bound to its
+referenced `TradeBotConfig` and `Strategy`. One-shot runs - what used to be `TradeBot`'s own `backtesting`/`hyperopt`/
+`plot` commands under `v1alpha1` - are [Backtest runs](#backtest-runs-v1beta1) now, a dedicated CRD instead of an
+overloaded field on a live bot's own spec; see D1 in the production plan for why. A `v1alpha1` TradeBot with
+`freqtrade_command` set to anything but `trade` has no `v1beta1` equivalent at all and can no longer be created
+(the conversion webhook rejects it, since `v1beta1` is the storage version) - recreate it as a `Backtest` instead.
 
 ### Deploying an AI bot
 

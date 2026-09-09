@@ -56,6 +56,9 @@ const (
 // SetObservedGeneration implements shared.ConditionedObject, letting
 // shared.PatchStatus set it generically regardless of which CRD it's
 // holding - the same interface v1alpha1's four types implement, satisfied
-// independently here since v1beta1 doesn't import v1alpha1 (see this
-// file's own top comment).
+// independently here since v1beta1 doesn't import v1alpha1 for its own
+// types (see this file's own top comment; TradeBot is the one declared
+// exception - see tradebot_types.go's own doc comment on TBAppConfig).
 func (b *Backtest) SetObservedGeneration(generation int64) { b.Status.ObservedGeneration = generation }
+
+func (t *TradeBot) SetObservedGeneration(generation int64) { t.Status.ObservedGeneration = generation }

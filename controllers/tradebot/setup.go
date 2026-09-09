@@ -6,7 +6,6 @@ import (
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -83,7 +82,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}, builder.WithPredicates(ownedResourceChanged)).
 		Owns(&corev1.PersistentVolumeClaim{}, builder.WithPredicates(ownedResourceChanged)).
 		Owns(&appsv1.StatefulSet{}, builder.WithPredicates(ownedResourceChanged)).
-		Owns(&batchv1.Job{}, builder.WithPredicates(ownedResourceChanged)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: maxReconciles}).
 		Complete(r)
 }

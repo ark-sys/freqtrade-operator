@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -139,95 +138,14 @@ var _ = Describe("TradeBot controller", func() {
 		})
 	})
 
-	Describe("creating a job-mode (one-shot) TradeBot", func() {
-		It("creates a Job and never a StatefulSet or Service", func() {
-			ctx := context.Background()
-			strategy := newTestStrategy("strategy-job")
-			config := newTestTradeBotConfig("config-job")
-			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
-			Expect(k8sClient.Create(ctx, config)).To(Succeed())
-
-			tradeBot := newTestTradeBot("bot-job", strategy.Name, config.Name, "backtesting")
-			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
-
-			key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
-
-			Eventually(func(g Gomega) {
-				var job batchv1.Job
-				g.Expect(k8sClient.Get(ctx, key, &job)).To(Succeed())
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-			Consistently(func() bool {
-				var sts appsv1.StatefulSet
-				return errors.IsNotFound(k8sClient.Get(ctx, key, &sts))
-			}, "3s", eventuallyPoll).Should(BeTrue(), "a job-mode TradeBot must never get a StatefulSet")
-		})
-	})
-
-	// The money-losing case (P0-4): switching modes must not leave the
-	// previous mode's workload running under stale config.
-	Describe("switching freqtrade_command after creation", func() {
-		It("prunes the StatefulSet and Service when switching from trade to a one-shot command", func() {
-			ctx := context.Background()
-			strategy := newTestStrategy("strategy-switch-to-job")
-			config := newTestTradeBotConfig("config-switch-to-job")
-			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
-			Expect(k8sClient.Create(ctx, config)).To(Succeed())
-
-			tradeBot := newTestTradeBot("bot-switch-to-job", strategy.Name, config.Name, "trade")
-			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
-			key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
-
-			Eventually(func() error {
-				return k8sClient.Get(ctx, key, &appsv1.StatefulSet{})
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-			Eventually(func() error {
-				var latest freqtradev1alpha1.TradeBot
-				if err := k8sClient.Get(ctx, key, &latest); err != nil {
-					return err
-				}
-				latest.Spec.FreqtradeCommand = "backtesting"
-				return k8sClient.Update(ctx, &latest)
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-			Eventually(func(g Gomega) {
-				g.Expect(errors.IsNotFound(k8sClient.Get(ctx, key, &appsv1.StatefulSet{}))).To(BeTrue())
-				g.Expect(errors.IsNotFound(k8sClient.Get(ctx, key, &corev1.Service{}))).To(BeTrue())
-				g.Expect(k8sClient.Get(ctx, key, &batchv1.Job{})).To(Succeed())
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-		})
-
-		It("prunes the Job when switching back from a one-shot command to trade", func() {
-			ctx := context.Background()
-			strategy := newTestStrategy("strategy-switch-to-trade")
-			config := newTestTradeBotConfig("config-switch-to-trade")
-			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
-			Expect(k8sClient.Create(ctx, config)).To(Succeed())
-
-			tradeBot := newTestTradeBot("bot-switch-to-trade", strategy.Name, config.Name, "backtesting")
-			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
-			key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
-
-			Eventually(func() error {
-				return k8sClient.Get(ctx, key, &batchv1.Job{})
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-			Eventually(func() error {
-				var latest freqtradev1alpha1.TradeBot
-				if err := k8sClient.Get(ctx, key, &latest); err != nil {
-					return err
-				}
-				latest.Spec.FreqtradeCommand = "trade"
-				return k8sClient.Update(ctx, &latest)
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-			Eventually(func(g Gomega) {
-				g.Expect(errors.IsNotFound(k8sClient.Get(ctx, key, &batchv1.Job{}))).To(BeTrue())
-				g.Expect(k8sClient.Get(ctx, key, &appsv1.StatefulSet{})).To(Succeed())
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-		})
-	})
+	// Job mode (backtesting/hyperopt/...) is gone as of P6-4: creating one
+	// through the normal client path is already covered at the API layer
+	// by the conversion webhook rejection tests in conversion_test.go (v1beta1
+	// is the storage version, so even a plain Create must convert
+	// successfully to be stored at all). TestReconcile_RejectsJobMode
+	// (reconcile_test.go) covers Reconcile's own second, independent guard
+	// for the one path that can't reach: a TradeBot already stored as
+	// v1alpha1 bytes from before this migration.
 
 	// A TradeBot referencing a nonexistent Strategy/TradeBotConfig used to
 	// be constructed here directly - as of P1-4, the admission webhook
