@@ -106,6 +106,11 @@ in etcd and readable by anyone who can `get` the `TradeBotConfig` - and the admi
 unless the `TradeBotConfig` carries the annotation `freqtrade.io/allow-plaintext-credentials: "true"`. Use `secretRef`
 instead; the plaintext fields will be removed in `v1beta1`.
 
+If `spec.apiServer.enabled: true` and neither source above supplies `jwt_secret_key`, the operator generates a random one
+itself and keeps reusing that same value on every later reconcile - freqtrade needs *some* signing key to start its REST
+API, and forwarding a short, guessable, or absent one is worse than picking a good one for you. A `jwt_secret_key` you *do*
+supply is still rejected if it's under 32 characters, from either source.
+
 ### 3. Create FreqUI deployment
 
 ```bash
@@ -228,6 +233,27 @@ than updating the existing one, which would need the StatefulSet's volume refere
 already goes through independently. That's a real feature, not a rejected idea, but it's a bigger one than "harden the
 Secret" implies - revisit it if immutable audit trails for the config Secret specifically become a real requirement.
 
+## Network policy
+
+Every trade-mode TradeBot gets a `NetworkPolicy` (named after the bot) that default-denies ingress to freqtrade's REST API
+(port `8080`) and allows only two kinds of traffic in:
+
+- Any FreqUI whose `spec.tradeBotRefs` includes the bot - re-evaluated on every reconcile, so referencing (or
+  un-referencing) a bot from a FreqUI updates its `NetworkPolicy` automatically.
+- The operator's own pod, for its own future use polling each bot's API for live status - not implemented yet, but the
+  network access is opened now so that later work doesn't need a second security-relevant change to land it.
+
+Nothing else - other bots, arbitrary pods in the namespace, etc. - can reach port `8080`. If something else legitimately
+needs to (your own monitoring, a custom integration), it isn't currently configurable per-bot; open an issue or add your
+own additional `NetworkPolicy` alongside the operator's, since they compose (Kubernetes ORs every applicable policy's
+allow rules together).
+
+The allow-from-operator rule depends on the operator's pod knowing its own namespace via the `POD_NAMESPACE` downward-API
+env var (wired into both the Helm chart and the kustomize manifests already). A custom Deployment that omits it just
+drops that one peer - FreqUI access still works, but nothing else can reach the API on `8080` either, and no error is
+raised.
+
+Egress is untouched - a bot can still reach its exchange, Telegram, DNS, etc. without restriction.
 
 ## Development
 

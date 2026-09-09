@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -26,6 +27,9 @@ func newWorkloadStatusScheme(t *testing.T) *runtime.Scheme {
 	}
 	if err := batchv1.AddToScheme(scheme); err != nil {
 		t.Fatalf("failed to add batchv1 to scheme: %v", err)
+	}
+	if err := networkingv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add networkingv1 to scheme: %v", err)
 	}
 	if err := freqtradev1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("failed to add v1alpha1 to scheme: %v", err)

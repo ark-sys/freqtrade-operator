@@ -6,7 +6,7 @@ import "testing"
 // by every Build*Config function: a nil section pointer renders nothing,
 // rather than panicking or emitting an empty section.
 func TestBuildXConfig_NilInputReturnsNil(t *testing.T) {
-	if got, err := BuildTradeBotConfig("bot", nil, nil, nil); got != nil || err != nil {
+	if got, err := BuildTradeBotConfig("bot", nil, nil, "", nil); got != nil || err != nil {
 		t.Errorf("BuildTradeBotConfig(nil) = (%v, %v), want (nil, nil)", got, err)
 	}
 	if got, err := BuildExchangeConfig(nil, nil); got != nil || err != nil {

@@ -227,6 +227,7 @@ func main() {
 		MaxConcurrentReconciles: tradeBotMaxConcurrentReconciles,
 		Recorder:                mgr.GetEventRecorderFor("tradebot-controller"),
 		DefaultImage:            defaultFreqtradeImage,
+		OperatorNamespace:       os.Getenv("POD_NAMESPACE"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TradeBot")
 		os.Exit(1)

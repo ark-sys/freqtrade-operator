@@ -4,8 +4,17 @@ import (
 	"github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
 
-// BuildTradeBotConfig builds the base bot configuration for Freqtrade config.json
-func BuildTradeBotConfig(tradeBotName string, tradeBotConfig *v1alpha1.TradeBotConfig, apiCredentials map[string][]byte, extraCorsHosts []string) (map[string]interface{}, error) {
+// BuildTradeBotConfig builds the base bot configuration for Freqtrade config.json.
+// jwtSecretKey is api_server.jwt_secret_key already fully resolved (plaintext
+// fallback, secretRef override, and absent-value generation all settled) by
+// resolveAPIServerJWTSecretKey - this function only writes it through.
+func BuildTradeBotConfig(
+	tradeBotName string,
+	tradeBotConfig *v1alpha1.TradeBotConfig,
+	apiCredentials map[string][]byte,
+	jwtSecretKey string,
+	extraCorsHosts []string,
+) (map[string]interface{}, error) {
 	if tradeBotConfig == nil {
 		return nil, nil
 	}
@@ -372,9 +381,6 @@ func BuildTradeBotConfig(tradeBotName string, tradeBotConfig *v1alpha1.TradeBotC
 		if tradeBotConfig.Spec.APIServer.Password != "" {
 			apiServer["password"] = tradeBotConfig.Spec.APIServer.Password
 		}
-		if tradeBotConfig.Spec.APIServer.JWTSecretKey != "" {
-			apiServer["jwt_secret_key"] = tradeBotConfig.Spec.APIServer.JWTSecretKey
-		}
 
 		if apiCredentials != nil {
 			if apiCredentials["user"] != nil {
@@ -383,9 +389,14 @@ func BuildTradeBotConfig(tradeBotName string, tradeBotConfig *v1alpha1.TradeBotC
 			if apiCredentials["password"] != nil {
 				apiServer["password"] = string(apiCredentials["password"])
 			}
-			if apiCredentials["jwt_secret_key"] != nil {
-				apiServer["jwt_secret_key"] = string(apiCredentials["jwt_secret_key"])
-			}
+		}
+
+		// jwtSecretKey is pre-resolved by resolveAPIServerJWTSecretKey (P3-4):
+		// plaintext/secretRef precedence, minimum-length validation, and
+		// generate-if-absent (persisted via the existing rendered Secret) are
+		// all already settled by the time it gets here.
+		if jwtSecretKey != "" {
+			apiServer["jwt_secret_key"] = jwtSecretKey
 		}
 
 		corsOrigins := tradeBotConfig.Spec.APIServer.CORSOrigins

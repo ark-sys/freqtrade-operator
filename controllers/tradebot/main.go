@@ -54,9 +54,28 @@ type Reconciler struct {
 	// tag would let a routine pod restart silently pick up a new freqtrade
 	// version mid-trading.
 	DefaultImage string
+
+	// OperatorNamespace is the namespace the operator's own pod runs in
+	// (read from the POD_NAMESPACE downward-API env var - see cmd/main.go),
+	// used as the allow-from-operator peer in each trade-mode TradeBot's
+	// NetworkPolicy (P3-4, built ahead of D4/P4-3's bot-polling per the
+	// plan's own instruction to land both rules together). Empty disables
+	// that peer entirely rather than guessing, since a wrong namespace
+	// would silently lock the operator itself out later.
+	OperatorNamespace string
 }
 
 // collectCORSHostsForTradeBot returns a deduplicated, normalized list of CORS hosts.
+// collectCORSHostsForTradeBot only ever allows origins this operator can
+// itself account for: each referencing FreqUI's own configured (or derived
+// default) origin. It deliberately does NOT add a speculative
+// "<botname>.<frequi-host>" subdomain entry (P3-4) - nothing in this
+// operator provisions per-bot subdomains (FreqUI is a single shared
+// dashboard across all of TradeBotRefs, not one deployment per bot), so
+// that entry never corresponded to anything actually served and only
+// widened a trading API's CORS allowlist for no reason. Anyone who does
+// have real per-bot origin routing can still list it explicitly via
+// TradeBotConfig.Spec.APIServer.CORSOrigins, which is additive with this.
 func collectCORSHostsForTradeBot(tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1alpha1.FreqUIList) []string {
 	var corsHosts []string
 	corsSet := make(map[string]struct{})
@@ -84,14 +103,6 @@ func collectCORSHostsForTradeBot(tradeBot *freqtradev1alpha1.TradeBot, frequiLis
 						corsHosts = append(corsHosts, baseURL)
 						corsSet[baseURL] = struct{}{}
 					}
-
-					if !strings.HasPrefix(hostname, "localhost") {
-						botSubdomain := fmt.Sprintf("%s://%s.%s", scheme, tradeBot.Name, hostname)
-						if _, exists := corsSet[botSubdomain]; !exists {
-							corsHosts = append(corsHosts, botSubdomain)
-							corsSet[botSubdomain] = struct{}{}
-						}
-					}
 				} else {
 					candidates := []string{
 						fmt.Sprintf("http://%s.%s.svc.cluster.local", frequi.Name, frequi.Namespace),
@@ -111,6 +122,26 @@ func collectCORSHostsForTradeBot(tradeBot *freqtradev1alpha1.TradeBot, frequiLis
 
 	sort.Strings(corsHosts)
 	return corsHosts
+}
+
+// referencingFreqUINames returns the (deduplicated, sorted) names of every
+// FreqUI in frequiList that references tradeBot, for
+// resources.BuildNetworkPolicy's allow-from-FreqUI peers (P3-4) - each
+// FreqUI's Deployment pod carries app: <frequi.Name> (see
+// controllers/frequi/resources/deployment.go), so the name is exactly what
+// a NetworkPolicy peer needs to select it.
+func referencingFreqUINames(tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1alpha1.FreqUIList) []string {
+	var names []string
+	for _, frequi := range frequiList.Items {
+		for _, ref := range frequi.Spec.TradeBotRefs {
+			if ref == tradeBot.Name {
+				names = append(names, frequi.Name)
+				break
+			}
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func validateCORSHosts(hosts []string) error {
@@ -146,6 +177,7 @@ func keys(m map[string]string) []string {
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;patch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;patch;delete
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -243,6 +275,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	corsHosts := collectCORSHostsForTradeBot(&tradeBot, &frequiList)
 	logger.V(2).Info("Collected CORS hosts", "corsHosts", corsHosts)
+	freqUINames := referencingFreqUINames(&tradeBot, &frequiList)
 	var corsWarning string
 	if len(corsHosts) == 0 {
 		corsWarning = "Warning: No CORS hosts configured. API may not be accessible from UIs. Setting default CORS hosts (localhost and BOTNAME.SERVICE.svc.cluster.local)."
@@ -271,7 +304,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// 7. Create or update required resources
 	logger.V(2).Info("Reconciling resources", "configDataKeys", keys(configData))
-	outcome, err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData)
+	outcome, err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData, freqUINames)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile resources")
 		return r.failReconcile(

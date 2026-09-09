@@ -13,6 +13,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -108,7 +109,9 @@ func (r *Reconciler) reconcileResources(
 	ctx context.Context,
 	tradeBot *freqtradev1alpha1.TradeBot,
 	strategy *freqtradev1alpha1.Strategy,
-	configData map[string]string) (reconcileOutcome, error) {
+	configData map[string]string,
+	freqUINames []string,
+) (reconcileOutcome, error) {
 
 	logger := log.FromContext(ctx)
 	logger.V(2).Info("Reconciling resources for TradeBot", "name", tradeBot.Name)
@@ -182,6 +185,13 @@ func (r *Reconciler) reconcileResources(
 			return outcome, fmt.Errorf("failed to apply Service: %w", err)
 		}
 		logger.V(2).Info("Service applied successfully", "name", svc.Name)
+
+		netpol := resources.BuildNetworkPolicy(*tradeBot, freqUINames, r.OperatorNamespace)
+		if err := shared.Apply(ctx, r.Client, tradeBot, &netpol); err != nil {
+			logger.Error(err, "Failed to apply NetworkPolicy")
+			return outcome, fmt.Errorf("failed to apply NetworkPolicy: %w", err)
+		}
+		logger.V(2).Info("NetworkPolicy applied successfully", "name", netpol.Name)
 	} else {
 		// One-shot commands -> Job. batchv1.Job.spec.template is immutable
 		// once created - verified empirically, server-side apply enforces
@@ -347,6 +357,17 @@ func (r *Reconciler) pruneStaleWorkloads(
 		}
 	} else if !errors.IsNotFound(err) {
 		return fmt.Errorf("failed to check for stale Service: %w", err)
+	}
+
+	var netpol networkingv1.NetworkPolicy
+	err = r.Get(ctx, key, &netpol)
+	if err == nil {
+		logger.Info("Deleting stale NetworkPolicy left over from trade mode", "name", netpol.Name)
+		if err := r.Delete(ctx, &netpol, deleteOpts...); err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete stale NetworkPolicy %s: %w", netpol.Name, err)
+		}
+	} else if !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to check for stale NetworkPolicy: %w", err)
 	}
 
 	return nil

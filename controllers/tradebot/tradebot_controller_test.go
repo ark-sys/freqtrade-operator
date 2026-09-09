@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -366,7 +367,7 @@ var _ = Describe("TradeBot controller", func() {
 		})
 	})
 
-	Describe("FreqUI to TradeBot CORS propagation", func() {
+	Describe("FreqUI to TradeBot CORS and NetworkPolicy propagation", func() {
 		It("renders a FreqUI's host into the TradeBot's config Secret", func() {
 			ctx := context.Background()
 			strategy := newTestStrategy("strategy-cors")
@@ -399,6 +400,53 @@ var _ = Describe("TradeBot controller", func() {
 				g.Expect(apiServer).NotTo(BeNil())
 				corsOrigins, _ := apiServer["CORS_origins"].([]interface{})
 				g.Expect(corsOrigins).To(ContainElement("https://frequi.example.com"))
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+		})
+
+		// P3-4: the NetworkPolicy an already-running trade-mode bot gets
+		// updates in place once a FreqUI starts referencing it - this isn't
+		// just BuildNetworkPolicy in isolation, it's reconcileResources
+		// actually re-applying with the newly computed freqUINames on the
+		// very next reconcile the FreqUI's own creation triggers.
+		It("adds a NetworkPolicy peer for a FreqUI once it starts referencing the TradeBot", func() {
+			ctx := context.Background()
+			strategy := newTestStrategy("strategy-netpol")
+			config := newTestTradeBotConfig("config-netpol")
+			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
+			Expect(k8sClient.Create(ctx, config)).To(Succeed())
+
+			tradeBot := newTestTradeBot("bot-netpol", strategy.Name, config.Name, "trade")
+			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
+			netpolKey := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
+
+			Eventually(func(g Gomega) {
+				var netpol networkingv1.NetworkPolicy
+				g.Expect(k8sClient.Get(ctx, netpolKey, &netpol)).To(Succeed())
+				g.Expect(netpol.Spec.PolicyTypes).To(ConsistOf(networkingv1.PolicyTypeIngress))
+				g.Expect(netpol.Spec.Ingress).To(HaveLen(1))
+				// Only the operator peer yet - no FreqUI references this bot.
+				g.Expect(netpol.Spec.Ingress[0].From).To(HaveLen(1))
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+			frequi := &freqtradev1alpha1.FreqUI{
+				ObjectMeta: metav1.ObjectMeta{Name: "ui-netpol", Namespace: testNamespace},
+				Spec:       freqtradev1alpha1.FreqUISpec{Host: "frequi.example.com", TradeBotRefs: []string{tradeBot.Name}},
+			}
+			Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				var netpol networkingv1.NetworkPolicy
+				g.Expect(k8sClient.Get(ctx, netpolKey, &netpol)).To(Succeed())
+				g.Expect(netpol.Spec.Ingress).To(HaveLen(1))
+
+				foundFreqUIPeer := false
+				for _, peer := range netpol.Spec.Ingress[0].From {
+					if peer.PodSelector != nil && peer.PodSelector.MatchLabels["app"] == frequi.Name {
+						foundFreqUIPeer = true
+					}
+				}
+				g.Expect(foundFreqUIPeer).To(BeTrue(), "expected a peer selecting app=%s, got %+v",
+					frequi.Name, netpol.Spec.Ingress[0].From)
 			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 		})
 	})

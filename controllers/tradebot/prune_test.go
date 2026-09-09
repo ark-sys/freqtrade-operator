@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,10 +39,11 @@ func TestPruneStaleWorkloads(t *testing.T) {
 		}
 	})
 
-	t.Run("switching to a one-shot command deletes a stale StatefulSet and Service", func(t *testing.T) {
+	t.Run("switching to a one-shot command deletes a stale StatefulSet, Service, and NetworkPolicy", func(t *testing.T) {
 		sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
 		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
-		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sts, svc).Build()
+		netpol := &networkingv1.NetworkPolicy{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sts, svc, netpol).Build()
 		r := &Reconciler{Client: c}
 		tradeBot := &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
 
@@ -57,6 +59,10 @@ func TestPruneStaleWorkloads(t *testing.T) {
 		var gotSvc corev1.Service
 		if err := c.Get(context.Background(), key, &gotSvc); !errors.IsNotFound(err) {
 			t.Errorf("expected the stale Service to be deleted, got err=%v", err)
+		}
+		var gotNetpol networkingv1.NetworkPolicy
+		if err := c.Get(context.Background(), key, &gotNetpol); !errors.IsNotFound(err) {
+			t.Errorf("expected the stale NetworkPolicy to be deleted, got err=%v", err)
 		}
 	})
 

@@ -294,7 +294,7 @@ func TestBuildConfig_GoldenFullExample(t *testing.T) {
 		Data: map[string][]byte{
 			"user":           []byte("test-user"),
 			"password":       []byte("test-password"),
-			"jwt_secret_key": []byte("test-jwt-secret"),
+			"jwt_secret_key": []byte("test-jwt-secret-well-over-the-minimum-length"),
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(exchangeSecret, telegramSecret, apiSecret).Build()

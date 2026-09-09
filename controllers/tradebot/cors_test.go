@@ -33,25 +33,25 @@ func TestCollectCORSHostsForTradeBot(t *testing.T) {
 			want:         nil,
 		},
 		{
-			name:         "bare hostname defaults to https and adds a bot subdomain",
+			name:         "bare hostname defaults to https",
 			tradeBotName: "my-bot",
 			frequis:      []freqtradev1alpha1.FreqUI{frequi("ui", "frequi.example.com", "my-bot")},
-			want:         []string{"https://frequi.example.com", "https://my-bot.frequi.example.com"},
+			want:         []string{"https://frequi.example.com"},
 		},
 		{
 			name:         "explicit https:// scheme is preserved and parsed",
 			tradeBotName: "my-bot",
 			frequis:      []freqtradev1alpha1.FreqUI{frequi("ui", "https://frequi.example.com", "my-bot")},
-			want:         []string{"https://frequi.example.com", "https://my-bot.frequi.example.com"},
+			want:         []string{"https://frequi.example.com"},
 		},
 		{
 			name:         "explicit http:// scheme is preserved",
 			tradeBotName: "my-bot",
 			frequis:      []freqtradev1alpha1.FreqUI{frequi("ui", "http://frequi.example.com", "my-bot")},
-			want:         []string{"http://frequi.example.com", "http://my-bot.frequi.example.com"},
+			want:         []string{"http://frequi.example.com"},
 		},
 		{
-			name:         "localhost host uses http and skips the bot subdomain",
+			name:         "localhost host uses http",
 			tradeBotName: "my-bot",
 			frequis:      []freqtradev1alpha1.FreqUI{frequi("ui", "localhost:3000", "my-bot")},
 			want:         []string{"http://localhost:3000"},
@@ -72,8 +72,6 @@ func TestCollectCORSHostsForTradeBot(t *testing.T) {
 			},
 			want: []string{
 				"https://frequi.example.com",
-				"https://my-bot.frequi.example.com",
-				"https://my-bot.other.example.com",
 				"https://other.example.com",
 			},
 		},
@@ -93,6 +91,22 @@ func TestCollectCORSHostsForTradeBot(t *testing.T) {
 				t.Errorf("collectCORSHostsForTradeBot() = %v, want %v", got, sortedWant)
 			}
 		})
+	}
+}
+
+func TestReferencingFreqUINames(t *testing.T) {
+	tradeBot := tradeBotNamed("my-bot")
+	frequiList := &freqtradev1alpha1.FreqUIList{Items: []freqtradev1alpha1.FreqUI{
+		frequi("ui-b", "b.example.com", "my-bot"),
+		frequi("ui-a", "a.example.com", "my-bot", "other-bot"),
+		frequi("ui-c", "c.example.com", "other-bot"),
+	}}
+
+	got := referencingFreqUINames(tradeBot, frequiList)
+
+	want := []string{"ui-a", "ui-b"}
+	if !equalStringSlices(got, want) {
+		t.Errorf("referencingFreqUINames() = %v, want %v", got, want)
 	}
 }
 
