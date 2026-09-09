@@ -11,18 +11,17 @@ spec:
   
   # Source configuration - using Helm repository
   source:
-    repoURL: https://freqtrade.github.io/freqtrade-operator/
+    repoURL: https://ark-sys.github.io/freqtrade-operator/
     chart: freqtrade-operator
     targetRevision: "0.1.0"  # Use specific version or "latest"
     helm:
       # Custom values for the deployment
       values: |
         controllerManager:
-          # Use specific image tag
+          # Use specific image tag - repository defaults to arksys/freqtrade-operator already
           image:
-            repository: registry.horizonscloud.ovh/freqtrade-operator
             tag: "latest"
-          
+
           # Adjust resources based on cluster size
           resources:
             limits:

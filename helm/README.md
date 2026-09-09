@@ -14,7 +14,7 @@ This Helm chart deploys the Freqtrade Operator and its Custom Resource Definitio
 
 ```bash
 # Add the Freqtrade Operator Helm repository
-helm repo add freqtrade-operator https://freqtrade.github.io/freqtrade-operator/
+helm repo add freqtrade-operator https://ark-sys.github.io/freqtrade-operator/
 helm repo update
 
 # Install the chart
@@ -27,7 +27,7 @@ helm install my-freqtrade-operator freqtrade-operator/freqtrade-operator \
 
 ```bash
 # Install directly from OCI registry
-helm install my-freqtrade-operator oci://ghcr.io/freqtrade/freqtrade-operator \
+helm install my-freqtrade-operator oci://ghcr.io/ark-sys/freqtrade-operator \
   --version 0.1.0 \
   --namespace freqtrade-operator-system \
   --create-namespace
@@ -37,7 +37,7 @@ helm install my-freqtrade-operator oci://ghcr.io/freqtrade/freqtrade-operator \
 
 ```bash
 # Clone the repository
-git clone https://github.com/freqtrade/freqtrade-operator.git
+git clone https://github.com/ark-sys/freqtrade-operator.git
 cd freqtrade-operator
 
 # Install the chart
@@ -55,7 +55,7 @@ The following table lists the configurable parameters of the chart and their def
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `controllerManager.replicas` | Number of controller manager replicas | `1` |
-| `controllerManager.image.repository` | Controller manager image repository | `registry.horizonscloud.ovh/freqtrade-operator` |
+| `controllerManager.image.repository` | Controller manager image repository | `arksys/freqtrade-operator` |
 | `controllerManager.image.tag` | Controller manager image tag | `""` (uses appVersion) |
 | `controllerManager.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `controllerManager.logLevel` | Log level (debug, info, warn, error) | `info` |
@@ -155,7 +155,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://freqtrade.github.io/freqtrade-operator/
+    repoURL: https://ark-sys.github.io/freqtrade-operator/
     chart: freqtrade-operator
     targetRevision: "0.1.0"
     helm:
@@ -288,10 +288,10 @@ kubectl delete crd -l app.kubernetes.io/name=freqtrade-operator
 
 ## License
 
-This chart is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
+This chart is licensed under the Apache License 2.0. See the [LICENSE](../LICENSE) file for details.
 
 ## Support
 
-- GitHub Issues: [freqtrade/freqtrade-operator](https://github.com/freqtrade/freqtrade-operator/issues)
-- Documentation: [Freqtrade Operator Docs](https://github.com/freqtrade/freqtrade-operator)
+- GitHub Issues: [ark-sys/freqtrade-operator](https://github.com/ark-sys/freqtrade-operator/issues)
+- Documentation: [Freqtrade Operator Docs](https://github.com/ark-sys/freqtrade-operator)
 - Community: [Freqtrade Discord](https://discord.gg/freqtrade) 

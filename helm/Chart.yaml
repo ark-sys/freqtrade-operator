@@ -23,9 +23,9 @@ version: 0.1.0
 # It is recommended to use it with quotes.
 appVersion: "latest"
 
-home: https://git.horizonscloud.ovh/ark/freqtrade-operator
+home: https://github.com/ark-sys/freqtrade-operator
 sources:
-  - https://git.horizonscloud.ovh/ark/freqtrade-operator
+  - https://github.com/ark-sys/freqtrade-operator
 
 maintainers:
   - name: Khaled Arsalane
@@ -41,4 +41,4 @@ keywords:
 
 annotations:
   category: Trading
-  licenses: MIT
+  licenses: Apache-2.0

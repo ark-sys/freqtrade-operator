@@ -11,18 +11,17 @@ spec:
   
   # Source configuration - using OCI registry
   source:
-    repoURL: ghcr.io/freqtrade
+    repoURL: ghcr.io/ark-sys
     chart: freqtrade-operator
     targetRevision: "0.1.0"  # Use specific version
     helm:
       # Custom values for the deployment
       values: |
         controllerManager:
-          # Use specific image tag
+          # Use specific image tag - repository defaults to arksys/freqtrade-operator already
           image:
-            repository: registry.horizonscloud.ovh/freqtrade-operator
             tag: "latest"
-          
+
           # Production-ready resources
           resources:
             limits:

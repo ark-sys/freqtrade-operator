@@ -46,7 +46,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://freqtrade.github.io/freqtrade-operator/
+    repoURL: https://ark-sys.github.io/freqtrade-operator/
     chart: freqtrade-operator
     targetRevision: "0.1.0"
   destination:

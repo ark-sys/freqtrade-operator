@@ -13,7 +13,7 @@ controllerManager:
   
   # Container image settings
   image:
-    repository: registry.horizonscloud.ovh/freqtrade-operator
+    repository: arksys/freqtrade-operator
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     tag: ""
