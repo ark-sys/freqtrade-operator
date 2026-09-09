@@ -101,6 +101,67 @@
           "refId": "C"
         }
       ]
+    },
+    {
+      "id": 5,
+      "title": "Row",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 }
+    },
+    {
+      "id": 6,
+      "title": "Per-bot P&L (P4-3)",
+      "type": "table",
+      "description": "One row per bot currently reachable. dry_run bots show real numbers too - they just never touch real money.",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 17 },
+      "targets": [
+        { "expr": "freqtrade_bot_up", "format": "table", "instant": true, "refId": "up" },
+        { "expr": "freqtrade_bot_open_trades", "format": "table", "instant": true, "refId": "open_trades" },
+        { "expr": "freqtrade_bot_max_open_trades", "format": "table", "instant": true, "refId": "max_open_trades" },
+        { "expr": "freqtrade_bot_profit_abs", "format": "table", "instant": true, "refId": "profit_abs" },
+        { "expr": "freqtrade_bot_profit_ratio", "format": "table", "instant": true, "refId": "profit_ratio" },
+        { "expr": "freqtrade_bot_balance", "format": "table", "instant": true, "refId": "balance" }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": { "byField": "tradebot", "mode": "outer" }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true },
+            "renameByName": {
+              "namespace": "Namespace",
+              "tradebot": "TradeBot",
+              "strategy": "Strategy",
+              "exchange": "Exchange",
+              "dry_run": "Dry run",
+              "Value #up": "Up",
+              "Value #open_trades": "Open trades",
+              "Value #max_open_trades": "Max open trades",
+              "Value #profit_abs": "Profit (abs)",
+              "Value #profit_ratio": "Profit (ratio)",
+              "Value #balance": "Balance"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Per-bot profit over time",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 25 },
+      "targets": [
+        {
+          "expr": "freqtrade_bot_profit_abs",
+          "legendFormat": "{{namespace}}/{{tradebot}}",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }

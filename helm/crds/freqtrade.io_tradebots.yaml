@@ -5802,6 +5802,30 @@ spec:
                 - download-data
                 - lookahead-analysis
                 type: string
+              introspection:
+                description: |-
+                  Introspection controls the operator's own polling of this bot's
+                  freqtrade REST API for live trading state (P4-3, implements D4).
+                  Read-only: nothing here can start, stop, or otherwise act on the bot
+                  (see P4-4 for that, a deliberately separate task).
+                properties:
+                  enabled:
+                    default: true
+                    description: |-
+                      Enabled turns polling on or off for this bot. Defaults to on: a
+                      TradeBot with no api_server configured at all just polls, fails to
+                      reach anything, and reports BotReachable=False - turn this off
+                      explicitly to silence that for a bot that deliberately has no API
+                      server (e.g. backtesting/hyperopt Jobs, which never expose one).
+                    type: boolean
+                  interval:
+                    default: 60s
+                    description: |-
+                      Interval between polls. The admission webhook rejects anything under
+                      10s - freqtrade's REST API is not built for tight polling loops, and
+                      this operator is not a market-data source.
+                    type: string
+                type: object
               strategy:
                 description: Reference to the Strategy resource, same namespace only
                   (D3)
@@ -5846,6 +5870,54 @@ spec:
                   whether it has been rolled out to the running StatefulSet pods yet
                   (see the ConfigDrift condition).
                 type: string
+              bot:
+                description: |-
+                  Bot is this bot's own live trading state, as last observed by the
+                  operator's poller (P4-3) - never written by the TradeBot reconciler
+                  itself, and can lag behind spec.introspection.interval seconds.
+                  LastPollTime/LastPollError say how current (or not) the rest of it
+                  is; the BotReachable condition is the authoritative "can we trust
+                  this at all right now" signal.
+                properties:
+                  dryRun:
+                    type: boolean
+                  lastPollError:
+                    description: |-
+                      LastPollError is the most recent poll failure's message, or empty
+                      after a successful poll.
+                    type: string
+                  lastPollTime:
+                    description: |-
+                      LastPollTime is when the poller last completed a poll attempt for
+                      this bot, successful or not.
+                    format: date-time
+                    type: string
+                  maxOpenTrades:
+                    type: integer
+                  openTrades:
+                    type: integer
+                  state:
+                    description: |-
+                      State is freqtrade's own run state: running, stopped, or unknown
+                      (the operator either hasn't polled successfully yet, or the bot's
+                      api_server isn't reachable/configured - see BotReachable for why).
+                    enum:
+                    - running
+                    - stopped
+                    - unknown
+                    type: string
+                  totalProfitAbs:
+                    description: |-
+                      TotalProfitAbs/TotalProfitPct are strings, not floats - API types
+                      don't carry floats (see api/v1alpha1's own conventions elsewhere),
+                      and a value straight from freqtrade's own JSON response is passed
+                      through as text rather than round-tripped through float64.
+                    type: string
+                  totalProfitPct:
+                    type: string
+                  version:
+                    type: string
+                type: object
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current

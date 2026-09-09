@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -14,6 +15,10 @@ import (
 )
 
 // +kubebuilder:webhook:path=/validate-freqtrade-io-v1alpha1-tradebot,mutating=false,failurePolicy=fail,sideEffects=None,groups=freqtrade.io,resources=tradebots,verbs=create;update,versions=v1alpha1,name=vtradebot.kb.io,admissionReviewVersions=v1
+
+// minIntrospectionInterval is the floor the webhook enforces on
+// spec.introspection.interval (P4-3).
+const minIntrospectionInterval = 10 * time.Second
 
 // ownedFreqtradeFlags are argv flags BuildPod (controllers/tradebot/resources/pod.go)
 // already sets from the TradeBot/Strategy spec. freqtrade's argparse takes the
@@ -113,6 +118,15 @@ func (v *TradeBotCustomValidator) validate(ctx context.Context, tradeBot *TradeB
 		if _, owned := ownedFreqtradeFlags[arg]; owned {
 			return fmt.Errorf("spec.freqtrade_arguments: %q is set by the operator and cannot be overridden", arg)
 		}
+	}
+
+	// freqtrade's REST API isn't built for tight polling loops, and this
+	// operator is not a market-data source (P4-3) - reject before a typo'd
+	// "6s" (meant "60s") turns into a de facto load test.
+	if tradeBot.Spec.Introspection != nil && tradeBot.Spec.Introspection.Interval.Duration != 0 &&
+		tradeBot.Spec.Introspection.Interval.Duration < minIntrospectionInterval {
+		return fmt.Errorf("spec.introspection.interval: must be at least %s, got %s",
+			minIntrospectionInterval, tradeBot.Spec.Introspection.Interval.Duration)
 	}
 
 	return nil

@@ -35,8 +35,89 @@ var ConfigRenderDuration = prometheus.NewHistogram(
 	},
 )
 
+// botMetricLabels is the label set every freqtrade_bot_* gauge below
+// shares (P4-3) - kept as one slice so BotMetricLabelValues and
+// DeleteBotMetrics can't drift out of sync with the Vecs' own declarations.
+var botMetricLabels = []string{"namespace", "tradebot", "strategy", "exchange", "dry_run"}
+
+// BotUp, BotState, BotOpenTrades, BotMaxOpenTrades, BotProfitAbs,
+// BotProfitRatio, BotBalance, and BotLastPollTimestampSeconds are pushed by
+// BotPoller after every poll attempt (P4-3) - unlike ReconcileErrorsTotal
+// and ConfigRenderDuration above, or P4-2's own tradeBotCollector, these
+// can't be recomputed at scrape time from a List: what they report (bot
+// state, balances) only exists in the bot's own REST API response, which
+// only the poller ever fetches. That means, unlike a live collector,
+// nothing here self-heals when a TradeBot is deleted - BotPoller's own
+// scheduler loop must call DeleteBotMetrics for a bot it notices has
+// disappeared, or its last-known series would linger in /metrics forever
+// (the exact unbounded-cardinality growth the plan's own P4-3 text warns
+// about by name).
+var (
+	BotUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_up",
+		Help: "1 if the operator's most recent poll of this bot's REST API succeeded, else 0.",
+	}, botMetricLabels)
+
+	BotState = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_state",
+		Help: "1 if the bot's own reported state is \"running\", 0 for \"stopped\" or unknown.",
+	}, botMetricLabels)
+
+	BotOpenTrades = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_open_trades",
+		Help: "Number of currently open trades, as last reported by the bot.",
+	}, botMetricLabels)
+
+	BotMaxOpenTrades = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_max_open_trades",
+		Help: "The bot's own configured max_open_trades, as last reported.",
+	}, botMetricLabels)
+
+	BotProfitAbs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_profit_abs",
+		Help: "All-time profit in stake currency, as last reported by the bot.",
+	}, botMetricLabels)
+
+	BotProfitRatio = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_profit_ratio",
+		Help: "All-time profit as a ratio (0.05 = 5%), as last reported by the bot.",
+	}, botMetricLabels)
+
+	BotBalance = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_balance",
+		Help: "Total portfolio value in stake currency, as last reported by the bot.",
+	}, botMetricLabels)
+
+	BotLastPollTimestampSeconds = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "freqtrade_bot_last_poll_timestamp_seconds",
+		Help: "Unix timestamp of the operator's most recent poll attempt for this bot, successful or not.",
+	}, botMetricLabels)
+)
+
+// DeleteBotMetrics removes every freqtrade_bot_* series for one bot -
+// call this, not just letting a Set call lapse, whenever BotPoller notices
+// a TradeBot it was tracking is gone.
+func DeleteBotMetrics(namespace, tradeBot, strategy, exchange, dryRun string) {
+	labels := prometheus.Labels{
+		"namespace": namespace, "tradebot": tradeBot,
+		"strategy": strategy, "exchange": exchange, "dry_run": dryRun,
+	}
+	BotUp.Delete(labels)
+	BotState.Delete(labels)
+	BotOpenTrades.Delete(labels)
+	BotMaxOpenTrades.Delete(labels)
+	BotProfitAbs.Delete(labels)
+	BotProfitRatio.Delete(labels)
+	BotBalance.Delete(labels)
+	BotLastPollTimestampSeconds.Delete(labels)
+}
+
 func init() {
-	metrics.Registry.MustRegister(ReconcileErrorsTotal, ConfigRenderDuration)
+	metrics.Registry.MustRegister(
+		ReconcileErrorsTotal, ConfigRenderDuration,
+		BotUp, BotState, BotOpenTrades, BotMaxOpenTrades,
+		BotProfitAbs, BotProfitRatio, BotBalance, BotLastPollTimestampSeconds,
+	)
 }
 
 // tradeBotCollector computes freqtrade_operator_tradebots and

@@ -2,6 +2,7 @@ package tradebot
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -67,6 +68,37 @@ var _ = Describe("TradeBot admission webhook (P1-4)", func() {
 		err := k8sClient.Create(context.Background(), tradeBot)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("shell metacharacter"))
+	})
+
+	// P4-3: freqtrade's REST API isn't built for tight polling loops, and
+	// this operator is not a market-data source - a typo'd "6s" (meant
+	// "60s") must be rejected before it becomes a de facto load test.
+	It("rejects spec.introspection.interval under 10s", func() {
+		strategy := newTestStrategy("wh-tb-strategy-interval")
+		Expect(k8sClient.Create(context.Background(), strategy)).To(Succeed())
+		cfg := newTestTradeBotConfig("wh-tb-config-interval")
+		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+
+		tradeBot := newTestTradeBot("wh-tb-interval-too-short", strategy.Name, cfg.Name, "trade")
+		tradeBot.Spec.Introspection = &freqtradev1alpha1.IntrospectionSpec{
+			Interval: metav1.Duration{Duration: 5 * time.Second},
+		}
+		err := k8sClient.Create(context.Background(), tradeBot)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.introspection.interval"))
+	})
+
+	It("accepts spec.introspection.interval at or above 10s", func() {
+		strategy := newTestStrategy("wh-tb-strategy-interval-ok")
+		Expect(k8sClient.Create(context.Background(), strategy)).To(Succeed())
+		cfg := newTestTradeBotConfig("wh-tb-config-interval-ok")
+		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+
+		tradeBot := newTestTradeBot("wh-tb-interval-ok", strategy.Name, cfg.Name, "trade")
+		tradeBot.Spec.Introspection = &freqtradev1alpha1.IntrospectionSpec{
+			Interval: metav1.Duration{Duration: 10 * time.Second},
+		}
+		Expect(k8sClient.Create(context.Background(), tradeBot)).To(Succeed())
 	})
 })
 

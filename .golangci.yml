@@ -45,12 +45,29 @@ linters:
           - staticcheck
         path: controllers/tradebotconfig/configbuilder/
         text: "SA1019"
+      # BotPoller.resolveCredentials (P4-3) reads back the same api_server
+      # Basic Auth credentials configbuilder renders, with the identical
+      # secretRef-overrides-plaintext fallback - same justification as the
+      # configbuilder exclusion above, different package.
+      - linters:
+          - staticcheck
+        path: controllers/tradebot/poller.go
+        text: "SA1019"
       # Tests that exercise the P3-1 webhook rejection of deprecated
       # plaintext credential fields have to set them to do so.
       - linters:
           - staticcheck
         path: _test\.go
         text: "SA1019"
+      # do()'s method parameter only ever receives GET today - P4-3 is
+      # poll-only by design (D2/D9) - but it exists specifically so P4-4
+      # (start/stop) can add POST calls without reworking this primitive,
+      # per the plan's own instruction. Keeping the parameter general now
+      # is the point, not an accident.
+      - linters:
+          - unparam
+        path: controllers/tradebot/botclient/client.go
+        text: "always receives"
     paths:
       - third_party$
       - builtin$

@@ -45,6 +45,33 @@ type TradeBotSpec struct {
 	// +kubebuilder:validation:Enum=Manual;Auto
 	// +kubebuilder:default=Manual
 	UpdateStrategy string `json:"updateStrategy,omitempty"`
+
+	// Introspection controls the operator's own polling of this bot's
+	// freqtrade REST API for live trading state (P4-3, implements D4).
+	// Read-only: nothing here can start, stop, or otherwise act on the bot
+	// (see P4-4 for that, a deliberately separate task).
+	Introspection *IntrospectionSpec `json:"introspection,omitempty"`
+}
+
+// IntrospectionSpec controls whether and how often the operator polls this
+// bot's own freqtrade REST API (P4-3). Polling only works at all when
+// spec.app... has an api_server enabled with Basic Auth credentials the
+// operator can read back from apiServer.secretRef - see BotStatus.State
+// "unknown" and the BotReachable condition for what happens otherwise.
+type IntrospectionSpec struct {
+	// Enabled turns polling on or off for this bot. Defaults to on: a
+	// TradeBot with no api_server configured at all just polls, fails to
+	// reach anything, and reports BotReachable=False - turn this off
+	// explicitly to silence that for a bot that deliberately has no API
+	// server (e.g. backtesting/hyperopt Jobs, which never expose one).
+	// +kubebuilder:default=true
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// Interval between polls. The admission webhook rejects anything under
+	// 10s - freqtrade's REST API is not built for tight polling loops, and
+	// this operator is not a market-data source.
+	// +kubebuilder:default="60s"
+	Interval metav1.Duration `json:"interval,omitempty"`
 }
 
 type DataCacheSpec struct {
@@ -164,6 +191,46 @@ type TradeBotStatus struct {
 	// up a new freqtrade version mid-trading; this makes what's actually
 	// running visible regardless of which source set it.
 	ResolvedImage string `json:"resolvedImage,omitempty"`
+
+	// Bot is this bot's own live trading state, as last observed by the
+	// operator's poller (P4-3) - never written by the TradeBot reconciler
+	// itself, and can lag behind spec.introspection.interval seconds.
+	// LastPollTime/LastPollError say how current (or not) the rest of it
+	// is; the BotReachable condition is the authoritative "can we trust
+	// this at all right now" signal.
+	// +optional
+	Bot *BotStatus `json:"bot,omitempty"`
+}
+
+// BotStatus is a snapshot of a bot's own freqtrade REST API responses
+// (P4-3) - polled, never pushed by the bot itself, so every field can be
+// stale by up to spec.introspection.interval.
+type BotStatus struct {
+	// State is freqtrade's own run state: running, stopped, or unknown
+	// (the operator either hasn't polled successfully yet, or the bot's
+	// api_server isn't reachable/configured - see BotReachable for why).
+	// +kubebuilder:validation:Enum=running;stopped;unknown
+	State string `json:"state,omitempty"`
+
+	Version string `json:"version,omitempty"`
+	DryRun  *bool  `json:"dryRun,omitempty"`
+
+	OpenTrades    *int `json:"openTrades,omitempty"`
+	MaxOpenTrades *int `json:"maxOpenTrades,omitempty"`
+
+	// TotalProfitAbs/TotalProfitPct are strings, not floats - API types
+	// don't carry floats (see api/v1alpha1's own conventions elsewhere),
+	// and a value straight from freqtrade's own JSON response is passed
+	// through as text rather than round-tripped through float64.
+	TotalProfitAbs string `json:"totalProfitAbs,omitempty"`
+	TotalProfitPct string `json:"totalProfitPct,omitempty"`
+
+	// LastPollTime is when the poller last completed a poll attempt for
+	// this bot, successful or not.
+	LastPollTime *metav1.Time `json:"lastPollTime,omitempty"`
+	// LastPollError is the most recent poll failure's message, or empty
+	// after a successful poll.
+	LastPollError string `json:"lastPollError,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -79,6 +79,7 @@ func main() {
 	var tradeBotFinalizerGracePeriod time.Duration
 	var tradeBotMaxConcurrentReconciles int
 	var defaultFreqtradeImage string
+	var botPollWorkers int
 	flag.DurationVar(&tradeBotFinalizerGracePeriod, "tradebot-finalizer-grace-period", 2*time.Minute,
 		"How long to wait for a deleted TradeBot's StatefulSet to scale down before removing its finalizer anyway.")
 	flag.IntVar(&tradeBotMaxConcurrentReconciles, "tradebot-max-concurrent-reconciles", 4,
@@ -86,6 +87,8 @@ func main() {
 	flag.StringVar(&defaultFreqtradeImage, "default-freqtrade-image", tradebot.DefaultFreqtradeImage,
 		"The freqtrade image reference used when a TradeBot's spec.app.pod.image doesn't override it. "+
 			"Should be digest-pinned so a pod restart can't silently change what version is running.")
+	flag.IntVar(&botPollWorkers, "bot-poll-workers", 4,
+		"How many TradeBots' freqtrade REST APIs the bot poller (P4-3) can poll concurrently.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -304,6 +307,15 @@ func main() {
 			setupLog.Error(err, "unable to add webhook certificate watcher to manager")
 			os.Exit(1)
 		}
+	}
+
+	if err := mgr.Add(&tradebot.BotPoller{
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor("tradebot-poller"),
+		Workers:  botPollWorkers,
+	}); err != nil {
+		setupLog.Error(err, "unable to add TradeBot poller to manager")
+		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

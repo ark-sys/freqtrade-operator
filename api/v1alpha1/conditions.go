@@ -30,9 +30,12 @@ const (
 	// hasn't been rolled out to the running pod under UpdateStrategy: Manual.
 	// No controller sets it yet.
 	ConditionConfigDrift = "ConfigDrift"
-	// ConditionBotReachable is reserved for P4-3: whether the operator's
-	// poller can reach the bot's freqtrade REST API. No controller sets it
-	// yet.
+	// ConditionBotReachable reports whether the operator's poller (P4-3)
+	// could reach this bot's freqtrade REST API on its most recent poll
+	// attempt. Independent of WorkloadReady: a StatefulSet can be perfectly
+	// healthy while its api_server is disabled, misconfigured, or still
+	// starting up - this condition is specifically about whether
+	// status.bot can currently be trusted.
 	ConditionBotReachable = "BotReachable"
 )
 
@@ -82,6 +85,25 @@ const (
 	// TradeBot in the namespace (P2-5). Non-blocking - FreqUI still deploys
 	// and serves the UI; the affected bot(s) just get no CORS/API route.
 	ReasonUnresolvableTradeBotRefs = "UnresolvableTradeBotRefs"
+
+	// ReasonConnectionRefused is a BotReachable=False reason (P4-3): the TCP
+	// connection itself failed (nothing listening, NetworkPolicy denying
+	// it, DNS failure, ...).
+	ReasonConnectionRefused = "ConnectionRefused"
+	// ReasonAuthFailed is a BotReachable=False reason: the connection
+	// succeeded but freqtrade rejected the Basic Auth credentials (401) -
+	// almost always apiServer.secretRef drifting from what's actually in
+	// the running bot's rendered config.json.
+	ReasonAuthFailed = "AuthFailed"
+	// ReasonTimeout is a BotReachable=False reason: no response within the
+	// poller's http.Client timeout.
+	ReasonTimeout = "Timeout"
+	// ReasonIntrospectionDisabled is the BotReachable reason when
+	// spec.introspection.enabled is false - not a failure, just "the
+	// operator was told not to poll this bot," so status.bot is never
+	// populated and this stays neither True nor False (a distinct reason,
+	// not one of Reachable's own success/failure pair).
+	ReasonIntrospectionDisabled = "IntrospectionDisabled"
 
 	// ReasonAsExpected is the positive-case reason for a condition type when
 	// nothing more specific applies - e.g. ConfigResolved=True. Kubernetes
