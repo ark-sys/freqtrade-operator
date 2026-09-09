@@ -199,6 +199,7 @@ spec:
                   enabled:
                     type: boolean
                   jwtSecretKey:
+                    description: 'Deprecated: see Password.'
                     type: string
                   listen_ip_address:
                     type: string
@@ -207,6 +208,12 @@ spec:
                     minimum: 1
                     type: integer
                   password:
+                    description: |-
+                      Deprecated: stored unencrypted in etcd and readable by anyone who can
+                      get this TradeBotConfig. Use secretRef instead (P3-1); this field is
+                      rejected by the validating webhook unless
+                      freqtrade.io/allow-plaintext-credentials is set, and will be removed
+                      in v1beta1.
                     type: string
                   secretRef:
                     type: string
@@ -320,6 +327,12 @@ spec:
                   enable_ws:
                     type: boolean
                   key:
+                    description: |-
+                      Deprecated: stored unencrypted in etcd and readable by anyone who can
+                      get this TradeBotConfig. Use secretRef instead (P3-1); this field is
+                      rejected by the validating webhook unless
+                      freqtrade.io/allow-plaintext-credentials is set, and will be removed
+                      in v1beta1.
                     type: string
                   log_responses:
                     type: boolean
@@ -330,18 +343,23 @@ spec:
                   outdated_offset:
                     type: integer
                   password:
+                    description: 'Deprecated: see Key.'
                     type: string
                   private_key:
+                    description: 'Deprecated: see Key.'
                     type: string
                   secret:
+                    description: 'Deprecated: see Key.'
                     type: string
                   secretRef:
                     type: string
                   uid:
+                    description: 'Deprecated: see Key.'
                     type: string
                   unkown_fee_rate:
                     type: boolean
                   wallet_address:
+                    description: 'Deprecated: see Key.'
                     type: string
                   whitelist:
                     description: PairListSpec defines the desired state of PairList
@@ -460,6 +478,12 @@ spec:
                             type: string
                         type: object
                       token:
+                        description: |-
+                          Deprecated: stored unencrypted in etcd and readable by anyone who can
+                          get this TradeBotConfig. Use secretRef instead (P3-1); this field is
+                          rejected by the validating webhook unless
+                          freqtrade.io/allow-plaintext-credentials is set, and will be removed
+                          in v1beta1.
                         type: string
                       topic_id:
                         type: string

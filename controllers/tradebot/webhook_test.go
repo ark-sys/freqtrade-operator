@@ -166,6 +166,60 @@ var _ = Describe("TradeBotConfig admission webhook (P1-4)", func() {
 		}
 		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
 	})
+
+	It("rejects a deprecated plaintext exchange.key without the allow-plaintext-credentials annotation", func() {
+		cfg := &freqtradev1alpha1.TradeBotConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "wh-tbc-plaintext-key", Namespace: testNamespace},
+			Spec: freqtradev1alpha1.TradeBotConfigSpec{
+				Bot:      &freqtradev1alpha1.BotConfig{DryRun: ptr.To(true)},
+				Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance", Key: "plaintext-api-key"},
+			},
+		}
+		err := k8sClient.Create(context.Background(), cfg)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.exchange.key"))
+		Expect(err.Error()).To(ContainSubstring("freqtrade.io/allow-plaintext-credentials"))
+	})
+
+	It("rejects a deprecated plaintext apiServer.password and names it alongside other plaintext fields", func() {
+		cfg := &freqtradev1alpha1.TradeBotConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "wh-tbc-plaintext-multi", Namespace: testNamespace},
+			Spec: freqtradev1alpha1.TradeBotConfigSpec{
+				Bot:       &freqtradev1alpha1.BotConfig{DryRun: ptr.To(true)},
+				Exchange:  &freqtradev1alpha1.ExchangeSpec{Name: "binance"},
+				APIServer: &freqtradev1alpha1.APIServerConfig{Password: "plaintext-password"},
+			},
+		}
+		err := k8sClient.Create(context.Background(), cfg)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.apiServer.password"))
+	})
+
+	It("accepts a deprecated plaintext credential field when allow-plaintext-credentials is set", func() {
+		cfg := &freqtradev1alpha1.TradeBotConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "wh-tbc-plaintext-allowed",
+				Namespace:   testNamespace,
+				Annotations: map[string]string{"freqtrade.io/allow-plaintext-credentials": "true"},
+			},
+			Spec: freqtradev1alpha1.TradeBotConfigSpec{
+				Bot:      &freqtradev1alpha1.BotConfig{DryRun: ptr.To(true)},
+				Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance", Key: "plaintext-api-key"},
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+	})
+
+	It("does not reject account_id, which isn't a credential", func() {
+		cfg := &freqtradev1alpha1.TradeBotConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "wh-tbc-account-id", Namespace: testNamespace},
+			Spec: freqtradev1alpha1.TradeBotConfigSpec{
+				Bot:      &freqtradev1alpha1.BotConfig{DryRun: ptr.To(true)},
+				Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance", AccountID: "12345"},
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+	})
 })
 
 var _ = Describe("Strategy admission webhook (P1-4)", func() {

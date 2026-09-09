@@ -361,8 +361,22 @@ func BuildTradeBotConfig(tradeBotName string, tradeBotConfig *v1alpha1.TradeBotC
 			apiServer["enable_openapi"] = *tradeBotConfig.Spec.APIServer.EnableOpenAPI
 		}
 
-		if apiCredentials != nil {
+		// Deprecated plaintext credential fields (P3-1) are read first, as a
+		// fallback only - secretRef always wins below when it supplies a
+		// value. The webhook rejects setting Password/JWTSecretKey at all
+		// unless freqtrade.io/allow-plaintext-credentials is set, so the
+		// normal path never reaches here with anything to read.
+		if tradeBotConfig.Spec.APIServer.Username != "" {
+			apiServer["username"] = tradeBotConfig.Spec.APIServer.Username
+		}
+		if tradeBotConfig.Spec.APIServer.Password != "" {
+			apiServer["password"] = tradeBotConfig.Spec.APIServer.Password
+		}
+		if tradeBotConfig.Spec.APIServer.JWTSecretKey != "" {
+			apiServer["jwt_secret_key"] = tradeBotConfig.Spec.APIServer.JWTSecretKey
+		}
 
+		if apiCredentials != nil {
 			if apiCredentials["user"] != nil {
 				apiServer["username"] = string(apiCredentials["user"])
 			}
@@ -372,17 +386,6 @@ func BuildTradeBotConfig(tradeBotName string, tradeBotConfig *v1alpha1.TradeBotC
 			if apiCredentials["jwt_secret_key"] != nil {
 				apiServer["jwt_secret_key"] = string(apiCredentials["jwt_secret_key"])
 			}
-		}
-
-		if tradeBotConfig.Spec.APIServer.Username != "" {
-			apiServer["username"] = tradeBotConfig.Spec.APIServer.Username
-		}
-		if tradeBotConfig.Spec.APIServer.Password != "" {
-			apiServer["password"] = tradeBotConfig.Spec.APIServer.Password
-		}
-		if tradeBotConfig.Spec.APIServer.JWTSecretKey != "" {
-			apiServer["jwt_secret_key"] = tradeBotConfig.Spec.APIServer.JWTSecretKey
-
 		}
 
 		corsOrigins := tradeBotConfig.Spec.APIServer.CORSOrigins

@@ -296,15 +296,25 @@ type PricingSpec struct {
 }
 
 type ExchangeSpec struct {
-	Name                  string               `json:"name"`
-	Key                   string               `json:"key,omitempty"`      // API Key for the exchange
-	Secret                string               `json:"secret,omitempty"`   // API Secret for the exchange
-	Password              string               `json:"password,omitempty"` // Password for the exchange
-	UID                   string               `json:"uid,omitempty"`      // User identifier for the exchange
-	AccountID             string               `json:"account_id,omitempty"`
-	WalletAddress         string               `json:"wallet_address,omitempty"` // Wallet address for the exchange
-	PrivateKey            string               `json:"private_key,omitempty"`    // Private key for the exchange
-	SecretRef             string               `json:"secretRef,omitempty"`      // Reference to Secret containing API credentials.
+	Name string `json:"name"`
+	// Deprecated: stored unencrypted in etcd and readable by anyone who can
+	// get this TradeBotConfig. Use secretRef instead (P3-1); this field is
+	// rejected by the validating webhook unless
+	// freqtrade.io/allow-plaintext-credentials is set, and will be removed
+	// in v1beta1.
+	Key string `json:"key,omitempty"`
+	// Deprecated: see Key.
+	Secret string `json:"secret,omitempty"`
+	// Deprecated: see Key.
+	Password string `json:"password,omitempty"`
+	// Deprecated: see Key.
+	UID       string `json:"uid,omitempty"`
+	AccountID string `json:"account_id,omitempty"` // Not a credential (an identifier, not a secret) - not deprecated.
+	// Deprecated: see Key.
+	WalletAddress string `json:"wallet_address,omitempty"`
+	// Deprecated: see Key.
+	PrivateKey            string               `json:"private_key,omitempty"`
+	SecretRef             string               `json:"secretRef,omitempty"` // Reference to Secret containing API credentials.
 	CcxtConfig            apiextensionsv1.JSON `json:"ccxt_config,omitempty"`
 	CcxtAsyncConfig       apiextensionsv1.JSON `json:"ccxt_async_config,omitempty"`
 	CcxtSyncConfig        apiextensionsv1.JSON `json:"ccxt_sync_config,omitempty"` // CCXT sync config for the exchange
@@ -390,14 +400,20 @@ type APIServerConfig struct {
 	ListenIP string `json:"listen_ip_address,omitempty"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=65535
-	ListenPort    *int     `json:"listen_port,omitempty"`
-	Verbosity     string   `json:"verbosity,omitempty"`
-	EnableOpenAPI *bool    `json:"enable_openapi,omitempty"`
-	Username      string   `json:"username,omitempty"`
-	Password      string   `json:"password,omitempty"`
-	JWTSecretKey  string   `json:"jwtSecretKey,omitempty"`
-	SecretRef     string   `json:"secretRef,omitempty"`
-	CORSOrigins   []string `json:"cors_origins,omitempty"`
+	ListenPort    *int   `json:"listen_port,omitempty"`
+	Verbosity     string `json:"verbosity,omitempty"`
+	EnableOpenAPI *bool  `json:"enable_openapi,omitempty"`
+	Username      string `json:"username,omitempty"`
+	// Deprecated: stored unencrypted in etcd and readable by anyone who can
+	// get this TradeBotConfig. Use secretRef instead (P3-1); this field is
+	// rejected by the validating webhook unless
+	// freqtrade.io/allow-plaintext-credentials is set, and will be removed
+	// in v1beta1.
+	Password string `json:"password,omitempty"`
+	// Deprecated: see Password.
+	JWTSecretKey string   `json:"jwtSecretKey,omitempty"`
+	SecretRef    string   `json:"secretRef,omitempty"`
+	CORSOrigins  []string `json:"cors_origins,omitempty"`
 }
 
 type ExperimentalConfig struct {
@@ -418,7 +434,12 @@ type NotificationSpec struct {
 }
 
 type NotificationTelegram struct {
-	Enabled             *bool    `json:"enabled,omitempty"`
+	Enabled *bool `json:"enabled,omitempty"`
+	// Deprecated: stored unencrypted in etcd and readable by anyone who can
+	// get this TradeBotConfig. Use secretRef instead (P3-1); this field is
+	// rejected by the validating webhook unless
+	// freqtrade.io/allow-plaintext-credentials is set, and will be removed
+	// in v1beta1.
 	Token               string   `json:"token,omitempty"`
 	SecretRef           string   `json:"secretRef,omitempty"` // Reference to Secret containing Telegram credentials
 	BalanceDustLevel    *float64 `json:"balance_dust_level,omitempty"`

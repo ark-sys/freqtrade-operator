@@ -7,16 +7,17 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
-// TestBuildExchangeConfig_PlaintextOverridesSecret documents a deliberate
-// (if dangerous - see P3-1) precedence rule: when both a secretRef and a
-// plaintext credential field are set, the plaintext field wins. exchange.go
-// applies secret values first and then unconditionally overwrites them with
-// any non-empty plaintext field.
-func TestBuildExchangeConfig_PlaintextOverridesSecret(t *testing.T) {
+// TestBuildExchangeConfig_SecretOverridesPlaintext covers the P3-1 fix:
+// secretRef must always win over a deprecated plaintext credential field
+// when both happen to be set (only possible at all with
+// freqtrade.io/allow-plaintext-credentials, which the webhook requires for
+// the plaintext field to be accepted in the first place).
+func TestBuildExchangeConfig_SecretOverridesPlaintext(t *testing.T) {
 	exchange := &v1alpha1.ExchangeSpec{
 		Name:      "binance",
 		SecretRef: "exchange-creds",
 		Key:       "plaintext-key",
+		UID:       "plaintext-uid",
 	}
 	secretData := map[string][]byte{
 		"api-key": []byte("secret-key"),
@@ -27,11 +28,14 @@ func TestBuildExchangeConfig_PlaintextOverridesSecret(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got["key"] != "plaintext-key" {
-		t.Errorf("expected plaintext key to override the secret value, got %v", got["key"])
+	if got["key"] != "secret-key" {
+		t.Errorf("expected the secretRef value to win over the plaintext field, got %v", got["key"])
 	}
 	if got["secret"] != "secret-value" {
 		t.Errorf("expected the secret-only field to still come through, got %v", got["secret"])
+	}
+	if got["uid"] != "plaintext-uid" {
+		t.Errorf("expected the plaintext field to still apply when the Secret has no corresponding key, got %v", got["uid"])
 	}
 }
 

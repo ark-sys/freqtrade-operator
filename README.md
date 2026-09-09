@@ -90,6 +90,22 @@ kubectl create namespace freqtrade
 kubectl apply -f examples/binance-credentials.yaml
 ```
 
+Reference the Secret from `TradeBotConfig.spec.exchange.secretRef` (and, the same way, `spec.apiServer.secretRef` /
+`spec.notification.telegram.secretRef` for those credentials). The operator reads whichever of these keys the Secret's
+`data`/`stringData` provides - set only the ones your exchange needs:
+
+| Secret | Expected keys |
+|---|---|
+| `spec.exchange.secretRef` | `api-key`, `secret`, `password`, `uid`, `account_id`, `wallet_address`, `private_key` |
+| `spec.apiServer.secretRef` | `user`, `password`, `jwt_secret_key` |
+| `spec.notification.telegram.secretRef` | `token`, `chat-id` |
+
+`spec.exchange.key`/`secret`/`password`/`uid`/`wallet_address`/`private_key`, `spec.apiServer.password`/`jwtSecretKey`, and
+`spec.notification.telegram.token` are plaintext equivalents of the fields above. They're deprecated - stored unencrypted
+in etcd and readable by anyone who can `get` the `TradeBotConfig` - and the admission webhook rejects setting any of them
+unless the `TradeBotConfig` carries the annotation `freqtrade.io/allow-plaintext-credentials: "true"`. Use `secretRef`
+instead; the plaintext fields will be removed in `v1beta1`.
+
 ### 3. Create FreqUI deployment
 
 ```bash

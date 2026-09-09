@@ -36,6 +36,21 @@ linters:
           - dupl
           - lll
         path: internal/*
+      # configbuilder's whole job includes rendering the deprecated
+      # plaintext credential fields (P3-1) as a fallback when secretRef
+      # doesn't supply a value - the admission webhook is what actually
+      # keeps normal-path objects from setting them at all, so this isn't
+      # dead or accidental usage.
+      - linters:
+          - staticcheck
+        path: controllers/tradebotconfig/configbuilder/
+        text: "SA1019"
+      # Tests that exercise the P3-1 webhook rejection of deprecated
+      # plaintext credential fields have to set them to do so.
+      - linters:
+          - staticcheck
+        path: _test\.go
+        text: "SA1019"
     paths:
       - third_party$
       - builtin$

@@ -16,7 +16,40 @@ func BuildExchangeConfig(
 
 	cfg := map[string]interface{}{}
 
-	// 1. If SecretRef is set, use secretData if available (do not error if missing)
+	if exchange.Name != "" {
+		cfg["name"] = exchange.Name
+	}
+
+	// 1. Deprecated plaintext credential fields (P3-1) are read first, as a
+	// fallback only - the webhook rejects setting these at all unless
+	// freqtrade.io/allow-plaintext-credentials is set, so the normal path
+	// never reaches this block with anything to read. account_id isn't
+	// treated as a credential (it's an identifier, not a secret), so it has
+	// no webhook-enforced deprecation and no secretData equivalent below.
+	if exchange.Key != "" {
+		cfg["key"] = exchange.Key
+	}
+	if exchange.Secret != "" {
+		cfg["secret"] = exchange.Secret
+	}
+	if exchange.Password != "" {
+		cfg["password"] = exchange.Password
+	}
+	if exchange.UID != "" {
+		cfg["uid"] = exchange.UID
+	}
+	if exchange.AccountID != "" {
+		cfg["account_id"] = exchange.AccountID
+	}
+	if exchange.WalletAddress != "" {
+		cfg["wallet_address"] = exchange.WalletAddress
+	}
+	if exchange.PrivateKey != "" {
+		cfg["private_key"] = exchange.PrivateKey
+	}
+
+	// 2. secretRef always wins over a plaintext value for the keys it
+	// supplies - do not error if the Secret is missing a given key.
 	if exchange.SecretRef != "" && secretData != nil {
 		if apiKey, ok := secretData["api-key"]; ok {
 			cfg["key"] = string(apiKey)
@@ -41,31 +74,6 @@ func BuildExchangeConfig(
 		}
 	}
 
-	// 2. Override with "clear" parameters if set
-	if exchange.Name != "" {
-		cfg["name"] = exchange.Name
-	}
-	if exchange.Key != "" {
-		cfg["key"] = exchange.Key
-	}
-	if exchange.Secret != "" {
-		cfg["secret"] = exchange.Secret
-	}
-	if exchange.Password != "" {
-		cfg["password"] = exchange.Password
-	}
-	if exchange.UID != "" {
-		cfg["uid"] = exchange.UID
-	}
-	if exchange.AccountID != "" {
-		cfg["account_id"] = exchange.AccountID
-	}
-	if exchange.WalletAddress != "" {
-		cfg["wallet_address"] = exchange.WalletAddress
-	}
-	if exchange.PrivateKey != "" {
-		cfg["private_key"] = exchange.PrivateKey
-	}
 	if exchange.LogResponses != nil {
 		cfg["log_responses"] = *exchange.LogResponses
 	}
