@@ -299,14 +299,10 @@ func TestBuildConfig_GoldenFullExample(t *testing.T) {
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(exchangeSecret, telegramSecret, apiSecret).Build()
 
-	tradeBot := &v1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "full-bot", Namespace: "trading"},
-		Spec:       v1alpha1.TradeBotSpec{Config: "full-config", Strategy: "SampleStrategy"},
-	}
 	tradeBotConfig := fullTradeBotConfigFixture()
 	extraCorsHosts := []string{"https://full-bot.frequi.example.com"}
 
-	data, err := BuildConfig(context.Background(), c, tradeBot, tradeBotConfig, extraCorsHosts)
+	data, err := BuildConfig(context.Background(), c, "full-bot", "trading", tradeBotConfig, extraCorsHosts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

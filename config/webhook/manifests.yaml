@@ -64,3 +64,23 @@ webhooks:
     resources:
     - tradebotconfigs
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-freqtrade-io-v1beta1-backtest
+  failurePolicy: Fail
+  name: vbacktest.kb.io
+  rules:
+  - apiGroups:
+    - freqtrade.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - backtests
+  sideEffects: None

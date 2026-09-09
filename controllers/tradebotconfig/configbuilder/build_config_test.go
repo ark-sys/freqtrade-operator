@@ -25,15 +25,13 @@ func newTestScheme(t *testing.T) *runtime.Scheme {
 	return scheme
 }
 
-func newTestTradeBot() *v1alpha1.TradeBot {
-	return &v1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-bot", Namespace: "default"},
-		Spec: v1alpha1.TradeBotSpec{
-			Config:   "test-config",
-			Strategy: "test-strategy",
-		},
-	}
-}
+// testBotName/testBotNamespace stand in for whatever CR is rendering a
+// config (a TradeBot or a Backtest, P6-1) - BuildConfig only ever needs a
+// name and namespace, not the CR itself.
+const (
+	testBotName      = "test-bot"
+	testBotNamespace = "default"
+)
 
 func TestBuildConfig_MissingExchangeReturnsError(t *testing.T) {
 	scheme := newTestScheme(t)
@@ -47,7 +45,7 @@ func TestBuildConfig_MissingExchangeReturnsError(t *testing.T) {
 		},
 	}
 
-	_, err := BuildConfig(context.Background(), c, newTestTradeBot(), tradeBotConfig, nil)
+	_, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, tradeBotConfig, nil)
 	if err == nil {
 		t.Fatal("expected an error when Spec.Exchange is nil, got nil")
 	}
@@ -69,7 +67,7 @@ func TestBuildConfig_OptionalSectionsOmittedNoPanic(t *testing.T) {
 		},
 	}
 
-	data, err := BuildConfig(context.Background(), c, newTestTradeBot(), tradeBotConfig, nil)
+	data, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, tradeBotConfig, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,7 +116,7 @@ func TestBuildConfig_NilOptionalBoolPointersNoPanic(t *testing.T) {
 		},
 	}
 
-	data, err := BuildConfig(context.Background(), c, newTestTradeBot(), tradeBotConfig, nil)
+	data, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, tradeBotConfig, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -149,7 +147,7 @@ func TestBuildConfig_ExchangeSecretPrecedence(t *testing.T) {
 		},
 	}
 
-	data, err := BuildConfig(context.Background(), c, newTestTradeBot(), tradeBotConfig, nil)
+	data, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, tradeBotConfig, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -170,7 +170,11 @@ The `trade` command is used when no command is specified.
 ### Using the `backtesting` command
 
 The `backtesting` command is used to backtest a strategy. It can be used to test a strategy before deploying it to a live environment.
-This command materializes the TradeBot resource as a Job that runs the backtesting command. 
+This command materializes the TradeBot resource as a Job that runs the backtesting command.
+
+> New in `v1beta1`: [Backtest runs](#backtest-runs-v1beta1) below is a dedicated CRD for this, with typed parameters,
+> a per-run results PVC, and real `kubectl get backtests` columns. `TradeBot`'s own `backtesting` command still works
+> today and isn't going away yet, but `Backtest` is the better fit for anything beyond a one-off run.
 
 ### Using the `hyperopt` command
 
@@ -332,6 +336,49 @@ unbounded across a namespace's bot lifecycle.
 
 Only the leader replica polls; polling never runs inside the reconcile loop, so a slow or hung bot can't stall
 reconciliation of any TradeBot, including itself.
+
+## Backtest runs (v1beta1)
+
+`Backtest` is a dedicated CRD for one-shot backtesting runs, introduced alongside `TradeBot` rather than overloading
+it: a live bot is a mutable singleton you edit in place, a backtest is an immutable fact about a
+`(strategy, config, timerange, data)` tuple you want many of, with history - forcing both through one CRD is why the
+old `TradeBot` Job mode needed a spec-hash suffixed onto the Job name just to avoid collisions. A `Backtest`'s name
+*is* its run identity, and `kubectl get backtests` gets real printer columns for phase, trades, and profit.
+
+```yaml
+apiVersion: freqtrade.io/v1beta1
+kind: Backtest
+metadata:
+  name: sample-strategy-jan-2023
+spec:
+  configRef:
+    name: my-tradebotconfig
+  strategyRef:
+    name: my-strategy
+  timerange: "20230101-20230201"
+  timeframe: 5m
+  stakeAmount: unlimited
+  results:
+    size: 2Gi
+    retentionPolicy: Delete   # default; Retain keeps the results PVC (owner ref stripped) after this Backtest is deleted
+```
+
+**Spec is immutable after creation** (enforced by the API server itself, not just convention) - every field is fixed
+the moment the `Backtest` is admitted, so its Job's pod template never needs to change and can never drift from what
+actually ran. To change a parameter, create a new `Backtest`; nothing here is a place to iterate in-place.
+
+Typed fields (`timerange`, `timeframe`, `pairs`, `maxOpenTrades`, `stakeAmount`, `dryRunWallet`, `fee`,
+`enableProtections`, `breakdown`, `cache`, ...) cover the common cases. For a freqtrade flag the typed surface
+doesn't have yet, `spec.extraArgs` is an escape hatch - but it's off by default: set it and the admission webhook
+rejects the `Backtest` unless the `freqtrade.io/allow-extra-args: "true"` annotation is also present, and even then
+every value is checked against a denylist of flags this operator manages itself (`--config`, `--strategy`,
+`--strategy-path`, `--db-url`, `--logfile`, `--userdir`, `--datadir`) and against shell metacharacters. Prefer a
+typed field whenever one exists.
+
+`status.phase` (`Pending`/`Running`/`Succeeded`/`Failed`) and the `WorkloadReady` condition reflect the underlying
+Job. `status.results` is populated by a result-extraction sidecar that reads the run's own output and isn't built
+yet - a `Backtest`'s raw results land on its results PVC (`<name>-results`) either way, readable by mounting it from
+another pod in the meantime.
 
 ## Development
 

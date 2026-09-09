@@ -41,7 +41,7 @@ func TestBuildConfig_JWTSecretKeyGeneratedWhenAbsent(t *testing.T) {
 	scheme := newTestScheme(t)
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	data, err := BuildConfig(context.Background(), c, newTestTradeBot(), apiServerConfigFixture(), nil)
+	data, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, apiServerConfigFixture(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestBuildConfig_JWTSecretKeyNotGeneratedWhenDisabled(t *testing.T) {
 	tradeBotConfig := apiServerConfigFixture()
 	tradeBotConfig.Spec.APIServer.Enabled = ptrBool(false)
 
-	data, err := BuildConfig(context.Background(), c, newTestTradeBot(), tradeBotConfig, nil)
+	data, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, tradeBotConfig, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,16 +77,15 @@ func TestBuildConfig_JWTSecretKeyNotGeneratedWhenDisabled(t *testing.T) {
 // previously rendered config Secret (see existingAPIServerJWTSecretKey).
 func TestBuildConfig_JWTSecretKeyReusedAcrossReconciles(t *testing.T) {
 	scheme := newTestScheme(t)
-	tradeBot := newTestTradeBot()
 	existingSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: tradeBot.Name + "-config", Namespace: tradeBot.Namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName + "-config", Namespace: testBotNamespace},
 		Data: map[string][]byte{
 			"config.json": []byte(`{"api_server": {"jwt_secret_key": "previously-generated-key-still-in-use"}}`),
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existingSecret).Build()
 
-	data, err := BuildConfig(context.Background(), c, tradeBot, apiServerConfigFixture(), nil)
+	data, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, apiServerConfigFixture(), nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +106,7 @@ func TestBuildConfig_JWTSecretKeyTooShortIsRejected(t *testing.T) {
 	tradeBotConfig := apiServerConfigFixture()
 	tradeBotConfig.Spec.APIServer.SecretRef = "api-creds"
 
-	_, err := BuildConfig(context.Background(), c, newTestTradeBot(), tradeBotConfig, nil)
+	_, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, tradeBotConfig, nil)
 	if err == nil {
 		t.Fatal("expected an error for a jwt_secret_key shorter than the minimum, got nil")
 	}
@@ -129,7 +128,7 @@ func TestBuildConfig_JWTSecretKeySecretRefOverridesPlaintext(t *testing.T) {
 	tradeBotConfig.Spec.APIServer.SecretRef = "api-creds"
 	tradeBotConfig.Spec.APIServer.JWTSecretKey = "from-plaintext-field-well-over-the-minimum"
 
-	data, err := BuildConfig(context.Background(), c, newTestTradeBot(), tradeBotConfig, nil)
+	data, err := BuildConfig(context.Background(), c, testBotName, testBotNamespace, tradeBotConfig, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

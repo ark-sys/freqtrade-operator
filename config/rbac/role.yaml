@@ -80,16 +80,24 @@ rules:
 - apiGroups:
   - freqtrade.io
   resources:
-  - frequis
-  - strategies
-  - tradebotconfigs
+  - backtests
+  - tradebots
   verbs:
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - freqtrade.io
   resources:
+  - backtests/finalizers
+  - tradebots/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - freqtrade.io
+  resources:
+  - backtests/status
   - frequis/status
   - strategies/status
   - tradebotconfigs/status
@@ -101,18 +109,13 @@ rules:
 - apiGroups:
   - freqtrade.io
   resources:
-  - tradebots
+  - frequis
+  - strategies
+  - tradebotconfigs
   verbs:
   - get
   - list
-  - update
   - watch
-- apiGroups:
-  - freqtrade.io
-  resources:
-  - tradebots/finalizers
-  verbs:
-  - update
 - apiGroups:
   - networking.k8s.io
   resources:

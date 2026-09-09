@@ -6,45 +6,10 @@ import (
 	"strings"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/ptr"
 )
-
-// restrictedSecurityContext satisfies the pod-security.kubernetes.io/enforce=restricted
-// Pod Security Standard (P3-3): verified empirically against the real
-// freqtradeorg/freqtrade image (both `trade` and `download-data`) that
-// freqtrade starts and runs cleanly under all of these at once, including
-// no writable root filesystem - its own internal chown-user_data attempt
-// fails (no privilege to escalate) and is already handled as a harmless
-// warning, not a fatal error, in freqtrade's own startup code.
-func restrictedSecurityContext() *corev1.SecurityContext {
-	return &corev1.SecurityContext{
-		AllowPrivilegeEscalation: ptr.To(false),
-		ReadOnlyRootFilesystem:   ptr.To(true),
-		RunAsNonRoot:             ptr.To(true),
-		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-		SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-	}
-}
-
-// defaultContainerResources keeps a bot out of BestEffort QoS (first in
-// line for OOM-kill) without being so rigid a default that it fights every
-// real workload's actual needs - App.PodSpec.Resources overrides this
-// entirely via mergePodSpecOverrides for anything heavier (e.g. FreqAI).
-func defaultContainerResources() corev1.ResourceRequirements {
-	return corev1.ResourceRequirements{
-		Requests: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("100m"),
-			corev1.ResourceMemory: resource.MustParse("256Mi"),
-		},
-		Limits: corev1.ResourceList{
-			corev1.ResourceCPU:    resource.MustParse("1"),
-			corev1.ResourceMemory: resource.MustParse("1Gi"),
-		},
-	}
-}
 
 // BuildPod constructs a reusable PodSpec for running Freqtrade.
 // - tradeBot: source CR used for overrides (App.PodSpec) and namespacing
@@ -193,7 +158,7 @@ func BuildPod(
 			Name:            "init-user-data",
 			Image:           "busybox:latest",
 			ImagePullPolicy: corev1.PullIfNotPresent,
-			SecurityContext: restrictedSecurityContext(),
+			SecurityContext: shared.RestrictedSecurityContext(),
 			Command:         []string{"sh", "-c"},
 			Args:            []string{"mkdir -p /freqtrade/user_data/logs /freqtrade/user_data/data"},
 			VolumeMounts:    initUserDataMounts,
@@ -227,7 +192,7 @@ func BuildPod(
 				Name:            "init-download-data",
 				Image:           image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				SecurityContext: restrictedSecurityContext(),
+				SecurityContext: shared.RestrictedSecurityContext(),
 				Command:         []string{"sh", "-c", script, "init-download-data"},
 				Args:            dlArgs,
 				VolumeMounts:    initDownloadMounts,
@@ -237,7 +202,7 @@ func BuildPod(
 				Name:            "init-download-data",
 				Image:           image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				SecurityContext: restrictedSecurityContext(),
+				SecurityContext: shared.RestrictedSecurityContext(),
 				Command:         []string{"freqtrade"},
 				Args:            dlArgs,
 				VolumeMounts:    initDownloadMounts,
@@ -259,8 +224,8 @@ func BuildPod(
 		Command:         []string{"freqtrade"},
 		Args:            args,
 		VolumeMounts:    mainMounts,
-		SecurityContext: restrictedSecurityContext(),
-		Resources:       defaultContainerResources(),
+		SecurityContext: shared.RestrictedSecurityContext(),
+		Resources:       shared.DefaultContainerResources(),
 	}
 
 	// Probes and ports: only for trade

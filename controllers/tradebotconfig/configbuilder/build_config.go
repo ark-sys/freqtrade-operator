@@ -27,11 +27,16 @@ var ErrMissingExchange = errors.New("tradeBotConfig.spec.exchange is required")
 // the floor only ever rejects an actual weak value, never one of ours.
 const minAPIServerJWTSecretKeyLength = 32
 
-// BuildConfig merges all configuration sections into a complete Freqtrade config
+// BuildConfig merges all configuration sections into a complete Freqtrade
+// config. name/namespace identify whatever owns the rendered config.json -
+// a TradeBot for a live bot, or a Backtest for a one-shot run (P6-1) - and
+// are used only for namespacing secret lookups and reading back a
+// previously-generated JWT secret key; nothing else about the caller's own
+// type matters here.
 func BuildConfig(
 	ctx context.Context,
 	k8sClient client.Client,
-	tradeBot *v1alpha1.TradeBot,
+	name, namespace string,
 	tradeBotConfig *v1alpha1.TradeBotConfig,
 	extraCorsHosts []string,
 ) (map[string]string, error) {
@@ -47,20 +52,18 @@ func BuildConfig(
 	if tradeBotConfig.Spec.APIServer != nil {
 		apiServerSecretRef = tradeBotConfig.Spec.APIServer.SecretRef
 	}
-	apiCredentials, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, apiServerSecretRef)
+	apiCredentials, err := GetSecretData(ctx, k8sClient, namespace, apiServerSecretRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get API credentials: %w", err)
 	}
 
-	jwtSecretKey, err := resolveAPIServerJWTSecretKey(ctx, k8sClient, tradeBot, tradeBotConfig, apiCredentials)
+	jwtSecretKey, err := resolveAPIServerJWTSecretKey(ctx, k8sClient, name, namespace, tradeBotConfig, apiCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve API server JWT secret key: %w", err)
 	}
 
-	tradeBotName := tradeBot.Name
-
 	// Add bot-level configuration
-	botConfig, err := BuildTradeBotConfig(tradeBotName, tradeBotConfig, apiCredentials, jwtSecretKey, extraCorsHosts)
+	botConfig, err := BuildTradeBotConfig(name, tradeBotConfig, apiCredentials, jwtSecretKey, extraCorsHosts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build TradeBot config: %w", err)
 	}
@@ -70,7 +73,7 @@ func BuildConfig(
 	}
 
 	// Add exchange configuration
-	exchangeSecretData, err := GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBotConfig.Spec.Exchange.SecretRef)
+	exchangeSecretData, err := GetSecretData(ctx, k8sClient, namespace, tradeBotConfig.Spec.Exchange.SecretRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get exchange secret data: %w", err)
 	}
@@ -133,7 +136,9 @@ func BuildConfig(
 	// Add notification configuration
 	var notificationSecretData map[string][]byte
 	if tradeBotConfig.Spec.Notification != nil && tradeBotConfig.Spec.Notification.Telegram != nil {
-		notificationSecretData, err = GetSecretData(ctx, k8sClient, tradeBot.Namespace, tradeBotConfig.Spec.Notification.Telegram.SecretRef)
+		notificationSecretData, err = GetSecretData(
+			ctx, k8sClient, namespace, tradeBotConfig.Spec.Notification.Telegram.SecretRef,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get notification secret data: %w", err)
 		}
@@ -189,7 +194,7 @@ func GetSecretData(ctx context.Context, k8sClient client.Client, namespace, name
 func resolveAPIServerJWTSecretKey(
 	ctx context.Context,
 	k8sClient client.Client,
-	tradeBot *v1alpha1.TradeBot,
+	name, namespace string,
 	tradeBotConfig *v1alpha1.TradeBotConfig,
 	apiCredentials map[string][]byte,
 ) (string, error) {
@@ -210,7 +215,7 @@ func resolveAPIServerJWTSecretKey(
 		return key, nil
 	}
 
-	existing, err := existingAPIServerJWTSecretKey(ctx, k8sClient, tradeBot)
+	existing, err := existingAPIServerJWTSecretKey(ctx, k8sClient, name, namespace)
 	if err != nil {
 		return "", err
 	}
@@ -221,23 +226,25 @@ func resolveAPIServerJWTSecretKey(
 }
 
 // existingAPIServerJWTSecretKey reads back whatever jwt_secret_key (if any)
-// is already in this TradeBot's own rendered config Secret, so a
+// is already in the config Secret this render will produce, so a
 // once-generated key survives every later reconcile instead of rotating -
 // which would invalidate every JWT freqtrade had already issued for no
 // reason. "" (with no error) covers both a first-ever reconcile (the Secret
 // doesn't exist yet) and any other reason the field isn't cleanly readable -
 // either way, the caller's fallback is simply to generate a fresh one.
 func existingAPIServerJWTSecretKey(
-	ctx context.Context, k8sClient client.Client, tradeBot *v1alpha1.TradeBot,
+	ctx context.Context, k8sClient client.Client, name, namespace string,
 ) (string, error) {
 	secret := &corev1.Secret{}
-	// Must match resources.BuildSecret's naming in controllers/tradebot/resources/secret.go.
-	name := types.NamespacedName{Namespace: tradeBot.Namespace, Name: tradeBot.Name + "-config"}
-	if err := k8sClient.Get(ctx, name, secret); err != nil {
+	// Must match the "<name>-config" naming both resources.BuildSecret
+	// (controllers/tradebot/resources) and resources.BuildConfigSecret
+	// (controllers/backtest/resources, P6-1) use.
+	secretKey := types.NamespacedName{Namespace: namespace, Name: name + "-config"}
+	if err := k8sClient.Get(ctx, secretKey, secret); err != nil {
 		if apierrors.IsNotFound(err) {
 			return "", nil
 		}
-		return "", fmt.Errorf("failed to get existing config secret %s: %w", name, err)
+		return "", fmt.Errorf("failed to get existing config secret %s: %w", secretKey, err)
 	}
 
 	var existing struct {

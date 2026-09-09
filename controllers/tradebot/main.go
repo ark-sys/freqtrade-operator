@@ -289,7 +289,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	renderStart := time.Now()
 	configData, err := configbuilder.BuildConfig(
 		ctx, r.Client,
-		&tradeBot,
+		tradeBot.Name, tradeBot.Namespace,
 		resources.tradebotconfig,
 		corsHosts,
 	)

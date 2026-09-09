@@ -40,6 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
+	"github.com/ark-sys/freqtrade-operator/controllers/backtest"
 	"github.com/ark-sys/freqtrade-operator/controllers/frequi"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	"github.com/ark-sys/freqtrade-operator/controllers/strategy"
@@ -63,6 +65,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(freqtradev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(freqtradev1beta1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -84,7 +87,7 @@ func main() {
 		"How long to wait for a deleted TradeBot's StatefulSet to scale down before removing its finalizer anyway.")
 	flag.IntVar(&tradeBotMaxConcurrentReconciles, "tradebot-max-concurrent-reconciles", 4,
 		"How many TradeBots the TradeBot controller reconciles in parallel.")
-	flag.StringVar(&defaultFreqtradeImage, "default-freqtrade-image", tradebot.DefaultFreqtradeImage,
+	flag.StringVar(&defaultFreqtradeImage, "default-freqtrade-image", shared.DefaultFreqtradeImage,
 		"The freqtrade image reference used when a TradeBot's spec.app.pod.image doesn't override it. "+
 			"Should be digest-pinned so a pod restart can't silently change what version is running.")
 	flag.IntVar(&botPollWorkers, "bot-poll-workers", 4,
@@ -277,6 +280,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Setup Backtest controller (P6-1)
+	if err = (&backtest.Reconciler{
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		Recorder:     mgr.GetEventRecorderFor("backtest-controller"),
+		DefaultImage: defaultFreqtradeImage,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Backtest")
+		os.Exit(1)
+	}
+
 	// Set up admission webhooks
 	if err = (&freqtradev1alpha1.TradeBot{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "TradeBot")
@@ -288,6 +302,10 @@ func main() {
 	}
 	if err = (&freqtradev1alpha1.Strategy{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Strategy")
+		os.Exit(1)
+	}
+	if err = (&freqtradev1beta1.Backtest{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Backtest")
 		os.Exit(1)
 	}
 
