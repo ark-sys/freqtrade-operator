@@ -98,32 +98,34 @@ func Apply(ctx context.Context, c client.Client, owner, obj client.Object) error
 	return c.Patch(ctx, obj, client.Apply, client.FieldOwner(FieldOwner), client.ForceOwnership)
 }
 
-// EnqueueTradeBotsByConfigRef creates a handler function that enqueues TradeBots referencing a config CRD
+// EnqueueTradeBotsByConfigRef creates a handler function that enqueues the
+// TradeBots referencing obj (a TradeBotConfig or Strategy) via a spec field
+// registered as a field index under refField (e.g. TradeBot's setup.go).
+// The index is what keeps this an indexed lookup rather than listing every
+// TradeBot in the namespace and checking each one's spec in memory.
 func EnqueueTradeBotsByConfigRef(c client.Client, refField string) handler.MapFunc {
 	return func(ctx context.Context, obj client.Object) []reconcile.Request {
 		logger := log.FromContext(ctx)
 
 		var tradeBots freqtradev1alpha1.TradeBotList
-		if err := c.List(ctx, &tradeBots, client.InNamespace(obj.GetNamespace())); err != nil {
+		if err := c.List(ctx, &tradeBots,
+			client.InNamespace(obj.GetNamespace()),
+			client.MatchingFields{refField: obj.GetName()},
+		); err != nil {
 			logger.V(2).Error(err, "Failed to list TradeBots", "refField", refField)
 			return nil
 		}
 
-		var requests []reconcile.Request
+		requests := make([]reconcile.Request, 0, len(tradeBots.Items))
 		for _, bot := range tradeBots.Items {
-			if shouldEnqueueTradeBot(&bot, obj.GetName(), refField) {
-				requests = append(requests, reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name:      bot.Name,
-						Namespace: bot.Namespace,
-					},
-				})
-			}
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: bot.Name, Namespace: bot.Namespace},
+			})
 		}
 
 		if len(requests) > 0 {
 			logger.V(1).Info("Enqueuing TradeBots for config change",
-				"configType", refField, "configName", obj.GetName(), "tradeBotCount", len(requests))
+				"refField", refField, "configName", obj.GetName(), "tradeBotCount", len(requests))
 		}
 
 		return requests
@@ -158,17 +160,4 @@ func EnqueueTradeBotsByFreqUIRef(c client.Client) handler.MapFunc {
 
 		return requests
 	}
-}
-
-// shouldEnqueueTradeBot checks if a TradeBot should be enqueued based on the reference field
-func shouldEnqueueTradeBot(bot *freqtradev1alpha1.TradeBot, configName, refField string) bool {
-	strategyRef := bot.Spec.Strategy
-	tradebotconfigRef := bot.Spec.Config
-	switch refField {
-	case "strategy":
-		return strategyRef == configName
-	case "config":
-		return tradebotconfigRef == configName
-	}
-	return false
 }

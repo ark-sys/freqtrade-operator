@@ -68,8 +68,11 @@ func main() {
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
 	var tradeBotFinalizerGracePeriod time.Duration
+	var tradeBotMaxConcurrentReconciles int
 	flag.DurationVar(&tradeBotFinalizerGracePeriod, "tradebot-finalizer-grace-period", 2*time.Minute,
 		"How long to wait for a deleted TradeBot's StatefulSet to scale down before removing its finalizer anyway.")
+	flag.IntVar(&tradeBotMaxConcurrentReconciles, "tradebot-max-concurrent-reconciles", 4,
+		"How many TradeBots the TradeBot controller reconciles in parallel.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -214,9 +217,10 @@ func main() {
 
 	// Setup TradeBot controller
 	if err = (&tradebot.Reconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		FinalizerGracePeriod: tradeBotFinalizerGracePeriod,
+		Client:                  mgr.GetClient(),
+		Scheme:                  mgr.GetScheme(),
+		FinalizerGracePeriod:    tradeBotFinalizerGracePeriod,
+		MaxConcurrentReconciles: tradeBotMaxConcurrentReconciles,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TradeBot")
 		os.Exit(1)

@@ -36,6 +36,10 @@ type Reconciler struct {
 	// TradeBot's StatefulSet to scale down before removing the finalizer
 	// anyway. Zero means use defaultFinalizerGracePeriod.
 	FinalizerGracePeriod time.Duration
+
+	// MaxConcurrentReconciles bounds how many TradeBots this controller
+	// reconciles in parallel. Zero means use defaultMaxConcurrentReconciles.
+	MaxConcurrentReconciles int
 }
 
 // collectCORSHostsForTradeBot returns a deduplicated, normalized list of CORS hosts.
