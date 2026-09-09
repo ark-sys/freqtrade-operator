@@ -20,6 +20,12 @@ const (
 	// batchv1.Job.spec.template) and was silently not applied as a result.
 	ConditionWorkloadImmutable = "WorkloadImmutable"
 
+	// ConditionTradeBotRefsResolved reports whether every name in
+	// FreqUI.Spec.TradeBotRefs resolved to an actual TradeBot (P2-5): a typo
+	// there used to silently yield no CORS entry for that bot, with nothing
+	// visible on the FreqUI object to say why.
+	ConditionTradeBotRefsResolved = "TradeBotRefsResolved"
+
 	// ConditionConfigDrift is reserved for P2-4: a rendered config that
 	// hasn't been rolled out to the running pod under UpdateStrategy: Manual.
 	// No controller sets it yet.
@@ -66,6 +72,11 @@ const (
 	// ReasonReconcileError: a generic, otherwise-unclassified error occurred
 	// while reconciling (a List/Get/Create/Update call failed).
 	ReasonReconcileError = "ReconcileError"
+	// ReasonUnresolvableTradeBotRefs is the TradeBotRefsResolved=False
+	// reason: one or more names in FreqUI.Spec.TradeBotRefs don't match any
+	// TradeBot in the namespace (P2-5). Non-blocking - FreqUI still deploys
+	// and serves the UI; the affected bot(s) just get no CORS/API route.
+	ReasonUnresolvableTradeBotRefs = "UnresolvableTradeBotRefs"
 
 	// ReasonAsExpected is the positive-case reason for a condition type when
 	// nothing more specific applies - e.g. ConfigResolved=True. Kubernetes

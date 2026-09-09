@@ -311,6 +311,59 @@ var _ = Describe("TradeBot controller", func() {
 			Expect(pvc.Annotations).To(HaveKeyWithValue("freqtrade.io/preserved-from", tradeBot.Name))
 			Expect(pvc.Annotations).To(HaveKey("freqtrade.io/preserved-at"))
 		})
+
+		// P2-5: a re-created TradeBot of the same name must adopt the
+		// preserved PVC (server-side apply setting a fresh owner reference
+		// on it, P2-1) rather than failing "already exists" - the whole
+		// point of preserve-data is that the next TradeBot picks up where
+		// the last one left off.
+		It("adopts a preserved PVC when a TradeBot of the same name is re-created", func() {
+			ctx := context.Background()
+			strategy := newTestStrategy("strategy-readopt")
+			config := newTestTradeBotConfig("config-readopt")
+			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
+			Expect(k8sClient.Create(ctx, config)).To(Succeed())
+
+			tradeBot := newTestTradeBot("bot-readopt", strategy.Name, config.Name, "trade")
+			tradeBot.Annotations = map[string]string{"freqtrade.io/preserve-data": "true"}
+			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
+			key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
+			pvcKey := types.NamespacedName{Name: tradeBot.Name + "-user-data", Namespace: testNamespace}
+
+			Eventually(func() error {
+				return k8sClient.Get(ctx, pvcKey, &corev1.PersistentVolumeClaim{})
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+			var toDelete freqtradev1alpha1.TradeBot
+			Expect(k8sClient.Get(ctx, key, &toDelete)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, &toDelete)).To(Succeed())
+			Eventually(func() bool {
+				return errors.IsNotFound(k8sClient.Get(ctx, key, &freqtradev1alpha1.TradeBot{}))
+			}, "20s", eventuallyPoll).Should(BeTrue())
+
+			var preserved corev1.PersistentVolumeClaim
+			Expect(k8sClient.Get(ctx, pvcKey, &preserved)).To(Succeed())
+			Expect(preserved.OwnerReferences).To(BeEmpty(),
+				"sanity check: the PVC must actually be ownerless before re-creation")
+
+			recreated := newTestTradeBot("bot-readopt", strategy.Name, config.Name, "trade")
+			Expect(k8sClient.Create(ctx, recreated)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				var pvc corev1.PersistentVolumeClaim
+				g.Expect(k8sClient.Get(ctx, pvcKey, &pvc)).To(Succeed())
+				g.Expect(pvc.OwnerReferences).To(HaveLen(1))
+				g.Expect(pvc.OwnerReferences[0].Name).To(Equal(recreated.Name))
+				g.Expect(pvc.OwnerReferences[0].UID).NotTo(Equal(toDelete.UID),
+					"the PVC must be owned by the NEW TradeBot, not the deleted one")
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+			// Adoption must not have been blocked by an "already exists"
+			// error: the StatefulSet using this PVC has to come up normally.
+			Eventually(func() error {
+				return k8sClient.Get(ctx, key, &appsv1.StatefulSet{})
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+		})
 	})
 
 	Describe("FreqUI to TradeBot CORS propagation", func() {

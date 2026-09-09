@@ -20,7 +20,11 @@ type FreqUISpec struct {
 	// App is the configuration for the FreqUI application
 	App *FUAppConfig `json:"app,omitempty"`
 
-	// TradeBotRefs is a list of TradeBot names that this FreqUI should manage
+	// TradeBotRefs is a list of TradeBot names that this FreqUI should manage,
+	// resolved in this FreqUI's own namespace only (D3) - same-namespace-only
+	// is a deliberate, documented constraint, not a TODO. A name that doesn't
+	// resolve is surfaced via the TradeBotRefsResolved condition rather than
+	// silently yielding no CORS entry for that bot.
 	TradeBotRefs []string `json:"tradeBotRefs,omitempty"`
 }
 
