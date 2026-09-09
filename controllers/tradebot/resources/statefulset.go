@@ -19,19 +19,22 @@ import (
 const ConfigHashAnnotation = "freqtrade.io/config-hash"
 
 // BuildStatefulSet creates a StatefulSet for the bot, merging App.PodSpec
-// overrides. strategyName is the resolved Strategy.Spec.Name; the caller is
+// overrides. image is the resolved freqtrade image (see BuildPod).
+// strategyName is the resolved Strategy.Spec.Name; the caller is
 // responsible for having already fetched and validated the referenced
 // Strategy exists. configHash is written onto the pod template as
 // ConfigHashAnnotation when non-empty - see reconcileResources for how the
 // caller picks which hash value that is.
 func BuildStatefulSet(
-	tradeBot freqtradev1alpha1.TradeBot, strategyName, configSecretName, strategyConfigMapName, pvcName, configHash string,
+	tradeBot freqtradev1alpha1.TradeBot,
+	image, strategyName, configSecretName, strategyConfigMapName, pvcName, configHash string,
 ) appsv1.StatefulSet {
 	replicas := int32(1)
 
 	// Build the reusable PodSpec for trade mode.
 	podSpec := BuildPod(
 		tradeBot,
+		image,
 		strategyName,
 		configSecretName,
 		strategyConfigMapName,

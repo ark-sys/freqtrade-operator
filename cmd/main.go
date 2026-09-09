@@ -69,10 +69,14 @@ func main() {
 	var tlsOpts []func(*tls.Config)
 	var tradeBotFinalizerGracePeriod time.Duration
 	var tradeBotMaxConcurrentReconciles int
+	var defaultFreqtradeImage string
 	flag.DurationVar(&tradeBotFinalizerGracePeriod, "tradebot-finalizer-grace-period", 2*time.Minute,
 		"How long to wait for a deleted TradeBot's StatefulSet to scale down before removing its finalizer anyway.")
 	flag.IntVar(&tradeBotMaxConcurrentReconciles, "tradebot-max-concurrent-reconciles", 4,
 		"How many TradeBots the TradeBot controller reconciles in parallel.")
+	flag.StringVar(&defaultFreqtradeImage, "default-freqtrade-image", tradebot.DefaultFreqtradeImage,
+		"The freqtrade image reference used when a TradeBot's spec.app.pod.image doesn't override it. "+
+			"Should be digest-pinned so a pod restart can't silently change what version is running.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -222,6 +226,7 @@ func main() {
 		FinalizerGracePeriod:    tradeBotFinalizerGracePeriod,
 		MaxConcurrentReconciles: tradeBotMaxConcurrentReconciles,
 		Recorder:                mgr.GetEventRecorderFor("tradebot-controller"),
+		DefaultImage:            defaultFreqtradeImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TradeBot")
 		os.Exit(1)

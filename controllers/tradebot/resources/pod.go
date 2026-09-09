@@ -7,11 +7,50 @@ import (
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 )
+
+// restrictedSecurityContext satisfies the pod-security.kubernetes.io/enforce=restricted
+// Pod Security Standard (P3-3): verified empirically against the real
+// freqtradeorg/freqtrade image (both `trade` and `download-data`) that
+// freqtrade starts and runs cleanly under all of these at once, including
+// no writable root filesystem - its own internal chown-user_data attempt
+// fails (no privilege to escalate) and is already handled as a harmless
+// warning, not a fatal error, in freqtrade's own startup code.
+func restrictedSecurityContext() *corev1.SecurityContext {
+	return &corev1.SecurityContext{
+		AllowPrivilegeEscalation: ptr.To(false),
+		ReadOnlyRootFilesystem:   ptr.To(true),
+		RunAsNonRoot:             ptr.To(true),
+		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+		SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+	}
+}
+
+// defaultContainerResources keeps a bot out of BestEffort QoS (first in
+// line for OOM-kill) without being so rigid a default that it fights every
+// real workload's actual needs - App.PodSpec.Resources overrides this
+// entirely via mergePodSpecOverrides for anything heavier (e.g. FreqAI).
+func defaultContainerResources() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("256Mi"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("1"),
+			corev1.ResourceMemory: resource.MustParse("1Gi"),
+		},
+	}
+}
 
 // BuildPod constructs a reusable PodSpec for running Freqtrade.
 // - tradeBot: source CR used for overrides (App.PodSpec) and namespacing
+// - image: the freqtrade image reference to run (normally digest-pinned;
+// see Reconciler.DefaultImage) - the caller resolves this once so
+// TradeBotStatus.ResolvedImage can record exactly what was used (P3-3)
 // - strategyName: the Python strategy name (from Strategy.Spec.Name)
 // - configSecretName: Secret name for config.json
 // - strategyConfigMapName: ConfigMap name for strategy script
@@ -20,6 +59,7 @@ import (
 // - freqArgs: additional CLI arguments appended after the subcommand
 func BuildPod(
 	tradeBot freqtradev1alpha1.TradeBot,
+	image string,
 	strategyName string,
 	configSecretName string,
 	strategyConfigMapName string,
@@ -27,7 +67,6 @@ func BuildPod(
 	freqCommand string,
 	freqArgs []string,
 ) corev1.PodSpec {
-	image := "freqtradeorg/freqtrade:stable"
 	if strings.TrimSpace(freqCommand) == "" {
 		freqCommand = "trade"
 	}
@@ -58,8 +97,6 @@ func BuildPod(
 	runAsUser := int64(1000)
 	runAsGroup := int64(1000)
 	fsGroup := int64(1000)
-	runAsRoot := int64(0)
-	runAsRootGroup := int64(0)
 
 	// Base volumes
 	volumes := []corev1.Volume{
@@ -123,24 +160,47 @@ func BuildPod(
 		{Name: "user-data", MountPath: "/freqtrade/user_data"},
 	}
 	if hasCache {
-		initDownloadMounts = append(initDownloadMounts, corev1.VolumeMount{Name: "cache", MountPath: "/cache", ReadOnly: false})
+		initDownloadMounts = append(initDownloadMounts,
+			corev1.VolumeMount{Name: "cache", MountPath: "/cache", ReadOnly: false})
 	}
 
-	// Init containers
-	initContainers := []corev1.Container{
-		{
+	fixVolumePermissions := tradeBot.Spec.App != nil && tradeBot.Spec.App.PVCSpec != nil &&
+		tradeBot.Spec.App.PVCSpec.FixVolumePermissions != nil && *tradeBot.Spec.App.PVCSpec.FixVolumePermissions
+
+	// Init containers. init-user-data only creates directories: fsGroup
+	// (set on the pod's own SecurityContext below) already makes the volume
+	// group-writable on most CSI drivers, so - unlike before P3-3 - it runs
+	// as the same non-root user as everything else and never chmod/chowns
+	// anything. FixVolumePermissions (an opt-in, not the default) restores
+	// the old root-chown behavior for drivers where that's not true.
+	var initUserData corev1.Container
+	if fixVolumePermissions {
+		runAsRoot := int64(0)
+		initUserData = corev1.Container{
 			Name:            "init-user-data",
 			Image:           "busybox:latest",
 			ImagePullPolicy: corev1.PullIfNotPresent,
-			SecurityContext: &corev1.SecurityContext{RunAsUser: &runAsRoot, RunAsGroup: &runAsRootGroup},
+			SecurityContext: &corev1.SecurityContext{RunAsUser: &runAsRoot, RunAsGroup: &runAsRoot},
 			Command:         []string{"sh", "-c"},
 			Args: []string{
 				"mkdir -p /freqtrade/user_data/logs /freqtrade/user_data/data && " +
 					"chmod -R 775 /freqtrade/user_data && chown -R 1000:1000 /freqtrade/user_data",
 			},
 			VolumeMounts: initUserDataMounts,
-		},
+		}
+	} else {
+		initUserData = corev1.Container{
+			Name:            "init-user-data",
+			Image:           "busybox:latest",
+			ImagePullPolicy: corev1.PullIfNotPresent,
+			SecurityContext: restrictedSecurityContext(),
+			Command:         []string{"sh", "-c"},
+			Args:            []string{"mkdir -p /freqtrade/user_data/logs /freqtrade/user_data/data"},
+			VolumeMounts:    initUserDataMounts,
+		}
 	}
+	initContainers := []corev1.Container{initUserData}
+
 	// Append download-data init for jobs with cache
 	if hasCache {
 		dlArgs := []string{
@@ -166,7 +226,8 @@ func BuildPod(
 			initContainers = append(initContainers, corev1.Container{
 				Name:            "init-download-data",
 				Image:           image,
-				ImagePullPolicy: corev1.PullAlways,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				SecurityContext: restrictedSecurityContext(),
 				Command:         []string{"sh", "-c", script, "init-download-data"},
 				Args:            dlArgs,
 				VolumeMounts:    initDownloadMounts,
@@ -175,7 +236,8 @@ func BuildPod(
 			initContainers = append(initContainers, corev1.Container{
 				Name:            "init-download-data",
 				Image:           image,
-				ImagePullPolicy: corev1.PullAlways,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				SecurityContext: restrictedSecurityContext(),
 				Command:         []string{"freqtrade"},
 				Args:            dlArgs,
 				VolumeMounts:    initDownloadMounts,
@@ -185,12 +247,20 @@ func BuildPod(
 
 	// Main container
 	mainContainer := corev1.Container{
-		Name:            "freqtrade",
+		Name: "freqtrade",
+		// A floating tag on a fixed policy (the old ImagePullPolicy: PullAlways)
+		// meant a routine pod restart could silently pick up a new freqtrade
+		// version mid-trading. image is normally digest-pinned (see
+		// Reconciler.DefaultImage), so PullIfNotPresent is both correct
+		// (a digest never changes what it points to) and avoids a pointless
+		// re-pull on every restart.
 		Image:           image,
-		ImagePullPolicy: corev1.PullAlways,
+		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"freqtrade"},
 		Args:            args,
 		VolumeMounts:    mainMounts,
+		SecurityContext: restrictedSecurityContext(),
+		Resources:       defaultContainerResources(),
 	}
 
 	// Probes and ports: only for trade

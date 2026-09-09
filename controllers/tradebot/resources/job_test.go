@@ -32,7 +32,7 @@ func TestBuildJob(t *testing.T) {
 				},
 			}
 
-			job := BuildJob(tradeBot, "MyStrategy", "my-bot-config", "my-bot-strategy", "")
+			job := BuildJob(tradeBot, testImage, "MyStrategy", "my-bot-config", "my-bot-strategy", "")
 
 			if job.Name != "my-bot" {
 				t.Errorf("expected Name %q, got %q", "my-bot", job.Name)
@@ -111,7 +111,7 @@ func TestBuildJob_NoPVCUsesEmptyDir(t *testing.T) {
 		},
 	}
 
-	job := BuildJob(tradeBot, "MyStrategy", "my-bot-config", "my-bot-strategy", "")
+	job := BuildJob(tradeBot, testImage, "MyStrategy", "my-bot-config", "my-bot-strategy", "")
 
 	found := false
 	for _, v := range job.Spec.Template.Spec.Volumes {

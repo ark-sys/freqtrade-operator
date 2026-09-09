@@ -20,6 +20,25 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
+// DefaultFreqtradeImage is used when Reconciler.DefaultImage is unset (also
+// cmd/main.go's --default-freqtrade-image flag default, so both stay in
+// sync from this one definition). Digest-pinned (P3-3) rather than a
+// floating tag like the old freqtradeorg/freqtrade:stable, so a pod
+// restart can never silently change what version of freqtrade a bot is
+// running. Update it deliberately, as its own reviewable change, when
+// freqtrade ships a version worth moving to; verified this exact digest
+// starts cleanly under the P3-3 restricted SecurityContext (both `trade`
+// and `download-data`) before pinning it.
+const DefaultFreqtradeImage = "freqtradeorg/freqtrade@sha256:" +
+	"7031bca43ed7668ebf421725dd5016acade6ef88b0771db3e08c96e6d19a42db"
+
+func (r *Reconciler) defaultImage() string {
+	if r.DefaultImage != "" {
+		return r.DefaultImage
+	}
+	return DefaultFreqtradeImage
+}
+
 // referencedResources holds all the resources referenced by a TradeBot
 type referencedResources struct {
 	strategy       *freqtradev1alpha1.Strategy
@@ -67,6 +86,11 @@ type reconcileOutcome struct {
 	// the config just rendered into the Secret, regardless of mode -
 	// TradeBotStatus.AppliedConfigHash always reflects it.
 	appliedConfigHash string
+	// resolvedImage is the exact image reference the built workload's main
+	// container ended up with, read back post-merge so an
+	// spec.app.pod.image override is reflected too - TradeBotStatus.ResolvedImage
+	// always reflects it (P3-3).
+	resolvedImage string
 	// configDrift is whether a trade-mode TradeBot's rendered config has
 	// moved on from what the StatefulSet pod template - and so the running
 	// pods - still reflect. Always false in Job mode, where
@@ -142,8 +166,9 @@ func (r *Reconciler) reconcileResources(
 
 		// Stateful, long-running bot
 		sts := resources.BuildStatefulSet(
-			*tradeBot, strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, pvc.Name, templateHash,
+			*tradeBot, r.defaultImage(), strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, pvc.Name, templateHash,
 		)
+		outcome.resolvedImage = sts.Spec.Template.Spec.Containers[0].Image
 		if err := shared.Apply(ctx, r.Client, tradeBot, &sts); err != nil {
 			logger.Error(err, "Failed to apply StatefulSet")
 			return outcome, fmt.Errorf("failed to apply StatefulSet: %w", err)
@@ -165,7 +190,10 @@ func (r *Reconciler) reconcileResources(
 		// IsJobTemplateImmutableError *is* the drift signal, not something to
 		// detect separately by comparing specs (which would have to compare
 		// an undefaulted desired spec against a defaulted existing one).
-		desiredJob := resources.BuildJob(*tradeBot, strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, "")
+		desiredJob := resources.BuildJob(
+			*tradeBot, r.defaultImage(), strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, "",
+		)
+		outcome.resolvedImage = desiredJob.Spec.Template.Spec.Containers[0].Image
 		switch err := shared.Apply(ctx, r.Client, tradeBot, &desiredJob); {
 		case err == nil:
 			logger.V(2).Info("Job applied successfully", "name", desiredJob.Name)

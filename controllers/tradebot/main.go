@@ -47,6 +47,13 @@ type Reconciler struct {
 	// full per-controller EventRecorder rollout P4-1 covers; recordConfigRestartEvent
 	// skips emitting rather than dereferencing a nil interface.
 	Recorder record.EventRecorder
+
+	// DefaultImage is the freqtrade image reference used when
+	// spec.app.pod.image doesn't override it. Empty means use
+	// defaultFreqtradeImage. Digest-pinned by default (P3-3): a floating
+	// tag would let a routine pod restart silently pick up a new freqtrade
+	// version mid-trading.
+	DefaultImage string
 }
 
 // collectCORSHostsForTradeBot returns a deduplicated, normalized list of CORS hosts.
@@ -324,6 +331,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		meta.SetStatusCondition(&tradeBot.Status.Conditions,
 			configDriftCondition(tradeBot.Name, tradeBot.Namespace, tradeBot.Generation, outcome.configDrift))
 		tradeBot.Status.AppliedConfigHash = outcome.appliedConfigHash
+		tradeBot.Status.ResolvedImage = outcome.resolvedImage
 		tradeBot.Status.Phase = deriveTradeBotPhase(tradeBot.Status.Conditions)
 		tradeBot.Status.Message = message
 	}); err != nil {

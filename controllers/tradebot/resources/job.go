@@ -23,12 +23,13 @@ const (
 )
 
 // BuildJob creates a Job for one-shot commands (e.g., backtesting, hyperopt)
-// using the reusable PodSpec from BuildPod. strategyName is the resolved
-// Strategy.Spec.Name; the caller is responsible for having already fetched
-// and validated the referenced Strategy exists.
+// using the reusable PodSpec from BuildPod. image is the resolved freqtrade
+// image (see BuildPod). strategyName is the resolved Strategy.Spec.Name;
+// the caller is responsible for having already fetched and validated the
+// referenced Strategy exists.
 func BuildJob(
 	tradeBot freqtradev1alpha1.TradeBot,
-	strategyName, configSecretName, strategyConfigMapName, pvcName string,
+	image, strategyName, configSecretName, strategyConfigMapName, pvcName string,
 ) batchv1.Job {
 	freqCommand := tradeBot.Spec.FreqtradeCommand
 	if freqCommand == "" {
@@ -38,6 +39,7 @@ func BuildJob(
 	// Build the PodSpec via the shared builder
 	podSpec := BuildPod(
 		tradeBot,
+		image,
 		strategyName,
 		configSecretName,
 		strategyConfigMapName,

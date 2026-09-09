@@ -119,6 +119,17 @@ type PVCSpec struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 	// Labels defines additional labels for the PVC
 	Labels map[string]string `json:"labels,omitempty"`
+	// FixVolumePermissions restores the pre-P3-3 behavior of running the
+	// init-user-data init container as root to chmod/chown this PVC before
+	// the main container starts. Off by default: spec.securityContext.fsGroup
+	// (already set on every pod this operator builds) already makes the
+	// volume group-writable on most CSI drivers, and running as root here is
+	// a real, if narrow, privilege escalation on an otherwise fully
+	// non-root pod. Turn this on only if pods are actually crash-looping on
+	// a permission-denied error under /freqtrade/user_data and changing
+	// storage class isn't an option.
+	// +optional
+	FixVolumePermissions *bool `json:"fixVolumePermissions,omitempty"`
 }
 
 // TradeBotStatus defines the observed state of TradeBot
@@ -145,6 +156,14 @@ type TradeBotStatus struct {
 	// whether it has been rolled out to the running StatefulSet pods yet
 	// (see the ConfigDrift condition).
 	AppliedConfigHash string `json:"appliedConfigHash,omitempty"`
+
+	// ResolvedImage is the exact freqtrade image reference (normally
+	// digest-pinned) the running workload was built with - the manager's
+	// --default-freqtrade-image flag unless spec.app.pod.image overrides it
+	// (P3-3). A floating tag would let a routine pod restart silently pick
+	// up a new freqtrade version mid-trading; this makes what's actually
+	// running visible regardless of which source set it.
+	ResolvedImage string `json:"resolvedImage,omitempty"`
 }
 
 //+kubebuilder:object:root=true

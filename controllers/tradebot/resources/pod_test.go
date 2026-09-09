@@ -10,6 +10,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// testImage stands in for a resolved freqtrade image reference across this
+// package's tests - what value it holds doesn't matter to any of them.
+const testImage = "freqtradeorg/freqtrade@sha256:test"
+
 func volumeNamed(spec corev1.PodSpec, name string) *corev1.Volume {
 	for i := range spec.Volumes {
 		if spec.Volumes[i].Name == name {
@@ -31,7 +35,9 @@ func initContainerNamed(spec corev1.PodSpec, name string) *corev1.Container {
 func TestBuildPod_TradeMode(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
 
-	spec := BuildPod(tradeBot, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil)
+	spec := BuildPod(
+		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
+	)
 
 	container := spec.Containers[0]
 	if container.Args[0] != "trade" {
@@ -59,7 +65,9 @@ func TestBuildPod_JobModeNoCache(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
 
 	freqArgs := []string{"--timerange", "20240101-"}
-	spec := BuildPod(tradeBot, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", freqArgs)
+	spec := BuildPod(
+		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", freqArgs,
+	)
 
 	container := spec.Containers[0]
 	if container.Args[0] != "backtesting" {
@@ -99,7 +107,7 @@ func TestBuildPod_JobModeWithCache(t *testing.T) {
 		},
 	}
 
-	spec := BuildPod(tradeBot, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
 
 	container := spec.Containers[0]
 	if !containsArg(container.Args, "--datadir") {
@@ -146,7 +154,7 @@ func TestBuildPod_DownloadPolicyNeverSkipsDownload(t *testing.T) {
 		},
 	}
 
-	spec := BuildPod(tradeBot, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
 
 	if initContainerNamed(spec, "init-download-data") != nil {
 		t.Error("expected DownloadPolicy=never to skip the download-data init container")
@@ -172,7 +180,7 @@ func TestBuildPod_DownloadPolicyIfMissingOnlyDownloadsWhenEmpty(t *testing.T) {
 		},
 	}
 
-	spec := BuildPod(tradeBot, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
 
 	dl := initContainerNamed(spec, "init-download-data")
 	if dl == nil {
@@ -205,7 +213,9 @@ func TestBuildPod_AppliesPodSpecOverrides(t *testing.T) {
 		},
 	}
 
-	spec := BuildPod(tradeBot, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil)
+	spec := BuildPod(
+		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
+	)
 
 	if spec.Containers[0].Image != "custom/freqtrade:latest" {
 		t.Errorf("expected the overridden image to apply, got %q", spec.Containers[0].Image)
@@ -316,5 +326,124 @@ func TestMergePodSpecOverrides_OnlyOverridesSetFields(t *testing.T) {
 	}
 	if got.NodeSelector["default"] != "true" {
 		t.Errorf("expected NodeSelector left untouched since no override was given, got %v", got.NodeSelector)
+	}
+}
+
+// assertRestrictedSecurityContext fails t unless sc satisfies
+// pod-security.kubernetes.io/enforce=restricted (P3-3) - verified
+// empirically that freqtrade itself starts cleanly under exactly this.
+func assertRestrictedSecurityContext(t *testing.T, containerName string, sc *corev1.SecurityContext) {
+	t.Helper()
+	if sc == nil {
+		t.Fatalf("%s: expected a SecurityContext, got nil", containerName)
+	}
+	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+		t.Errorf("%s: expected allowPrivilegeEscalation=false, got %v", containerName, sc.AllowPrivilegeEscalation)
+	}
+	if sc.ReadOnlyRootFilesystem == nil || !*sc.ReadOnlyRootFilesystem {
+		t.Errorf("%s: expected readOnlyRootFilesystem=true, got %v", containerName, sc.ReadOnlyRootFilesystem)
+	}
+	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+		t.Errorf("%s: expected runAsNonRoot=true, got %v", containerName, sc.RunAsNonRoot)
+	}
+	if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
+		t.Errorf("%s: expected capabilities.drop=[ALL], got %v", containerName, sc.Capabilities)
+	}
+	if sc.SeccompProfile == nil || sc.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault {
+		t.Errorf("%s: expected seccompProfile RuntimeDefault, got %v", containerName, sc.SeccompProfile)
+	}
+}
+
+func TestBuildPod_RestrictedSecurityContextByDefault(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+
+	spec := BuildPod(
+		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
+	)
+
+	assertRestrictedSecurityContext(t, "freqtrade", spec.Containers[0].SecurityContext)
+	initUserData := initContainerNamed(spec, "init-user-data")
+	if initUserData == nil {
+		t.Fatal("expected an init-user-data container")
+	}
+	assertRestrictedSecurityContext(t, "init-user-data", initUserData.SecurityContext)
+	if initUserData.SecurityContext.RunAsUser != nil {
+		t.Errorf("expected init-user-data to run as the pod's own non-root user by default, got RunAsUser=%v",
+			*initUserData.SecurityContext.RunAsUser)
+	}
+	for _, arg := range initUserData.Args {
+		if strings.Contains(arg, "chown") || strings.Contains(arg, "chmod") {
+			t.Errorf("expected no chown/chmod by default (fsGroup already makes the volume writable), got %q", arg)
+		}
+	}
+}
+
+func TestBuildPod_FixVolumePermissionsOptIn(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		Spec: freqtradev1alpha1.TradeBotSpec{
+			App: &freqtradev1alpha1.TBAppConfig{
+				PVCSpec: &freqtradev1alpha1.PVCSpec{FixVolumePermissions: ptrBoolPod(true)},
+			},
+		},
+	}
+
+	spec := BuildPod(
+		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
+	)
+
+	initUserData := initContainerNamed(spec, "init-user-data")
+	if initUserData == nil {
+		t.Fatal("expected an init-user-data container")
+	}
+	if initUserData.SecurityContext == nil || initUserData.SecurityContext.RunAsUser == nil ||
+		*initUserData.SecurityContext.RunAsUser != 0 {
+		t.Errorf("expected FixVolumePermissions to run init-user-data as root, got %+v", initUserData.SecurityContext)
+	}
+	found := false
+	for _, arg := range initUserData.Args {
+		if strings.Contains(arg, "chown") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected FixVolumePermissions to restore the chown step, got args %v", initUserData.Args)
+	}
+}
+
+func TestBuildPod_DefaultResourcesAvoidBestEffortQoS(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+
+	spec := BuildPod(
+		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
+	)
+
+	resources := spec.Containers[0].Resources
+	if len(resources.Requests) == 0 || len(resources.Limits) == 0 {
+		t.Errorf("expected non-empty default requests and limits (BestEffort pods are OOM-killed first), got %+v", resources)
+	}
+}
+
+func TestBuildPod_ImageAppliesToMainAndDownloadInitContainerNotInitUserData(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{
+		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		Spec: freqtradev1alpha1.TradeBotSpec{
+			Data: &freqtradev1alpha1.DataCacheSpec{PVCName: "cache-pvc"},
+		},
+	}
+
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
+
+	if spec.Containers[0].Image != testImage {
+		t.Errorf("expected the main container to use the resolved image %q, got %q", testImage, spec.Containers[0].Image)
+	}
+	downloadInit := initContainerNamed(spec, "init-download-data")
+	if downloadInit == nil || downloadInit.Image != testImage {
+		t.Errorf("expected init-download-data to use the resolved image %q, got %+v", testImage, downloadInit)
+	}
+	initUserData := initContainerNamed(spec, "init-user-data")
+	if initUserData == nil || initUserData.Image != "busybox:latest" {
+		t.Errorf("expected init-user-data to keep using busybox regardless of the resolved freqtrade image, got %+v",
+			initUserData)
 	}
 }

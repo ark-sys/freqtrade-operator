@@ -5627,6 +5627,18 @@ spec:
                         description: Annotations defines additional annotations for
                           the PVC
                         type: object
+                      fixVolumePermissions:
+                        description: |-
+                          FixVolumePermissions restores the pre-P3-3 behavior of running the
+                          init-user-data init container as root to chmod/chown this PVC before
+                          the main container starts. Off by default: spec.securityContext.fsGroup
+                          (already set on every pod this operator builds) already makes the
+                          volume group-writable on most CSI drivers, and running as root here is
+                          a real, if narrow, privilege escalation on an otherwise fully
+                          non-root pod. Turn this on only if pods are actually crash-looping on
+                          a permission-denied error under /freqtrade/user_data and changing
+                          storage class isn't an option.
+                        type: boolean
                       labels:
                         additionalProperties:
                           type: string
@@ -5906,6 +5918,15 @@ spec:
                 description: |-
                   Phase is a derived, human-facing summary for the printer column only -
                   it is never the source of truth. Conditions are.
+                type: string
+              resolvedImage:
+                description: |-
+                  ResolvedImage is the exact freqtrade image reference (normally
+                  digest-pinned) the running workload was built with - the manager's
+                  --default-freqtrade-image flag unless spec.app.pod.image overrides it
+                  (P3-3). A floating tag would let a routine pod restart silently pick
+                  up a new freqtrade version mid-trading; this makes what's actually
+                  running visible regardless of which source set it.
                 type: string
             type: object
         type: object
