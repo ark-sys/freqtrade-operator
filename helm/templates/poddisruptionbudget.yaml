@@ -1,0 +1,16 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "freqtrade-operator.fullname" . }}-controller-manager
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "freqtrade-operator.labels" . | nindent 4 }}
+    control-plane: controller-manager
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "freqtrade-operator.selectorLabels" . | nindent 6 }}
+      control-plane: controller-manager
+{{- end }}

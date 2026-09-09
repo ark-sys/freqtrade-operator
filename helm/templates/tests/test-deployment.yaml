@@ -1,3 +1,28 @@
+{{- if and .Values.rbac.create .Values.controllerManager.metrics.enabled }}
+# Grants this test's own pod (reusing the operator's ServiceAccount, below) the
+# chart's own metrics-reader ClusterRole for the duration of the test - that role
+# exists precisely so something other than Prometheus can be granted read access
+# to the authenticated metrics endpoint, and isn't bound to anyone by default.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "freqtrade-operator.fullname" . }}-test-metrics-reader
+  labels:
+    {{- include "freqtrade-operator.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "freqtrade-operator.fullname" . }}-metrics-reader
+subjects:
+- kind: ServiceAccount
+  name: {{ include "freqtrade-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+---
+{{- end }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -16,25 +41,34 @@ spec:
         - /bin/sh
         - -c
         - |
+          set -eu
           echo "Testing Freqtrade Operator deployment..."
-          
-          # Wait for deployment to be ready
+
+          echo "Waiting for the controller manager to become available..."
           kubectl wait --for=condition=available --timeout=300s deployment/{{ include "freqtrade-operator.fullname" . }}-controller-manager -n {{ .Release.Namespace }}
-          
-          # Check if CRDs are installed
+
           echo "Checking CRDs..."
-          kubectl get crd | grep freqtrade.io | wc -l | grep -q "4" || (echo "Expected 4 CRDs, found less" && exit 1)
-          
-          # Check if controller manager is running
-          echo "Checking controller manager pods..."
+          for crd in tradebots tradebotconfigs strategies frequis backtests; do
+            kubectl get crd "${crd}.freqtrade.io" >/dev/null || (echo "Missing CRD ${crd}.freqtrade.io" && exit 1)
+          done
+
+          echo "Checking controller manager pod is Running..."
           kubectl get pods -l control-plane=controller-manager -n {{ .Release.Namespace }} | grep Running
-          
+
           {{- if .Values.controllerManager.metrics.enabled }}
-          # Test metrics endpoint if enabled
           echo "Testing metrics endpoint..."
-          kubectl exec deployment/{{ include "freqtrade-operator.fullname" . }}-controller-manager -n {{ .Release.Namespace }} -- curl -s http://localhost:8080/metrics | head -5
+          # Authenticated + TLS, matching how the ServiceMonitor itself scrapes
+          # (see templates/servicemonitor.yaml): this pod's own projected SA
+          # token as the bearer credential (granted metrics-reader access
+          # above), -k because the manager's cert is self-signed with no
+          # cert-manager wired into this chart - the same trade-off
+          # config/prometheus/monitor.yaml already makes.
+          curl -sk --fail \
+            -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+            "https://{{ include "freqtrade-operator.fullname" . }}-controller-manager-metrics.{{ .Release.Namespace }}.svc:8443/metrics" \
+            | head -5
           {{- end }}
-          
+
           echo "All tests passed!"
   restartPolicy: Never
-  serviceAccountName: {{ include "freqtrade-operator.serviceAccountName" . }} 
+  serviceAccountName: {{ include "freqtrade-operator.serviceAccountName" . }}

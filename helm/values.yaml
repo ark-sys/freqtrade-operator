@@ -123,6 +123,30 @@ nodeSelector: {}
 # Tolerations for pod assignment
 tolerations: []
 
+# PriorityClassName for the controller manager pod. Unset by default; set it to your
+# cluster's own "system-cluster-critical" or similar if the operator being evicted
+# before the trading workloads it manages matters to you.
+priorityClassName: ""
+
+# Spread controller manager replicas across failure domains - only meaningful once
+# controllerManager.replicas is scaled above 1.
+topologySpreadConstraints: []
+# - maxSkew: 1
+#   topologyKey: topology.kubernetes.io/zone
+#   whenUnsatisfiable: ScheduleAnyway
+#   labelSelector:
+#     matchLabels:
+#       control-plane: controller-manager
+
+# Pod Disruption Budget for the controller manager. Off by default: at the default
+# controllerManager.replicas: 1, a minAvailable: 1 PDB would block voluntary node
+# drains from ever evicting the only replica at all, rather than just protecting
+# availability - enable this once you've scaled replicas to 2+ for real HA via
+# leader election.
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
 # Affinity for pod assignment
 affinity: {}
 # Recommended for production:
