@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2" // nolint:revive,staticcheck
 )
@@ -127,9 +128,35 @@ func InstallCertManager() error {
 		"--namespace", "cert-manager",
 		"--timeout", "5m",
 	)
+	if _, err := Run(cmd); err != nil {
+		return err
+	}
 
-	_, err := Run(cmd)
-	return err
+	// The Deployment reporting Available does not mean cert-manager's own admission webhook is
+	// actually ready to serve: cainjector populates its ValidatingWebhookConfiguration's caBundle
+	// slightly after that, and any apiserver call needing that webhook (e.g. creating this
+	// project's own Certificate/Issuer via `make deploy`) fails with "x509: certificate signed by
+	// unknown authority" in the gap. Verified directly - a run hit exactly this error, and it can
+	// persist well past a minute, not just a few seconds. Poll for the caBundle field itself
+	// rather than a fixed sleep, since the gap's actual length varies by run.
+	return pollForCABundle()
+}
+
+func pollForCABundle() error {
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		cmd := exec.Command("kubectl", "get", "validatingwebhookconfigurations", "cert-manager-webhook",
+			"-o", "jsonpath={.webhooks[0].clientConfig.caBundle}")
+		output, err := Run(cmd)
+		if err == nil && len(output) > 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("cert-manager-webhook's caBundle was not populated within 2m (last output: %q, err: %v)",
+				output, err)
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 // IsCertManagerCRDsInstalled checks if any Cert Manager CRDs are installed

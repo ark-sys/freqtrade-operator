@@ -25,7 +25,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/test/utils"
+	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 var (
@@ -40,6 +45,12 @@ var (
 	// projectImage is the name of the image which will be build and loaded
 	// with the code source changes to be tested.
 	projectImage = "example.com/freqtrade-operator:v0.0.1"
+
+	// k8sClient is a typed client against whatever cluster the current kubeconfig context points
+	// at (the kind cluster make setup-test-e2e creates) - used by spec files that construct real
+	// TradeBot/TradeBotConfig/Strategy/Backtest/FreqUI objects directly rather than shelling out to
+	// kubectl for everything the way e2e_test.go's stock "Manager" checks do.
+	k8sClient client.Client
 )
 
 // TestE2E runs the end-to-end (e2e) test suite for the project. These tests execute in an isolated,
@@ -53,9 +64,17 @@ func TestE2E(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	By("building a typed client against the current kubeconfig context")
+	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(freqtradev1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	restCfg, err := config.GetConfig()
+	Expect(err).NotTo(HaveOccurred(), "Failed to load kubeconfig")
+	k8sClient, err = client.New(restCfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred(), "Failed to build client")
+
 	By("building the manager(Operator) image")
 	cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectImage))
-	_, err := utils.Run(cmd)
+	_, err = utils.Run(cmd)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to build the manager(Operator) image")
 
 	// TODO(user): If you want to change the e2e test vendor from Kind, ensure the image is

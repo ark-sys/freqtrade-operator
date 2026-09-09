@@ -29,6 +29,9 @@ jobs:
           go mod tidy
           make test
 
+      - name: Check coverage against the ratcheted floors
+        run: make coverage-gate
+
       - name: Verify generated manifests are up to date
         run: |
           make manifests generate

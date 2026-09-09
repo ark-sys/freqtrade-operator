@@ -37,6 +37,9 @@ var (
 )
 
 func TestControllers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping envtest-backed suite in -short mode (make test-unit)")
+	}
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Backtest Controller Suite")
 }

@@ -73,13 +73,21 @@ mechanism this operator has to enforce on your behalf.
 ### Using pre-built images
 
 ```bash
-kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/install.yaml
+kubectl apply --server-side -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/install.yaml
 ```
+
+`--server-side` is required, not optional: a plain `kubectl apply` embeds the whole applied object into a
+`kubectl.kubernetes.io/last-applied-configuration` annotation, capped at 256KiB - the `TradeBot` CRD alone (two
+full served API versions since `v1beta1`) already exceeds that, and `kubectl apply` without `--server-side` fails
+outright on it with "metadata.annotations: Too long". Server-side apply tracks field ownership instead of
+embedding the whole object, so it isn't affected by this at all - the same fix
+[helm/ARGOCD-CONFIGURATION.md](helm/ARGOCD-CONFIGURATION.md) already documents for the Helm chart's ArgoCD path.
 
 `install.yaml` is a one-file install - CRDs, RBAC, webhooks, and the operator Deployment together, built by
 `make build-installer` against the exact image the same release job builds, signs, and pushes. The CRDs alone are
 also published separately as `freqtrade-operator-crds.tar.gz`, for anyone managing RBAC/Deployment themselves (e.g.
-via the Helm chart below) but still wanting the plain CRD YAMLs.
+via the Helm chart below) but still wanting the plain CRD YAMLs - the same `--server-side` requirement applies to
+applying those directly too.
 
 Every image the release workflow pushes is signed with [cosign](https://docs.sigstore.dev/) (keyless, via GitHub Actions'
 own OIDC identity - no key to fetch or trust out of band) and ships an SPDX SBOM as a release asset. Verify an image with:
@@ -419,6 +427,16 @@ old `TradeBot` Job mode needed a spec-hash suffixed onto the Job name just to av
 *is* its run identity, and `kubectl get backtests` gets real printer columns for phase, trades, and profit.
 
 ```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sample-strategy-cache
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: freqtrade.io/v1beta1
 kind: Backtest
 metadata:
@@ -431,6 +449,9 @@ spec:
   timerange: "20230101-20230201"
   timeframe: 5m
   stakeAmount: unlimited
+  data:
+    pvcName: sample-strategy-cache   # must already exist - see note below
+    downloadPolicy: always           # default; downloads every run, see the other policies below
   results:
     size: 2Gi
     retentionPolicy: Delete   # default; Retain keeps the results PVC (owner ref stripped) after this Backtest is deleted
@@ -439,6 +460,18 @@ spec:
 **Spec is immutable after creation** (enforced by the API server itself, not just convention) - every field is fixed
 the moment the `Backtest` is admitted, so its Job's pod template never needs to change and can never drift from what
 actually ran. To change a parameter, create a new `Backtest`; nothing here is a place to iterate in-place.
+
+**`spec.data.pvcName` is how a `Backtest` gets historical OHLCV data to run against, and the operator never creates
+this PVC for you** - omit `spec.data` entirely and no cache volume is mounted at all, so freqtrade's own market-data
+load finds nothing on disk and the run fails with `No data found. Terminating.` regardless of how the rest of the
+spec is configured. Create the PVC yourself first (as in the example above), then reference it by name. Once
+referenced, an init container runs `freqtrade download-data` into it before the backtest itself starts, honoring
+the same `timerange`/`timeframe`/`pairs` the run itself uses - `spec.data.downloadPolicy` controls when this
+actually happens: `always` (default, re-downloads every run - safest, but redownloads data every time even if nothing
+changed), `ifMissing` (skip downloading if the PVC already has *anything* on it, regardless of whether it actually
+covers this run's timerange), or `never` (use whatever's already there, no download attempt at all - useful once
+you've primed a shared cache and want every subsequent run to be fast). `spec.data.downloadArgs` appends extra raw
+`download-data` flags (e.g. `["--days", "30"]`) for anything the typed fields above don't cover.
 
 Typed fields (`timerange`, `timeframe`, `pairs`, `maxOpenTrades`, `stakeAmount`, `dryRunWallet`, `fee`,
 `enableProtections`, `breakdown`, `cache`, ...) cover the common cases. For a freqtrade flag the typed surface
@@ -451,16 +484,16 @@ typed field whenever one exists.
 `status.phase` (`Pending`/`Running`/`Succeeded`/`Failed`) and the `WorkloadReady` condition reflect the underlying
 Job. Once it succeeds, a results-collection sidecar in the same pod (a native sidecar - `restartPolicy: Always` on
 an init container entry, GA since Kubernetes **1.29** - running this operator's own image, not a second one to
-build and release) reads the run's own result file and writes a summary ConfigMap (`<name>-results`) the operator
-reads back into `status.results` and the `ResultsAvailable` condition. A summary that can't be extracted (a
-malformed or missing result file) reports `ResultsAvailable=False`/`ResultsUnavailable` rather than failing the
-`Backtest` - the run happened either way, and the raw file stays on the results PVC regardless, readable by
-mounting it from another pod.
-
-> Field-name mapping for the extracted summary (`totalTrades`, `profitAbs`, `winRatePct`, `sharpeRatio`, ...) is a
-> best-effort reading of freqtrade's own result JSON, not verified against a real run's output file - if extraction
-> is silently landing on `ResultsUnavailable` for successful runs, this is the first place to check
-> ([controllers/backtest/collectresults/parse.go](controllers/backtest/collectresults/parse.go)).
+build and release) reads the run's own result file (freqtrade writes this as a `backtest-result-<ts>.zip`
+containing the actual JSON alongside a config echo, the strategy source, and a couple of `.feather` files - the
+sidecar knows to look inside it) and writes a summary ConfigMap (`<name>-results`) the operator reads back into
+`status.results` and the `ResultsAvailable` condition. A summary that can't be extracted (a malformed or missing
+result file) reports `ResultsAvailable=False`/`ResultsUnavailable` rather than failing the `Backtest` - the run
+happened either way. The raw result file itself is **not** on `spec.results` PVC (nothing in this operator mounts
+that PVC into the run's own pod at all yet - `status.resultsPVCName` names a real PVC, but as of now it stays
+empty); it only ever exists on the run pod's own ephemeral storage, so it's reachable only for as long as that pod
+still exists (`spec.ttlSecondsAfterFinished`, a day by default) via e.g. `kubectl cp` from the `freqtrade` or
+`collect-results` container.
 
 ### Running many backtests and comparing results
 
@@ -468,7 +501,31 @@ Because a `Backtest`'s spec is immutable and its name is its identity, sweeping 
 `Backtest` per value you want to try, then reading their `status.results` back - there's no in-place "edit and
 rerun" step to serialize on:
 
+A sweep's runs benefit from sharing one cache PVC rather than each downloading its own copy - but since their Jobs
+run in parallel, potentially on different nodes, that shared PVC needs a `ReadWriteMany`-capable storage class (e.g.
+NFS, CephFS, EFS/Azure Files - most default cloud block-storage classes are `ReadWriteOnce` only and won't work
+here). If you don't have one available, give each `Backtest` its own `ReadWriteOnce` cache PVC instead (as in the
+single-run example above) and accept the redundant downloads.
+
+`downloadPolicy` is left at its `always` default deliberately below, not set to `ifMissing`: each run here wants a
+*different* `timeframe`, but `ifMissing` only checks whether the cache directory is empty at all, not whether it
+already has any one run's specific timeframe - with three parallel runs racing for the same cache, `ifMissing` would
+let whichever pod starts first "win" and leave the other two timeframes never downloaded at all.
+
 ```bash
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sample-strategy-sweep-cache
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: efs-sc   # any ReadWriteMany-capable class
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+
 for tf in 5m 15m 1h; do
   cat <<EOF | kubectl apply -f -
 apiVersion: freqtrade.io/v1beta1
@@ -483,6 +540,8 @@ spec:
   timerange: "20230101-20230201"
   timeframe: ${tf}
   stakeAmount: unlimited
+  data:
+    pvcName: sample-strategy-sweep-cache
 EOF
 done
 

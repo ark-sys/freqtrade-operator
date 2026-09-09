@@ -114,8 +114,25 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+test: test-unit test-integration ## Run unit + envtest-backed integration tests (everything except e2e).
+
+.PHONY: coverage-gate
+coverage-gate: ## Check coverage against the ratcheted floors in hack/coverage-gate.sh. Run after `make test`.
+	./hack/coverage-gate.sh
+
+# -short skips the envtest-backed suites entirely (controllers/tradebot, controllers/backtest,
+# controllers/frequi - each package's TestControllers checks testing.Short() itself, see their
+# suite_test.go) - no envtest binaries needed, so this is the fast inner-loop target (P5-4).
+.PHONY: test-unit
+test-unit: manifests generate fmt vet ## Run only the fast, envtest-free unit tests.
+	go test -short $$(go list ./... | grep -v /e2e) -coverprofile cover-unit.out
+
+# Just the three envtest-backed packages - re-running every other package's already-covered fast
+# tests here too would be redundant, not "more integration coverage".
+.PHONY: test-integration
+test-integration: manifests generate fmt vet setup-envtest ## Run only the envtest-backed controller suites.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+		go test ./controllers/tradebot/... ./controllers/backtest/... ./controllers/frequi/... -coverprofile cover-integration.out
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
@@ -139,7 +156,12 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 
 .PHONY: test-e2e
 test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v
+	# -timeout 20m: go test's own default (10m) is shorter than this suite's own specs can
+	# legitimately sum to (P5-3's trading-resource Contexts include real waits - a StatefulSet
+	# pod reaching Ready, introspection, a Backtest actually downloading and running against real
+	# market data) - go test's default killed a real, still-progressing run at 10m regardless of
+	# any individual Eventually's own (shorter) budget.
+	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -timeout 20m
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: cleanup-test-e2e
@@ -210,7 +232,13 @@ endif
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
+	# --server-side (matching `deploy` below): plain client-side apply embeds the whole applied
+	# object into a kubectl.kubernetes.io/last-applied-configuration annotation, capped at 256KiB -
+	# tradebots.freqtrade.io alone (two full served versions since P6-5) already exceeds that.
+	# Verified directly: a plain `kubectl apply -f dist/install.yaml` fails on this CRD with
+	# exactly that error; --server-side (which tracks field ownership instead of embedding the
+	# whole object) does not.
+	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply --server-side -f -
 
 .PHONY: uninstall
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.

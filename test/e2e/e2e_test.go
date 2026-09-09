@@ -66,9 +66,19 @@ var _ = Describe("Manager", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
 
 		By("deploying the controller-manager")
-		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
-		_, err = utils.Run(cmd)
-		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
+		// This applies cert-manager's own Certificate/Issuer CRs (config/certmanager), which go
+		// through cert-manager's OWN validating webhook - cert-manager's Deployment reporting
+		// Available (InstallCertManager's own wait, above) doesn't guarantee its webhook's CA
+		// bundle has finished propagating to the apiserver's trust store yet, a well-known
+		// cert-manager startup race. `make deploy` uses --server-side apply, safe to retry.
+		// Verified directly: a fresh run failed here with exactly this error
+		// ("x509: certificate signed by unknown authority") on the very first attempt.
+		verifyDeployed := func(g Gomega) {
+			cmd := exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
+			_, err := utils.Run(cmd)
+			g.Expect(err).NotTo(HaveOccurred())
+		}
+		Eventually(verifyDeployed, "1m").Should(Succeed(), "Failed to deploy the controller-manager")
 	})
 
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
@@ -76,6 +86,25 @@ var _ = Describe("Manager", Ordered, func() {
 	AfterAll(func() {
 		By("cleaning up the curl pod for metrics")
 		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
+		_, _ = utils.Run(cmd)
+
+		// Cluster-scoped, unlike everything else this suite creates - not swept away by deleting
+		// the namespace below, and `kubectl create clusterrolebinding` (unlike `apply`) isn't
+		// idempotent, so a leftover here breaks every subsequent run against a reused cluster with
+		// "already exists", however that first run failed. Verified directly: a run that failed
+		// after creating this (for an unrelated reason, before this cleanup step existed) did
+		// exactly that to the next run against the same still-up kind cluster.
+		By("cleaning up the metrics ClusterRoleBinding")
+		cmd = exec.Command("kubectl", "delete", "clusterrolebinding", metricsRoleBindingName, "--ignore-not-found")
+		_, _ = utils.Run(cmd)
+
+		// tradingNamespace is shared by tradeBotDryRunContext/backtestContext/webhookRejectionContext/
+		// upgradeContext (test/e2e/{tradebot,backtest,webhook,upgrade}_test.go), each of which
+		// creates it if missing rather than assuming another Context already did - cleaned up once
+		// here, centrally, rather than in any one of them, so whichever Context runs last doesn't
+		// leave it behind for good with nothing left in the suite to delete it.
+		By("removing the trading namespace")
+		cmd = exec.Command("kubectl", "delete", "ns", tradingNamespace, "--ignore-not-found")
 		_, _ = utils.Run(cmd)
 
 		By("undeploying the controller-manager")
@@ -203,7 +232,13 @@ var _ = Describe("Manager", Ordered, func() {
 				cmd := exec.Command("kubectl", "logs", controllerPodName, "-n", namespace)
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(ContainSubstring("controller-runtime.metrics\tServing metrics server"),
+				// Stock kubebuilder scaffolding expected tab-separated console logging and an
+				// older controller-runtime's "Serving metrics server" wording - this project logs
+				// JSON (cmd/main.go's zap options) and controller-runtime v0.21 says "Starting".
+				// Verified directly against a real run's actual log line:
+				// {"logger":"controller-runtime.metrics","msg":"Starting metrics server"}
+				g.Expect(output).To(ContainSubstring(`"logger":"controller-runtime.metrics"`))
+				g.Expect(output).To(ContainSubstring(`"msg":"Starting metrics server"`),
 					"Metrics server not yet started")
 			}
 			Eventually(verifyMetricsServerStarted).Should(Succeed())
@@ -257,16 +292,15 @@ var _ = Describe("Manager", Ordered, func() {
 		})
 
 		// +kubebuilder:scaffold:e2e-webhooks-checks
-
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput := getMetricsOutput()
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
 	})
+
+	// P5-3: real trading-resource scenarios, sharing this Describe's already-deployed operator.
+	// Each lives in its own file (test/e2e/{tradebot,backtest,webhook,upgrade}_test.go) and
+	// contributes its own nested Ordered Context, rather than growing this file indefinitely.
+	tradeBotDryRunContext()
+	backtestContext()
+	webhookRejectionContext()
+	upgradeContext()
 })
 
 // serviceAccountToken returns a token for the specified service account in the given namespace.
