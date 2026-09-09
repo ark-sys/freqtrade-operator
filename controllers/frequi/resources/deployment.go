@@ -2,11 +2,33 @@ package resources
 
 import (
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 )
+
+// frequiUID is the "nginx" user baked into the freqtradeorg/frequi image's own /etc/passwd (this
+// is nginx's standard, well-known convention, not specific to this fork) - unlike the
+// freqtrade image (verified to already default to a non-root user, so RunAsNonRoot alone is
+// enough for TradeBot/Backtest), this image's default user is root, so RunAsNonRoot alone
+// makes it fail to start at all ("container has runAsNonRoot and image will run as root").
+// Pinning both RunAsUser and the pod's FSGroup to this same UID is what actually works,
+// verified directly against the real image: FSGroup matters because a plain RunAsNonRoot/
+// RunAsUser pair alone still leaves the Volumes below (emptyDir, owned by root by default)
+// unwritable by UID 101, which nginx needs for its temp/cache/pid files.
+const frequiUID = 101
+
+// frequiSecurityContext extends the shared RestrictedSecurityContext with the explicit RunAsUser
+// this image needs (see frequiUID's doc comment) - TradeBot/Backtest use the shared one unmodified
+// since their image already defaults to non-root.
+func frequiSecurityContext() *corev1.SecurityContext {
+	sc := shared.RestrictedSecurityContext()
+	sc.RunAsUser = ptr.To(int64(frequiUID))
+	return sc
+}
 
 // BuildFreqUIDeployment creates a Deployment for FreqUI
 func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
@@ -37,12 +59,37 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 				RestartPolicy:                 corev1.RestartPolicyAlways,
 				TerminationGracePeriodSeconds: &[]int64{30}[0],
 				DNSPolicy:                     corev1.DNSClusterFirst,
-				SecurityContext:               &corev1.PodSecurityContext{},
+				SecurityContext: &corev1.PodSecurityContext{
+					// FSGroup: the Volumes below are emptyDir, owned by root by default - without
+					// this, UID frequiUID (below) can't write into them even with RunAsUser set.
+					FSGroup: ptr.To(int64(frequiUID)),
+				},
+				// nginx (this image's base) needs somewhere to write its temp buffers, cache, and
+				// pid file - verified directly (docker run --read-only against the real image):
+				// exactly these three paths, nothing else. Everything else in the image can stay
+				// read-only, which RestrictedSecurityContext below requires.
+				Volumes: []corev1.Volume{
+					{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+					{Name: "nginx-cache", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+					{Name: "nginx-run", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				},
 				Containers: []corev1.Container{
 					{
 						Name:            "frequi",
 						Image:           image,
 						ImagePullPolicy: corev1.PullAlways,
+						// RestrictedSecurityContext (P3-3) was applied to every other workload this
+						// operator builds (TradeBot, Backtest) but missed here - FreqUI's own
+						// Deployment predates that pass and was never retrofitted, so it could never
+						// actually be deployed into a restricted-PSA namespace at all. Found directly:
+						// a real e2e run's FreqUI reconcile logged "would violate PodSecurity
+						// restricted:latest" on every attempt.
+						SecurityContext: frequiSecurityContext(),
+						VolumeMounts: []corev1.VolumeMount{
+							{Name: "tmp", MountPath: "/tmp"},
+							{Name: "nginx-cache", MountPath: "/var/cache/nginx"},
+							{Name: "nginx-run", MountPath: "/var/run"},
+						},
 						Ports: []corev1.ContainerPort{
 							{
 								ContainerPort: 80,
