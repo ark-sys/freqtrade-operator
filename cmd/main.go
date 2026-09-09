@@ -17,8 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -27,11 +29,13 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -42,6 +46,7 @@ import (
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/controllers/backtest"
+	"github.com/ark-sys/freqtrade-operator/controllers/backtest/collectresults"
 	"github.com/ark-sys/freqtrade-operator/controllers/frequi"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	"github.com/ark-sys/freqtrade-operator/controllers/strategy"
@@ -69,8 +74,24 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-// nolint:gocyclo
 func main() {
+	// The operator's own image also runs the P6-2 results-collection
+	// sidecar, via this same binary rather than a second image to build,
+	// scan, and release - dispatched on argv[1] rather than a flag mixed
+	// into the manager's own flag.CommandLine, so `--help` and every
+	// existing flag stay exactly as they were for the normal manager path.
+	if len(os.Args) > 1 && os.Args[1] == "collect-results" {
+		if err := runCollectResults(os.Args[2:]); err != nil {
+			ctrl.Log.WithName("collect-results").Error(err, "failed")
+			os.Exit(1)
+		}
+		return
+	}
+	runManager()
+}
+
+// nolint:gocyclo
+func runManager() {
 	var metricsAddr string
 	var metricsCertPath, metricsCertName, metricsCertKey string
 	var webhookCertPath, webhookCertName, webhookCertKey string
@@ -92,6 +113,11 @@ func main() {
 			"Should be digest-pinned so a pod restart can't silently change what version is running.")
 	flag.IntVar(&botPollWorkers, "bot-poll-workers", 4,
 		"How many TradeBots' freqtrade REST APIs the bot poller (P4-3) can poll concurrently.")
+	var operatorImage string
+	flag.StringVar(&operatorImage, "operator-image", "",
+		"The operator's own image reference, used to run the Backtest results-collection sidecar (P6-2). "+
+			"Empty means auto-detect from this Pod's own \"manager\" container via the Kubernetes API "+
+			"(POD_NAME/POD_NAMESPACE, set automatically in the shipped manifests).")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -236,6 +262,11 @@ func main() {
 
 	metrics.Registry.MustRegister(shared.NewTradeBotCollector(mgr.GetClient()))
 
+	resolvedOperatorImage := operatorImage
+	if resolvedOperatorImage == "" {
+		resolvedOperatorImage = resolveOwnImage(mgr.GetAPIReader())
+	}
+
 	// Setup TradeBot controller
 	if err = (&tradebot.Reconciler{
 		Client:                  mgr.GetClient(),
@@ -282,10 +313,11 @@ func main() {
 
 	// Setup Backtest controller (P6-1)
 	if err = (&backtest.Reconciler{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		Recorder:     mgr.GetEventRecorderFor("backtest-controller"),
-		DefaultImage: defaultFreqtradeImage,
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		Recorder:      mgr.GetEventRecorderFor("backtest-controller"),
+		DefaultImage:  defaultFreqtradeImage,
+		OperatorImage: resolvedOperatorImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Backtest")
 		os.Exit(1)
@@ -350,4 +382,72 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+// runCollectResults is the P6-2 results-collection sidecar's entry point -
+// see controllers/backtest/collectresults for what it actually does. A
+// fresh flag.FlagSet, not the package-level flag.CommandLine the manager
+// path already populated: this process only ever runs one or the other,
+// never both, so there's no risk of the two flag sets colliding, and
+// keeping them separate means `manager --help` (the normal path) never
+// lists sidecar-only flags nobody running it as a manager would recognize.
+func runCollectResults(args []string) error {
+	ctrl.SetLogger(zap.New())
+
+	fs := flag.NewFlagSet("collect-results", flag.ExitOnError)
+	backtestName := fs.String("backtest-name", "", "The Backtest this run belongs to (required).")
+	strategyName := fs.String("strategy-name", "", "The strategy name to look up in the result file (required).")
+	resultsDir := fs.String("results-dir", "/freqtrade/user_data/backtest_results",
+		"Where freqtrade writes backtest-result-*.json and .last_result.json.")
+	mainContainer := fs.String("main-container", "freqtrade", "The main container this waits to see exit.")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *backtestName == "" || *strategyName == "" {
+		return fmt.Errorf("--backtest-name and --strategy-name are both required")
+	}
+
+	return collectresults.Run(context.Background(), collectresults.Options{
+		BacktestName:      *backtestName,
+		StrategyName:      *strategyName,
+		PodName:           os.Getenv("POD_NAME"),
+		Namespace:         os.Getenv("POD_NAMESPACE"),
+		MainContainerName: *mainContainer,
+		ResultsDir:        *resultsDir,
+	})
+}
+
+// resolveOwnImage reads back this manager's own "manager" container image
+// from its own Pod (POD_NAME/POD_NAMESPACE, downward API - set in both the
+// kustomize and Helm manifests) - used only when --operator-image isn't
+// set explicitly, to run the Backtest results-collection sidecar (P6-2)
+// from the exact same image without hardcoding it anywhere.
+//
+// reader is the manager's uncached API reader, not its cached client: this
+// runs before mgr.Start(), when the cache isn't populated yet. A failure
+// here is never fatal to the rest of the operator - only logged - since
+// every other controller works fine without it; an empty result just means
+// Backtest's own sidecar container ends up with an empty image, which
+// fails loudly at Job creation rather than silently doing the wrong thing.
+func resolveOwnImage(reader client.Reader) string {
+	podName, podNamespace := os.Getenv("POD_NAME"), os.Getenv("POD_NAMESPACE")
+	if podName == "" || podNamespace == "" {
+		setupLog.Info("POD_NAME/POD_NAMESPACE not set - skipping self-image detection for the Backtest sidecar " +
+			"(pass --operator-image explicitly if this manager isn't running as a normal Deployment-managed Pod)")
+		return ""
+	}
+
+	var pod corev1.Pod
+	key := client.ObjectKey{Name: podName, Namespace: podNamespace}
+	if err := reader.Get(context.Background(), key, &pod); err != nil {
+		setupLog.Error(err, "failed to read own Pod for self-image detection")
+		return ""
+	}
+	for _, c := range pod.Spec.Containers {
+		if c.Name == "manager" {
+			return c.Image
+		}
+	}
+	setupLog.Info("no \"manager\" container found on own Pod - skipping self-image detection")
+	return ""
 }

@@ -81,9 +81,10 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	testReconciler = &Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("backtest-controller"),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		Recorder:      mgr.GetEventRecorderFor("backtest-controller"),
+		OperatorImage: "test-operator-image:latest",
 	}
 	Expect(testReconciler.SetupWithManager(mgr)).To(Succeed())
 

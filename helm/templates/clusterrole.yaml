@@ -10,12 +10,13 @@ rules:
   - ""
   resources:
   - configmaps
-  - secrets
+  - persistentvolumeclaims
   verbs:
   - create
   - get
   - list
   - patch
+  - update
   - watch
 - apiGroups:
   - ""
@@ -27,13 +28,19 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - persistentvolumeclaims
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  - serviceaccounts
   verbs:
   - create
   - get
   - list
   - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -135,6 +142,17 @@ rules:
   verbs:
   - create
   - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - roles
+  verbs:
+  - create
   - get
   - list
   - patch

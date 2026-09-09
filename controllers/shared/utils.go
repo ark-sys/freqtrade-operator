@@ -90,6 +90,20 @@ func Apply(ctx context.Context, c client.Client, owner, obj client.Object) error
 	if err := controllerutil.SetControllerReference(owner, obj, c.Scheme()); err != nil {
 		return fmt.Errorf("failed to set controller reference: %w", err)
 	}
+	return applyServerSide(ctx, c, obj)
+}
+
+// ApplyUnowned is Apply without a controller reference, for a resource
+// that must outlive any single object's lifecycle - e.g. the Backtest
+// controller's shared, namespace-wide sidecar ServiceAccount/Role/
+// RoleBinding (P6-2): owning it by whichever Backtest happened to create
+// it first would cascade-delete it out from under every other Backtest in
+// the namespace the moment that one is deleted.
+func ApplyUnowned(ctx context.Context, c client.Client, obj client.Object) error {
+	return applyServerSide(ctx, c, obj)
+}
+
+func applyServerSide(ctx context.Context, c client.Client, obj client.Object) error {
 	gvk, err := apiutil.GVKForObject(obj, c.Scheme())
 	if err != nil {
 		return fmt.Errorf("failed to look up GroupVersionKind: %w", err)

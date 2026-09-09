@@ -25,9 +25,9 @@ const jobBackoffLimit = int32(1)
 // api/v1beta1/backtest_types.go): the CR itself is the run's identity, per
 // D1.
 func BuildJob(
-	backtest freqtradev1beta1.Backtest, image, strategyName, configSecretName, strategyConfigMapName string,
+	backtest freqtradev1beta1.Backtest, image, operatorImage, strategyName, configSecretName, strategyConfigMapName string,
 ) batchv1.Job {
-	podSpec := BuildPod(backtest, image, strategyName, configSecretName, strategyConfigMapName)
+	podSpec := BuildPod(backtest, image, operatorImage, strategyName, configSecretName, strategyConfigMapName)
 
 	backoff := jobBackoffLimit
 	ttl := defaultTTLSecondsAfterFinished

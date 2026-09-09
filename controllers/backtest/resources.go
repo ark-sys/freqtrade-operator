@@ -95,11 +95,42 @@ func (r *Reconciler) reconcileResources(
 	}
 	logger.V(1).Info("Results PVC applied", "name", resultsPVC.Name)
 
-	job := resources.BuildJob(*backtest, r.defaultImage(), strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name)
+	if err := r.ensureSidecarRBAC(ctx, backtest.Namespace); err != nil {
+		return "", fmt.Errorf("failed to provision the results-collection sidecar's RBAC: %w", err)
+	}
+
+	job := resources.BuildJob(
+		*backtest, r.defaultImage(), r.OperatorImage, strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name,
+	)
 	if err := shared.Apply(ctx, r.Client, backtest, &job); err != nil {
 		return "", fmt.Errorf("failed to apply Job: %w", err)
 	}
 	logger.V(1).Info("Job applied", "name", job.Name)
 
 	return jobName, nil
+}
+
+// ensureSidecarRBAC applies the P6-2 results-collection sidecar's
+// namespace-wide ServiceAccount/Role/RoleBinding - shared by every
+// Backtest's Job in namespace, so applied unowned (shared.ApplyUnowned,
+// not shared.Apply) rather than owned by whichever Backtest happens to
+// trigger the first reconcile after the namespace gets a new one: owning
+// it by a single Backtest would cascade-delete it out from under every
+// other Backtest still using it the moment that one is deleted. Safe to
+// call on every Backtest's first reconcile in the namespace - applying an
+// already-current object is a no-op (server-side apply, P2-1).
+func (r *Reconciler) ensureSidecarRBAC(ctx context.Context, namespace string) error {
+	sa := resources.BuildSidecarServiceAccount(namespace)
+	if err := shared.ApplyUnowned(ctx, r.Client, &sa); err != nil {
+		return fmt.Errorf("failed to apply sidecar ServiceAccount: %w", err)
+	}
+	role := resources.BuildSidecarRole(namespace)
+	if err := shared.ApplyUnowned(ctx, r.Client, &role); err != nil {
+		return fmt.Errorf("failed to apply sidecar Role: %w", err)
+	}
+	roleBinding := resources.BuildSidecarRoleBinding(namespace)
+	if err := shared.ApplyUnowned(ctx, r.Client, &roleBinding); err != nil {
+		return fmt.Errorf("failed to apply sidecar RoleBinding: %w", err)
+	}
+	return nil
 }

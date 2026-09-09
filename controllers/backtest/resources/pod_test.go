@@ -81,7 +81,9 @@ func TestBuildArgs_ExtraArgsAppendedLast(t *testing.T) {
 
 func TestBuildPod_DefaultsAreRestrictedAndNeverAutomountsToken(t *testing.T) {
 	backtest := freqtradev1beta1.Backtest{}
-	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "SampleStrategy", "my-bt-config", "my-bt-strategy")
+	podSpec := BuildPod(
+		backtest, "freqtradeorg/freqtrade:2024.1", "operator-img", "SampleStrategy", "my-bt-config", "my-bt-strategy",
+	)
 
 	if podSpec.AutomountServiceAccountToken == nil || *podSpec.AutomountServiceAccountToken {
 		t.Error("expected AutomountServiceAccountToken to default to false")
@@ -101,15 +103,17 @@ func TestBuildPod_DefaultsAreRestrictedAndNeverAutomountsToken(t *testing.T) {
 
 func TestBuildPod_NoCacheMeansNoCacheVolumeOrInitContainer(t *testing.T) {
 	backtest := freqtradev1beta1.Backtest{}
-	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "SampleStrategy", "cfg", "strategy-cm")
+	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "operator-img", "SampleStrategy", "cfg", "strategy-cm")
 
 	for _, v := range podSpec.Volumes {
 		if v.Name == "cache" {
 			t.Error("expected no cache volume when spec.data is unset")
 		}
 	}
-	if len(podSpec.InitContainers) != 1 {
-		t.Errorf("expected exactly one init container (init-user-data) with no cache, got %d", len(podSpec.InitContainers))
+	// init-user-data + the P6-2 results sidecar, always present regardless of cache.
+	if len(podSpec.InitContainers) != 2 {
+		t.Errorf("expected exactly two init containers with no cache, got %d: %+v",
+			len(podSpec.InitContainers), podSpec.InitContainers)
 	}
 }
 
@@ -121,7 +125,7 @@ func TestBuildPod_CacheAddsVolumeAndDownloadInitContainer(t *testing.T) {
 			},
 		},
 	}
-	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "SampleStrategy", "cfg", "strategy-cm")
+	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "operator-img", "SampleStrategy", "cfg", "strategy-cm")
 
 	var cacheVol *corev1.Volume
 	for i := range podSpec.Volumes {
@@ -133,12 +137,15 @@ func TestBuildPod_CacheAddsVolumeAndDownloadInitContainer(t *testing.T) {
 		cacheVol.PersistentVolumeClaim.ClaimName != "shared-cache" {
 		t.Fatalf("expected a cache volume bound to shared-cache, got %+v", podSpec.Volumes)
 	}
-	if len(podSpec.InitContainers) != 2 {
-		t.Fatalf("expected init-user-data + init-download-data, got %d: %+v",
-			len(podSpec.InitContainers), podSpec.InitContainers)
+	// init-user-data + init-download-data + the P6-2 results sidecar.
+	if len(podSpec.InitContainers) != 3 {
+		t.Fatalf("expected three init containers, got %d: %+v", len(podSpec.InitContainers), podSpec.InitContainers)
 	}
 	if podSpec.InitContainers[1].Name != "init-download-data" {
 		t.Errorf("expected second init container to be init-download-data, got %s", podSpec.InitContainers[1].Name)
+	}
+	if podSpec.InitContainers[2].Name != "collect-results" {
+		t.Errorf("expected third init container to be collect-results, got %s", podSpec.InitContainers[2].Name)
 	}
 }
 
@@ -172,7 +179,7 @@ func TestMergePodSpecOverrides_ImageOverride(t *testing.T) {
 			RunSpec: freqtradev1beta1.RunSpec{Pod: &freqtradev1beta1.PodSpec{Image: "custom/freqtrade:latest"}},
 		},
 	}
-	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "SampleStrategy", "cfg", "strategy-cm")
+	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "operator-img", "SampleStrategy", "cfg", "strategy-cm")
 	if podSpec.Containers[0].Image != "custom/freqtrade:latest" {
 		t.Errorf("expected overridden image, got %s", podSpec.Containers[0].Image)
 	}

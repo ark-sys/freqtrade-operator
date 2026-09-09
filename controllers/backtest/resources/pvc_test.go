@@ -10,7 +10,7 @@ import (
 )
 
 func TestBuildResultsPVC_DefaultSizeWhenResultsUnset(t *testing.T) {
-	backtest := freqtradev1beta1.Backtest{ObjectMeta: metav1.ObjectMeta{Name: "my-run", Namespace: "trading"}}
+	backtest := freqtradev1beta1.Backtest{ObjectMeta: metav1.ObjectMeta{Name: "my-run", Namespace: testNamespace}}
 	pvc := BuildResultsPVC(backtest)
 
 	if pvc.Name != "my-run-results" {

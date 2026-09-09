@@ -8,6 +8,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -141,6 +142,88 @@ var _ = Describe("Backtest controller", func() {
 				g.Expect(cond).NotTo(BeNil())
 				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 				g.Expect(cond.Reason).To(Equal(freqtradev1beta1.ReasonWorkloadSucceeded))
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+		})
+
+		// envtest runs no kubelet, so nothing ever runs the P6-2 sidecar for
+		// real - this stands in for it exactly the way the previous spec
+		// stands in for the Job controller, writing the same ConfigMap
+		// shape controllers/backtest/collectresults itself would.
+		It("adopts and parses the sidecar's results ConfigMap once the Job succeeds (P6-2)", func() {
+			ctx := context.Background()
+			strategy := newTestStrategy("strategy-bt-results")
+			config := newTestTradeBotConfig("config-bt-results")
+			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
+			Expect(k8sClient.Create(ctx, config)).To(Succeed())
+
+			backtest := newTestBacktest("run-bt-results", strategy.Name, config.Name)
+			Expect(k8sClient.Create(ctx, backtest)).To(Succeed())
+			key := types.NamespacedName{Name: backtest.Name, Namespace: testNamespace}
+
+			var job batchv1.Job
+			Eventually(func() error {
+				return k8sClient.Get(ctx, key, &job)
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+			resultsCM := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: backtest.Name + "-results", Namespace: testNamespace},
+				Data:       map[string]string{"results.json": `{"totalTrades":3,"profitAbs":"42.5"}`},
+			}
+			Expect(k8sClient.Create(ctx, resultsCM)).To(Succeed())
+
+			job.Status.Succeeded = 1
+			Expect(k8sClient.Status().Update(ctx, &job)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				var got freqtradev1beta1.Backtest
+				g.Expect(k8sClient.Get(ctx, key, &got)).To(Succeed())
+				g.Expect(got.Status.Results).NotTo(BeNil())
+				g.Expect(got.Status.Results.TotalTrades).To(Equal(3))
+				g.Expect(got.Status.Results.ProfitAbs).To(Equal("42.5"))
+				cond := findStatusCondition(got.Status.Conditions, freqtradev1beta1.ConditionResultsAvailable)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+			var adoptedCM corev1.ConfigMap
+			cmKey := types.NamespacedName{Name: backtest.Name + "-results", Namespace: testNamespace}
+			Expect(k8sClient.Get(ctx, cmKey, &adoptedCM)).To(Succeed())
+			Expect(adoptedCM.OwnerReferences).To(HaveLen(1))
+			Expect(adoptedCM.OwnerReferences[0].Name).To(Equal(backtest.Name))
+		})
+
+		It("provisions the sidecar's ServiceAccount/Role/RoleBinding and wires the Job's sidecar container", func() {
+			ctx := context.Background()
+			strategy := newTestStrategy("strategy-bt-sidecar")
+			config := newTestTradeBotConfig("config-bt-sidecar")
+			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
+			Expect(k8sClient.Create(ctx, config)).To(Succeed())
+
+			backtest := newTestBacktest("run-bt-sidecar", strategy.Name, config.Name)
+			Expect(k8sClient.Create(ctx, backtest)).To(Succeed())
+
+			rbacKey := types.NamespacedName{Name: "freqtrade-backtest-sidecar", Namespace: testNamespace}
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, rbacKey, &corev1.ServiceAccount{})).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, rbacKey, &rbacv1.Role{})).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, rbacKey, &rbacv1.RoleBinding{})).To(Succeed())
+
+				var job batchv1.Job
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{
+					Name: backtest.Name, Namespace: testNamespace,
+				}, &job)).To(Succeed())
+				g.Expect(job.Spec.Template.Spec.ServiceAccountName).To(Equal("freqtrade-backtest-sidecar"))
+
+				var sidecar *corev1.Container
+				for i := range job.Spec.Template.Spec.InitContainers {
+					if job.Spec.Template.Spec.InitContainers[i].Name == "collect-results" {
+						sidecar = &job.Spec.Template.Spec.InitContainers[i]
+					}
+				}
+				g.Expect(sidecar).NotTo(BeNil())
+				g.Expect(sidecar.RestartPolicy).NotTo(BeNil())
+				g.Expect(*sidecar.RestartPolicy).To(Equal(corev1.ContainerRestartPolicyAlways))
+				g.Expect(sidecar.Image).To(Equal("test-operator-image:latest"))
 			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 		})
 	})

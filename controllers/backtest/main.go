@@ -37,6 +37,13 @@ type Reconciler struct {
 	// DefaultImage is the freqtrade image used when spec.pod.image doesn't
 	// override it. Empty means shared.DefaultFreqtradeImage.
 	DefaultImage string
+
+	// OperatorImage is this manager's own image, used to run the P6-2
+	// results-collection sidecar - see cmd/main.go's resolveOwnImage. Never
+	// defaulted to anything: an empty value here means every Backtest's Job
+	// gets a sidecar container with an empty image, failing loudly at
+	// creation rather than silently running some guessed image.
+	OperatorImage string
 }
 
 // +kubebuilder:rbac:groups=freqtrade.io,resources=backtests,verbs=get;list;watch;update
@@ -45,10 +52,17 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=freqtrade.io,resources=strategies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=freqtrade.io,resources=tradebotconfigs,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;patch
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;patch;update
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;patch;update
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// P6-2: provisioning the results-collection sidecar's own dedicated,
+// narrow-RBAC identity (never the manager's own ServiceAccount, P1-2) -
+// and reading this manager's own Pod once at startup to learn its image
+// (cmd/main.go's resolveOwnImage), both new in this phase.
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get
 
 // Reconcile handles the reconciliation loop for Backtest resources.
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -102,6 +116,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			fmt.Sprintf("failed to read workload status: %v", err), err)
 	}
 
+	// Only once the Job has actually succeeded, and only until it resolves
+	// once (a result never changes after that - the Job is immutable, and
+	// re-fetching an already-adopted ConfigMap every reconcile forever would
+	// be pure waste). A "not found yet" outcome requeues shortly below
+	// rather than being treated as a final answer - see
+	// resultsRequeueAfter's own doc comment for why.
+	var results *freqtradev1beta1.BacktestResults
+	var resultsCondition metav1.Condition
+	resultsRequeue := false
+	if workload.succeeded && backtest.Status.Results == nil {
+		results, resultsCondition, resultsRequeue, err = r.adoptAndParseResults(ctx, &backtest)
+		if err != nil {
+			return r.failReconcile(ctx, &backtest, freqtradev1beta1.ConditionResultsAvailable,
+				freqtradev1beta1.ReasonReconcileError, fmt.Sprintf("failed to adopt results ConfigMap: %v", err), err)
+		}
+	}
+
 	if err := shared.PatchStatus(ctx, r.Client, &backtest, func() {
 		meta.SetStatusCondition(&backtest.Status.Conditions, metav1.Condition{
 			Type: freqtradev1beta1.ConditionConfigResolved, Status: metav1.ConditionTrue,
@@ -114,6 +145,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		meta.SetStatusCondition(&backtest.Status.Conditions, metav1.Condition{
 			Type: freqtradev1beta1.ConditionReady, Status: status, Reason: reason, Message: workload.message,
 		})
+		if resultsCondition.Type != "" {
+			meta.SetStatusCondition(&backtest.Status.Conditions, resultsCondition)
+		}
+		if results != nil {
+			backtest.Status.Results = results
+		}
 		backtest.Status.JobName = jobName
 		backtest.Status.ResultsPVCName = backtest.Name + "-results"
 		if workload.startTime != nil {
@@ -129,8 +166,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 	}
 
-	return ctrl.Result{RequeueAfter: workload.requeueAfter}, nil
+	requeueAfter := workload.requeueAfter
+	if resultsRequeue && requeueAfter == 0 {
+		requeueAfter = resultsRequeueAfter
+	}
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
+
+// resultsRequeueAfter is how soon a Succeeded Backtest whose results
+// ConfigMap wasn't found yet gets re-checked - short, since by the time
+// the Job itself reports Succeeded, the native sidecar semantics
+// (RestartPolicy: Always) mean the results sidecar should already have
+// finished too; "not found" here is expected to be a brief, rare race, not
+// the normal path.
+const resultsRequeueAfter = 5 * time.Second
 
 // workloadStatus is the raw outcome of inspecting the Job a Backtest owns,
 // before it's translated into conditions/Phase.

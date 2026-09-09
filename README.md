@@ -376,9 +376,18 @@ every value is checked against a denylist of flags this operator manages itself 
 typed field whenever one exists.
 
 `status.phase` (`Pending`/`Running`/`Succeeded`/`Failed`) and the `WorkloadReady` condition reflect the underlying
-Job. `status.results` is populated by a result-extraction sidecar that reads the run's own output and isn't built
-yet - a `Backtest`'s raw results land on its results PVC (`<name>-results`) either way, readable by mounting it from
-another pod in the meantime.
+Job. Once it succeeds, a results-collection sidecar in the same pod (a native sidecar - `restartPolicy: Always` on
+an init container entry, GA since Kubernetes **1.29** - running this operator's own image, not a second one to
+build and release) reads the run's own result file and writes a summary ConfigMap (`<name>-results`) the operator
+reads back into `status.results` and the `ResultsAvailable` condition. A summary that can't be extracted (a
+malformed or missing result file) reports `ResultsAvailable=False`/`ResultsUnavailable` rather than failing the
+`Backtest` - the run happened either way, and the raw file stays on the results PVC regardless, readable by
+mounting it from another pod.
+
+> Field-name mapping for the extracted summary (`totalTrades`, `profitAbs`, `winRatePct`, `sharpeRatio`, ...) is a
+> best-effort reading of freqtrade's own result JSON, not verified against a real run's output file - if extraction
+> is silently landing on `ResultsUnavailable` for successful runs, this is the first place to check
+> ([controllers/backtest/collectresults/parse.go](controllers/backtest/collectresults/parse.go)).
 
 ## Development
 

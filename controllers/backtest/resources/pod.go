@@ -78,10 +78,13 @@ func buildArgs(spec freqtradev1beta1.BacktestSpec, strategyName string, hasCache
 // controllers/tradebot's BuildPod, there is no trade-vs-job branch here:
 // every Backtest is a one-shot run, full stop - no probes, no ports, no
 // long-lived user-data PVC (user_data is an emptyDir; only the results PVC
-// this run's own sidecar/output writes to, mounted separately by BuildJob,
-// outlives the pod).
+// the P6-2 sidecar's own summary ultimately gets read from, mounted
+// separately by BuildJob, outlives the pod). operatorImage is the
+// operator's own image (not the freqtrade one) - it runs the results
+// sidecar via the same binary, `/manager collect-results ...` (P6-2), so
+// this never has to build, scan, or release a second image for it.
 func BuildPod(
-	backtest freqtradev1beta1.Backtest, image, strategyName, configSecretName, strategyConfigMapName string,
+	backtest freqtradev1beta1.Backtest, image, operatorImage, strategyName, configSecretName, strategyConfigMapName string,
 ) corev1.PodSpec {
 	spec := backtest.Spec
 	hasCache := spec.Data != nil && strings.TrimSpace(spec.Data.PVCName) != ""
@@ -133,6 +136,8 @@ func BuildPod(
 	if hasCache {
 		initContainers = append(initContainers, buildDownloadDataInitContainer(spec, image, initMounts))
 	}
+	volumes = append(volumes, sidecarTokenVolume())
+	initContainers = append(initContainers, buildSidecarContainer(operatorImage, backtest.Name, strategyName))
 
 	extraArgs := spec.ExtraArgs
 
@@ -152,9 +157,11 @@ func BuildPod(
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsUser: &runAsUser, RunAsGroup: &runAsGroup, FSGroup: &fsGroup,
 		},
-		// A Backtest's pod never needs to talk to the Kubernetes API itself
-		// (P6-1 has no sidecar yet; P6-2's does, and mounts its own token via
-		// a dedicated narrow-RBAC ServiceAccount instead of this default).
+		ServiceAccountName: SidecarServiceAccountName,
+		// The pod-wide automount is off regardless: the freqtrade container
+		// has no business holding any token, however narrow, and the sidecar
+		// gets its own via sidecarTokenVolume's hand-built projection instead
+		// (mounted only on that one container).
 		AutomountServiceAccountToken: ptr.To(false),
 		RestartPolicy:                corev1.RestartPolicyNever,
 		InitContainers:               initContainers,
@@ -207,6 +214,95 @@ func buildDownloadDataInitContainer(
 		base.Command = []string{"freqtrade"}
 		base.Args = dlArgs
 		return base
+	}
+}
+
+// sidecarTokenServiceAccountMountPath is where kubelet's own automatic
+// ServiceAccount token projection normally lands - mounting the sidecar's
+// hand-built projection at the identical path means its own Go code can
+// use client-go's ordinary in-cluster config (rest.InClusterConfig(),
+// what ctrl.GetConfigOrDie() calls) unmodified, with no custom path
+// plumbing of its own to get wrong.
+const sidecarTokenServiceAccountMountPath = "/var/run/secrets/kubernetes.io/serviceaccount"
+
+// sidecarTokenVolume hand-builds the same projected volume kubelet's own
+// automatic ServiceAccount token admission would produce, so it can be
+// mounted into only the sidecar container - not the whole pod via
+// automountServiceAccountToken, which BuildPod deliberately leaves off
+// (the freqtrade container itself has no business holding any token at
+// all, however narrow). kube-root-ca.crt is the well-known ConfigMap every
+// namespace carries with the cluster's own CA bundle - the same one
+// automatic projection itself reads from.
+//
+// Caveat (P6-2, unverified): this exact mechanism has not been exercised
+// against a real cluster. envtest can't cover it either - its control
+// plane runs no root-ca-cert-publisher controller, so kube-root-ca.crt
+// never exists there regardless of which mounting approach is used.
+func sidecarTokenVolume() corev1.Volume {
+	expirationSeconds := int64(3607)
+	return corev1.Volume{
+		Name: "sidecar-token",
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
+					{
+						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+							Path: "token", ExpirationSeconds: &expirationSeconds,
+						},
+					},
+					{
+						ConfigMap: &corev1.ConfigMapProjection{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "kube-root-ca.crt"},
+							Items:                []corev1.KeyToPath{{Key: "ca.crt", Path: "ca.crt"}},
+						},
+					},
+					{
+						DownwardAPI: &corev1.DownwardAPIProjection{
+							Items: []corev1.DownwardAPIVolumeFile{{
+								Path:     "namespace",
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"},
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// buildSidecarContainer is the P6-2 results-collection sidecar: a native
+// sidecar (RestartPolicy: Always on an init container entry, GA since
+// Kubernetes 1.29 - see the README's note on the version floor this
+// implies) that waits for the freqtrade container to exit, reads its
+// result file off the shared user-data volume, and writes a summary
+// ConfigMap the operator's own reconcile loop later adopts and parses.
+// Runs the operator's own image/binary rather than a second one to build
+// and release.
+func buildSidecarContainer(operatorImage, backtestName, strategyName string) corev1.Container {
+	always := corev1.ContainerRestartPolicyAlways
+	return corev1.Container{
+		Name:            "collect-results",
+		Image:           operatorImage,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		RestartPolicy:   &always,
+		Args: []string{
+			"collect-results",
+			"--backtest-name", backtestName,
+			"--strategy-name", strategyName,
+		},
+		Env: []corev1.EnvVar{
+			{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
+			}},
+			{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"},
+			}},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{Name: "user-data", MountPath: "/freqtrade/user_data", ReadOnly: true},
+			{Name: "sidecar-token", MountPath: sidecarTokenServiceAccountMountPath, ReadOnly: true},
+		},
+		SecurityContext: shared.RestrictedSecurityContext(),
 	}
 }
 
