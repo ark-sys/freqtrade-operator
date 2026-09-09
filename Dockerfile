@@ -1,5 +1,9 @@
 # Build the manager binary
-FROM golang:1.24 AS builder
+# --platform=$BUILDPLATFORM pins this stage to the build machine's own arch regardless of TARGETARCH/TARGETOS
+# below, so a multi-arch buildx build cross-compiles the Go binary natively instead of running the whole builder
+# stage under QEMU emulation for each non-native target - the final distroless stage below has no RUN steps, so
+# it needs no emulation either way, making the entire multi-platform build emulation-free end to end.
+FROM --platform=$BUILDPLATFORM golang:1.24 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev

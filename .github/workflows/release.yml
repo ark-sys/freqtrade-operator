@@ -56,12 +56,16 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # linux/amd64,linux/arm64 - same pair `make docker-buildx` builds locally. No QEMU setup needed: the
+      # Dockerfile's builder stage is pinned to --platform=$BUILDPLATFORM, so buildx cross-compiles the Go
+      # binary natively for each target rather than emulating the build itself.
       - name: Build and push Docker image
         id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           build-args: |
             VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: ${{ steps.get_version.outputs.TAGS }}
@@ -93,12 +97,18 @@ jobs:
           mkdir -p release-artifacts
           cp -r config/crd/bases/* release-artifacts/
           tar -czf freqtrade-operator-crds.tar.gz -C release-artifacts .
+          # install.yaml is the one-step `kubectl apply -f` the README's own
+          # install instructions promise (P7-3) - CRDs, RBAC, webhooks and
+          # the Deployment in one file, built from the exact image this same
+          # job just pushed and signed, not a placeholder.
+          make build-installer IMG="arksys/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}"
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
+            dist/install.yaml
             freqtrade-operator-crds.tar.gz
             freqtrade-operator-sbom.spdx.json
           draft: false

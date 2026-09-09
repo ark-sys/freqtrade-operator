@@ -72,7 +72,7 @@ jobs:
           
       - name: Generate Helm repository index
         run: |
-          helm repo index .helm-releases --url https://freqtrade.github.io/freqtrade-operator/
+          helm repo index .helm-releases --url https://${{ github.repository_owner }}.github.io/freqtrade-operator/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -113,7 +113,7 @@ jobs:
             
             #### Using Helm Repository
             ```bash
-            helm repo add freqtrade-operator https://freqtrade.github.io/freqtrade-operator/
+            helm repo add freqtrade-operator https://${{ github.repository_owner }}.github.io/freqtrade-operator/
             helm repo update
             helm install my-freqtrade-operator freqtrade-operator/freqtrade-operator
             ```
@@ -138,7 +138,7 @@ jobs:
             spec:
               project: default
               source:
-                repoURL: https://freqtrade.github.io/freqtrade-operator/
+                repoURL: https://${{ github.repository_owner }}.github.io/freqtrade-operator/
                 chart: freqtrade-operator
                 targetRevision: ${{ steps.get_version.outputs.CHART_VERSION }}
                 helm:
