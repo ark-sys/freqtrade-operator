@@ -6,6 +6,7 @@ resources:
 - bases/freqtrade.io_strategies.yaml
 - bases/freqtrade.io_tradebots.yaml
 - bases/freqtrade.io_tradebotconfigs.yaml
+- bases/freqtrade.io_backtests.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 # This patch adds the webhook configurations to the CRDs
