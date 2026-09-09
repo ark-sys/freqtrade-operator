@@ -18,8 +18,11 @@ func TestBuildStatefulSet(t *testing.T) {
 		},
 	}
 
-	sts := BuildStatefulSet(tradeBot, "MyStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data")
+	sts := BuildStatefulSet(tradeBot, "MyStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "abc123")
 
+	if got := sts.Spec.Template.Annotations[ConfigHashAnnotation]; got != "abc123" {
+		t.Errorf("expected %s annotation %q, got %q", ConfigHashAnnotation, "abc123", got)
+	}
 	if sts.Name != "my-bot" {
 		t.Errorf("expected Name %q, got %q", "my-bot", sts.Name)
 	}
@@ -49,6 +52,16 @@ func TestBuildStatefulSet(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected a user-data volume")
+	}
+}
+
+func TestBuildStatefulSet_EmptyConfigHashSetsNoAnnotation(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+
+	sts := BuildStatefulSet(tradeBot, "MyStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "")
+
+	if _, ok := sts.Spec.Template.Annotations[ConfigHashAnnotation]; ok {
+		t.Errorf("expected no %s annotation when configHash is empty, got %+v", ConfigHashAnnotation, sts.Spec.Template.Annotations)
 	}
 }
 

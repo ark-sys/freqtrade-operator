@@ -72,6 +72,11 @@ const (
 	// ReasonReconcileError: a generic, otherwise-unclassified error occurred
 	// while reconciling (a List/Get/Create/Update call failed).
 	ReasonReconcileError = "ReconcileError"
+	// ReasonPendingRestart is the ConfigDrift=True reason (P2-4): the
+	// rendered config changed but spec.updateStrategy is Manual, so the
+	// StatefulSet pod template was deliberately left untouched. The
+	// condition message carries the exact kubectl command to apply it.
+	ReasonPendingRestart = "PendingRestart"
 	// ReasonUnresolvableTradeBotRefs is the TradeBotRefsResolved=False
 	// reason: one or more names in FreqUI.Spec.TradeBotRefs don't match any
 	// TradeBot in the namespace (P2-5). Non-blocking - FreqUI still deploys

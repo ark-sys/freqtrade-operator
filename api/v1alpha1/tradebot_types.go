@@ -29,6 +29,22 @@ type TradeBotSpec struct {
 	App *TBAppConfig `json:"app,omitempty"`
 
 	Data *DataCacheSpec `json:"data,omitempty"`
+
+	// UpdateStrategy controls what happens when a config change can't take
+	// effect without a restart (config.json is mounted from a Secret and
+	// read once at freqtrade startup, so rewriting the Secret alone doesn't
+	// change what a running bot is doing). "Manual" (the default, per D2)
+	// leaves the running StatefulSet pod template untouched and reports the
+	// pending restart via the ConfigDrift condition instead - a bot may be
+	// holding open positions, so an unrequested restart is not this
+	// controller's call to make. "Auto" writes the new config hash onto the
+	// pod template, letting Kubernetes' own StatefulSet rolling update
+	// carry out the restart. Only meaningful for freqtrade_command: trade;
+	// a Job's pod template is already immutable after creation regardless
+	// (see the WorkloadImmutable condition).
+	// +kubebuilder:validation:Enum=Manual;Auto
+	// +kubebuilder:default=Manual
+	UpdateStrategy string `json:"updateStrategy,omitempty"`
 }
 
 type DataCacheSpec struct {
@@ -122,6 +138,13 @@ type TradeBotStatus struct {
 	// was computed from, so a client can tell whether it reflects the spec
 	// it just applied.
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// AppliedConfigHash is sha256(config.json bytes + strategy script
+	// bytes), truncated to 16 hex characters: the hash of the config
+	// currently rendered into this TradeBot's Secret, regardless of
+	// whether it has been rolled out to the running StatefulSet pods yet
+	// (see the ConfigDrift condition).
+	AppliedConfigHash string `json:"appliedConfigHash,omitempty"`
 }
 
 //+kubebuilder:object:root=true

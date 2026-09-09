@@ -221,6 +221,7 @@ func main() {
 		Scheme:                  mgr.GetScheme(),
 		FinalizerGracePeriod:    tradeBotFinalizerGracePeriod,
 		MaxConcurrentReconciles: tradeBotMaxConcurrentReconciles,
+		Recorder:                mgr.GetEventRecorderFor("tradebot-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TradeBot")
 		os.Exit(1)

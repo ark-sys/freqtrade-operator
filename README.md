@@ -159,6 +159,31 @@ To enable this mode, the `trade` command must be provided with the `--freqaimode
 This command materializes the TradeBot resource as a StatefulSet that binds configuration and strategy from referenced resources.
 Also, this resource will look for annotation to determine if a GPU is to be used. If a GPU is available, the TradeBot container will be setup with GPU support.
 
+## Config changes and restarts
+
+`config.json` is mounted into the bot's pod from a Secret, and freqtrade reads it once at startup. Editing a `TradeBotConfig`
+or `Strategy` always re-renders that Secret immediately - but rewriting the Secret alone does **not** change what an
+already-running bot is doing, since nothing tells freqtrade to reload it. Making that take effect means restarting the pod,
+and restarting a bot that's holding open positions is a decision this operator will not make for you without being asked.
+
+`TradeBot.spec.updateStrategy` controls which side of that trade-off applies:
+
+- **`Manual` (the default).** A config change is rendered into the Secret and reported, but the running StatefulSet is left
+  exactly as it is. The `ConfigDrift` condition turns `True` with a message giving the exact remedy:
+  ```
+  kubectl rollout restart statefulset/<name> -n <namespace>
+  ```
+  (or set `spec.updateStrategy: Auto`, which the operator applies itself, clearing `ConfigDrift` in the process).
+- **`Auto`.** The operator writes the new config's hash onto the StatefulSet's pod template annotations itself, and
+  Kubernetes' own rolling update carries out the restart - no `ConfigDrift` ever appears, since the operator keeps the
+  template current on its own.
+
+Use `Auto` for bots where a config change should always take effect immediately (e.g. paper-trading/dry-run bots with no
+open positions to protect). Use `Manual` - or leave the field unset - for anything live, and restart it on your own schedule
+once you've confirmed the change is safe to apply.
+
+`TradeBot.status.appliedConfigHash` always reflects the hash of the config currently rendered into the Secret, whether or
+not it has been rolled out to the running pods yet.
 
 
 

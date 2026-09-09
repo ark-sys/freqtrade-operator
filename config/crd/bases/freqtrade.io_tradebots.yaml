@@ -5796,6 +5796,25 @@ spec:
                 minLength: 1
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
+              updateStrategy:
+                default: Manual
+                description: |-
+                  UpdateStrategy controls what happens when a config change can't take
+                  effect without a restart (config.json is mounted from a Secret and
+                  read once at freqtrade startup, so rewriting the Secret alone doesn't
+                  change what a running bot is doing). "Manual" (the default, per D2)
+                  leaves the running StatefulSet pod template untouched and reports the
+                  pending restart via the ConfigDrift condition instead - a bot may be
+                  holding open positions, so an unrequested restart is not this
+                  controller's call to make. "Auto" writes the new config hash onto the
+                  pod template, letting Kubernetes' own StatefulSet rolling update
+                  carry out the restart. Only meaningful for freqtrade_command: trade;
+                  a Job's pod template is already immutable after creation regardless
+                  (see the WorkloadImmutable condition).
+                enum:
+                - Manual
+                - Auto
+                type: string
             required:
             - config
             - strategy
@@ -5807,6 +5826,14 @@ spec:
           status:
             description: TradeBotStatus defines the observed state of TradeBot
             properties:
+              appliedConfigHash:
+                description: |-
+                  AppliedConfigHash is sha256(config.json bytes + strategy script
+                  bytes), truncated to 16 hex characters: the hash of the config
+                  currently rendered into this TradeBot's Secret, regardless of
+                  whether it has been rolled out to the running StatefulSet pods yet
+                  (see the ConfigDrift condition).
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current

@@ -88,6 +88,7 @@ var _ = BeforeSuite(func() {
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		FinalizerGracePeriod: time.Minute,
+		Recorder:             mgr.GetEventRecorderFor("tradebot-controller"),
 	}
 	Expect(testReconciler.SetupWithManager(mgr)).To(Succeed())
 

@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -40,6 +41,12 @@ type Reconciler struct {
 	// MaxConcurrentReconciles bounds how many TradeBots this controller
 	// reconciles in parallel. Zero means use defaultMaxConcurrentReconciles.
 	MaxConcurrentReconciles int
+
+	// Recorder emits the P2-4 ConfigRestart Event under spec.updateStrategy:
+	// Auto. Nil is fine - a scoped addition for that one signal, not the
+	// full per-controller EventRecorder rollout P4-1 covers; recordConfigRestartEvent
+	// skips emitting rather than dereferencing a nil interface.
+	Recorder record.EventRecorder
 }
 
 // collectCORSHostsForTradeBot returns a deduplicated, normalized list of CORS hosts.
@@ -257,7 +264,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// 7. Create or update required resources
 	logger.V(2).Info("Reconciling resources", "configDataKeys", keys(configData))
-	jobSpecChanged, err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData)
+	outcome, err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile resources")
 		return r.failReconcile(
@@ -313,7 +320,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			Type: freqtradev1alpha1.ConditionReady, Status: status, Reason: reason, Message: message,
 		})
 		meta.SetStatusCondition(&tradeBot.Status.Conditions,
-			workloadImmutableCondition(tradeBot.Name, tradeBot.Generation, jobSpecChanged))
+			workloadImmutableCondition(tradeBot.Name, tradeBot.Generation, outcome.jobSpecChanged))
+		meta.SetStatusCondition(&tradeBot.Status.Conditions,
+			configDriftCondition(tradeBot.Name, tradeBot.Namespace, tradeBot.Generation, outcome.configDrift))
+		tradeBot.Status.AppliedConfigHash = outcome.appliedConfigHash
 		tradeBot.Status.Phase = deriveTradeBotPhase(tradeBot.Status.Conditions)
 		tradeBot.Status.Message = message
 	}); err != nil {
