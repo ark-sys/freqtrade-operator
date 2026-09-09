@@ -45,6 +45,9 @@ spec:
         - --leader-elect
         - --zap-log-level={{ .Values.controllerManager.logLevel }}
         - --health-probe-bind-address=:8081
+        {{- if .Values.controllerManager.metrics.enabled }}
+        - --metrics-bind-address=:8443
+        {{- end }}
         {{- with .Values.controllerManager.extraArgs }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -61,8 +64,8 @@ spec:
           containerPort: 8081
           protocol: TCP
         {{- if .Values.controllerManager.metrics.enabled }}
-        - name: metrics
-          containerPort: 8080
+        - name: https
+          containerPort: 8443
           protocol: TCP
         {{- end }}
         livenessProbe:

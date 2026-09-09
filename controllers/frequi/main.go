@@ -178,6 +178,7 @@ func (r *Reconciler) failReconcile(
 	if r.Recorder != nil {
 		r.Recorder.Event(frequi, corev1.EventTypeWarning, freqtradev1alpha1.ReasonReconcileError, message)
 	}
+	shared.ReconcileErrorsTotal.WithLabelValues("frequi", freqtradev1alpha1.ReasonReconcileError).Inc()
 	return ctrl.Result{RequeueAfter: requeueAfter}, err
 }
 

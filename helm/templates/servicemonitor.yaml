@@ -1,0 +1,27 @@
+{{- if and .Values.controllerManager.metrics.enabled .Values.controllerManager.metrics.serviceMonitor.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "freqtrade-operator.fullname" . }}-controller-manager-metrics-monitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "freqtrade-operator.labels" . | nindent 4 }}
+    control-plane: controller-manager
+spec:
+  endpoints:
+    - path: /metrics
+      port: https
+      scheme: https
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        # The manager serves metrics with a self-signed cert generated at
+        # startup (no cert-manager wiring in this chart, same as
+        # config/prometheus/monitor.yaml's own default) - Prometheus can't
+        # validate it against a CA, so this is the same trade-off that
+        # scaffold already makes, not one specific to Helm.
+        insecureSkipVerify: true
+  selector:
+    matchLabels:
+      {{- include "freqtrade-operator.selectorLabels" . | nindent 6 }}
+      control-plane: controller-manager
+{{- end }}

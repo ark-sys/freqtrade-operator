@@ -286,12 +286,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// 6. Build config.json from TradeBot and referenced TradeBotConfig using configbuilder
 	logger.V(2).Info("Building config.json for TradeBot", "name", tradeBot.Name)
+	renderStart := time.Now()
 	configData, err := configbuilder.BuildConfig(
 		ctx, r.Client,
 		&tradeBot,
 		resources.tradebotconfig,
 		corsHosts,
 	)
+	shared.ConfigRenderDuration.Observe(time.Since(renderStart).Seconds())
 	if err != nil {
 		logger.Error(err, "Failed to build config")
 		reason := freqtradev1alpha1.ReasonConfigInvalid
@@ -554,5 +556,6 @@ func (r *Reconciler) failReconcile(
 	if r.Recorder != nil {
 		r.Recorder.Event(tradeBot, corev1.EventTypeWarning, reason, message)
 	}
+	shared.ReconcileErrorsTotal.WithLabelValues("tradebot", reason).Inc()
 	return ctrl.Result{RequeueAfter: failReconcileRequeueAfter}, err
 }

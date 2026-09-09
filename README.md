@@ -264,6 +264,31 @@ raised.
 
 Egress is untouched - a bot can still reach its exchange, Telegram, DNS, etc. without restriction.
 
+## Metrics
+
+`controllerManager.metrics.enabled` (default `true` in `helm/values.yaml`) makes the manager serve Prometheus metrics over
+HTTPS on port `8443` - both the flag that turns the metrics server on and the container port it's exposed on now come from
+this one value, so they can no longer drift apart the way they previously could.
+
+Beyond controller-runtime's own built-ins (`controller_runtime_reconcile_total`, work queue depth, etc.), this operator
+registers:
+
+| Metric | Type | Labels | What it means |
+|---|---|---|---|
+| `freqtrade_operator_tradebots` | Gauge | `phase` | How many TradeBots are currently in each `status.phase`. |
+| `freqtrade_operator_config_drift` | Gauge | `namespace`, `tradebot` | `1` if a `Manual`-mode bot's rendered config hasn't been rolled out to its workload yet. |
+| `freqtrade_operator_reconcile_errors_total` | Counter | `controller`, `reason` | Every reconcile failure, by controller and the same `Reason` string its status condition and Event both use. |
+| `freqtrade_operator_config_render_duration_seconds` | Histogram | - | How long rendering a TradeBot's `config.json` took. |
+
+The `tradebots`/`config_drift` gauges are recomputed from a fresh List on every scrape rather than tracked incrementally
+off reconcile events, specifically so a deleted TradeBot's series disappears on the next scrape instead of being stuck
+at a stale value forever (nothing reconciles a deleted object to clean it up otherwise).
+
+Set `controllerManager.metrics.serviceMonitor.enabled: true` to also install a `ServiceMonitor` (requires the Prometheus
+Operator's CRDs already in the cluster - off by default for the same reason the kustomize `config/prometheus` overlay
+isn't included by default either). A starting Grafana dashboard for all four metrics above is at
+[config/prometheus/grafana-dashboard.json](config/prometheus/grafana-dashboard.json) - import it directly, or adapt it.
+
 ## Development
 
 ### Prerequisites

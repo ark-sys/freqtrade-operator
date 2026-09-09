@@ -72,6 +72,11 @@ controllerManager:
     enabled: true
     service:
       type: ClusterIP
+    # Requires the Prometheus Operator's ServiceMonitor CRD to already be
+    # installed in the cluster - off by default for the same reason
+    # config/prometheus is commented out of the kustomize build by default.
+    serviceMonitor:
+      enabled: false
 
 # This is for the secrets for pulling an image from a private repository
 imagePullSecrets: []

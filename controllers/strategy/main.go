@@ -78,6 +78,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		if r.Recorder != nil {
 			r.Recorder.Event(&strategy, corev1.EventTypeWarning, "ValidationFailed", validateErr.Error())
 		}
+		shared.ReconcileErrorsTotal.WithLabelValues("strategy", "ValidationFailed").Inc()
 		// Nothing to retry: re-validating an unchanged spec always
 		// produces the same result. The next reconcile the user's own edit
 		// triggers is what can change the outcome.
