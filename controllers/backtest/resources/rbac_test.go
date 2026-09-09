@@ -12,23 +12,42 @@ func TestBuildSidecarServiceAccount_FixedNamePerNamespace(t *testing.T) {
 	}
 }
 
-func TestBuildSidecarRole_GrantsOnlyConfigMapVerbs(t *testing.T) {
+// Regression test: this Role previously granted only configmaps verbs, missing pods:get entirely
+// - collectresults.waitForMainContainerExit needs to Get its own Pod to learn when the main
+// freqtrade container has exited (see BuildSidecarRole's own doc comment for the full story).
+// Found directly: a real Backtest's sidecar crash-looped forever on "cannot get resource pods"
+// before this rule existed - nothing in this package's own unit tests (which only ever inspect
+// the Role object, never make a real API call under the sidecar's actual identity) could have
+// caught this on its own.
+func TestBuildSidecarRole_GrantsConfigMapAndPodVerbs(t *testing.T) {
 	role := BuildSidecarRole(testNamespace)
-	if len(role.Rules) != 1 {
-		t.Fatalf("expected exactly one rule, got %d: %+v", len(role.Rules), role.Rules)
+	if len(role.Rules) != 2 {
+		t.Fatalf("expected exactly two rules, got %d: %+v", len(role.Rules), role.Rules)
 	}
-	rule := role.Rules[0]
-	if len(rule.Resources) != 1 || rule.Resources[0] != "configmaps" {
-		t.Errorf("expected the rule to be scoped to configmaps only, got %v", rule.Resources)
-	}
-	wantVerbs := map[string]bool{"get": true, "create": true, "update": true}
-	if len(rule.Verbs) != len(wantVerbs) {
-		t.Errorf("expected exactly %v, got %v", wantVerbs, rule.Verbs)
-	}
-	for _, v := range rule.Verbs {
-		if !wantVerbs[v] {
-			t.Errorf("unexpected verb %q granted", v)
+
+	granted := map[string]map[string]bool{}
+	for _, rule := range role.Rules {
+		for _, resource := range rule.Resources {
+			if granted[resource] == nil {
+				granted[resource] = map[string]bool{}
+			}
+			for _, verb := range rule.Verbs {
+				granted[resource][verb] = true
+			}
 		}
+	}
+
+	wantConfigMapVerbs := []string{"get", "create", "update"}
+	for _, v := range wantConfigMapVerbs {
+		if !granted["configmaps"][v] {
+			t.Errorf("expected configmaps:%s to be granted, got %+v", v, granted["configmaps"])
+		}
+	}
+	if !granted["pods"]["get"] {
+		t.Errorf("expected pods:get to be granted, got %+v", granted["pods"])
+	}
+	if granted["pods"]["create"] || granted["pods"]["update"] || granted["pods"]["delete"] || granted["pods"]["list"] {
+		t.Errorf("expected pods access to be read-only (get only), got %+v", granted["pods"])
 	}
 }
 

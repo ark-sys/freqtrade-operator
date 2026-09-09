@@ -34,20 +34,34 @@ func BuildSidecarServiceAccount(namespace string) corev1.ServiceAccount {
 }
 
 // BuildSidecarRole grants exactly what the sidecar needs: create/update its
-// own results ConfigMap, and get to check whether one it's about to create
+// own results ConfigMap, get to check whether one it's about to create
 // already exists (a retry after a partial failure must not error on
-// AlreadyExists). Not scoped to specific resourceNames: this Role is
-// shared across every Backtest that will ever run in the namespace, so a
-// fixed resourceNames list naming only today's Backtests would reject
-// tomorrow's.
+// AlreadyExists), and get on pods - collectresults.waitForMainContainerExit
+// polls the sidecar's own Pod's containerStatuses to learn when the main
+// freqtrade container has exited, which is how a native sidecar (no exit
+// hook of its own) knows the run is over and it's time to read the result
+// file. Not scoped to specific resourceNames for either resource: this Role
+// is shared across every Backtest that will ever run in the namespace, so a
+// fixed resourceNames list naming only today's Backtests/pods would reject
+// tomorrow's. Found and fixed directly: a real run's sidecar crash-looped
+// forever on "cannot get resource \"pods\"" before this was added - nothing
+// in this project's envtest/unit coverage exercises the sidecar's actual
+// ServiceAccount identity making a real API call, only its logic.
 func BuildSidecarRole(namespace string) rbacv1.Role {
 	return rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{Name: SidecarServiceAccountName, Namespace: namespace},
-		Rules: []rbacv1.PolicyRule{{
-			APIGroups: []string{""},
-			Resources: []string{"configmaps"},
-			Verbs:     []string{"get", "create", "update"},
-		}},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"configmaps"},
+				Verbs:     []string{"get", "create", "update"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get"},
+			},
+		},
 	}
 }
 
