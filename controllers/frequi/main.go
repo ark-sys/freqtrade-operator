@@ -7,11 +7,13 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -25,6 +27,10 @@ import (
 type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// Recorder emits the P4-1 Events below. Nil is fine - not every test
+	// constructs one.
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=freqtrade.io,resources=frequis,verbs=get;list;watch
@@ -35,6 +41,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;patch
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile handles the reconciliation loop for FreqUI resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -77,6 +84,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		requeueAfter = 5 * time.Minute
 	}
 
+	wasReady := meta.IsStatusConditionTrue(frequi.Status.Conditions, freqtradev1alpha1.ConditionWorkloadReady)
+
 	if err := shared.PatchStatus(ctx, r.Client, &frequi, func() {
 		condition := metav1.Condition{Type: freqtradev1alpha1.ConditionWorkloadReady, Message: message}
 		if ready {
@@ -95,6 +104,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}); err != nil {
 		logger.Error(err, "Failed to update FreqUI status")
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, err
+	}
+
+	if r.Recorder != nil && !wasReady && ready {
+		r.Recorder.Event(&frequi, corev1.EventTypeNormal, "WorkloadReady", "FreqUI deployment is ready")
 	}
 
 	logger.V(1).Info("FreqUI reconciliation completed successfully", "name", frequi.Name, "phase", frequi.Status.Phase)
@@ -161,6 +174,9 @@ func (r *Reconciler) failReconcile(
 	}); patchErr != nil {
 		logger.Error(patchErr, "Failed to update FreqUI status")
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, patchErr
+	}
+	if r.Recorder != nil {
+		r.Recorder.Event(frequi, corev1.EventTypeWarning, freqtradev1alpha1.ReasonReconcileError, message)
 	}
 	return ctrl.Result{RequeueAfter: requeueAfter}, err
 }

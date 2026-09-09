@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -21,11 +23,16 @@ import (
 type Reconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// Recorder emits the P4-1 ValidationFailed Event. Nil is fine (see
+	// recordValidationFailed) - not every test constructs one.
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=freqtrade.io,resources=strategies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=freqtrade.io,resources=strategies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=freqtrade.io,resources=tradebots,verbs=list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile handles the reconciliation loop for Strategy resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -68,6 +75,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	if validateErr != nil {
 		logger.V(1).Error(validateErr, "Strategy validation failed")
+		if r.Recorder != nil {
+			r.Recorder.Event(&strategy, corev1.EventTypeWarning, "ValidationFailed", validateErr.Error())
+		}
 		// Nothing to retry: re-validating an unchanged spec always
 		// produces the same result. The next reconcile the user's own edit
 		// triggers is what can change the outcome.

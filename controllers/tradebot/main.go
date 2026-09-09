@@ -14,6 +14,7 @@ import (
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -334,6 +335,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		message = corsWarning
 	}
 
+	// Captured before PatchStatus overwrites tradeBot.Status below - this is
+	// still exactly what r.Get returned at the top of Reconcile, since none
+	// of the failReconcile branches above were taken if execution reached
+	// here. P4-1's Events are about notable transitions, not routine
+	// confirmations: comparing old vs new is what tells "became ready" apart
+	// from "already was," and "config changed" apart from "reconciled a
+	// no-op."
+	wasWorkloadReady := meta.IsStatusConditionTrue(tradeBot.Status.Conditions, freqtradev1alpha1.ConditionWorkloadReady)
+	wasConfigDrift := meta.IsStatusConditionTrue(tradeBot.Status.Conditions, freqtradev1alpha1.ConditionConfigDrift)
+	hadWorkloadBefore := tradeBot.Status.ResolvedImage != ""
+	oldConfigHash := tradeBot.Status.AppliedConfigHash
+
 	if err := shared.PatchStatus(ctx, r.Client, &tradeBot, func() {
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type:    freqtradev1alpha1.ConditionConfigResolved,
@@ -372,9 +385,61 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 	}
 
+	r.recordLifecycleEvents(&tradeBot, lifecycleEventInputs{
+		wasWorkloadReady:  wasWorkloadReady,
+		wasConfigDrift:    wasConfigDrift,
+		hadWorkloadBefore: hadWorkloadBefore,
+		oldConfigHash:     oldConfigHash,
+		newConfigHash:     outcome.appliedConfigHash,
+	})
+
 	logger.V(1).Info("TradeBot reconciliation completed successfully",
 		"name", tradeBot.Name, "phase", tradeBot.Status.Phase, "message", message)
 	return ctrl.Result{RequeueAfter: workload.requeueAfter}, nil
+}
+
+// lifecycleEventInputs is the "before" half of the before/after comparison
+// recordLifecycleEvents needs - captured pre-PatchStatus, since tradeBot's
+// own Status has already been overwritten with the "after" values by the
+// time recordLifecycleEvents runs.
+type lifecycleEventInputs struct {
+	wasWorkloadReady  bool
+	wasConfigDrift    bool
+	hadWorkloadBefore bool
+	oldConfigHash     string
+	newConfigHash     string
+}
+
+// recordLifecycleEvents emits the P4-1 Normal/Warning Events for the
+// notable state transitions a successful Reconcile can produce - "config
+// rendered," "workload created," "bot became ready," and "config drift
+// detected" from the plan's own list ("restart triggered" is
+// recordConfigRestartEvent, P2-4; "validation failed"/"secret missing" are
+// failReconcile's, below). Reads tradeBot.Status post-PatchStatus, i.e. the
+// "after" half.
+func (r *Reconciler) recordLifecycleEvents(tradeBot *freqtradev1alpha1.TradeBot, before lifecycleEventInputs) {
+	if r.Recorder == nil {
+		return
+	}
+
+	if !before.hadWorkloadBefore && tradeBot.Status.ResolvedImage != "" {
+		r.Recorder.Event(tradeBot, corev1.EventTypeNormal, "WorkloadCreated",
+			"Workload created for the first time")
+	}
+	if before.newConfigHash != "" && before.newConfigHash != before.oldConfigHash {
+		r.Recorder.Event(tradeBot, corev1.EventTypeNormal, "ConfigRendered",
+			"Rendered config.json changed")
+	}
+	nowReady := meta.IsStatusConditionTrue(tradeBot.Status.Conditions, freqtradev1alpha1.ConditionWorkloadReady)
+	if !before.wasWorkloadReady && nowReady {
+		r.Recorder.Event(tradeBot, corev1.EventTypeNormal, "BotReady", "Bot workload is ready")
+	}
+	nowDrifting := meta.IsStatusConditionTrue(tradeBot.Status.Conditions, freqtradev1alpha1.ConditionConfigDrift)
+	if !before.wasConfigDrift && nowDrifting {
+		r.Recorder.Event(tradeBot, corev1.EventTypeWarning, "ConfigDrift",
+			"Rendered config has changed but is not yet reflected in the running workload - "+
+				"see the ConfigDrift condition for the remedy")
+	}
 }
 
 // workloadStatus is the raw outcome of inspecting the workload TradeBot
@@ -485,6 +550,9 @@ func (r *Reconciler) failReconcile(
 	}); patchErr != nil {
 		logger.Error(patchErr, "Failed to update TradeBot status")
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, patchErr
+	}
+	if r.Recorder != nil {
+		r.Recorder.Event(tradeBot, corev1.EventTypeWarning, reason, message)
 	}
 	return ctrl.Result{RequeueAfter: failReconcileRequeueAfter}, err
 }

@@ -2,6 +2,7 @@ package tradebot
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -98,7 +100,7 @@ func TestFinalizeTradeBot_NeverBlocks(t *testing.T) {
 		}
 	})
 
-	t.Run("grace period exceeded proceeds anyway", func(t *testing.T) {
+	t.Run("grace period exceeded proceeds anyway and records a Warning event", func(t *testing.T) {
 		replicas := int32(0)
 		sts := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
@@ -106,7 +108,8 @@ func TestFinalizeTradeBot_NeverBlocks(t *testing.T) {
 			Status:     appsv1.StatefulSetStatus{Replicas: 1, ReadyReplicas: 1}, // still stuck
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(sts).WithStatusSubresource(sts).Build()
-		r := &Reconciler{Client: c, FinalizerGracePeriod: time.Minute}
+		recorder := record.NewFakeRecorder(10)
+		r := &Reconciler{Client: c, FinalizerGracePeriod: time.Minute, Recorder: recorder}
 		tradeBot := &freqtradev1alpha1.TradeBot{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "my-bot", Namespace: "trading",
@@ -120,6 +123,15 @@ func TestFinalizeTradeBot_NeverBlocks(t *testing.T) {
 		}
 		if !done {
 			t.Error("expected finalization to proceed once the grace period is exceeded, even with a stuck StatefulSet")
+		}
+
+		select {
+		case event := <-recorder.Events:
+			if !strings.Contains(event, "Warning") || !strings.Contains(event, "FinalizerGracePeriodExceeded") {
+				t.Errorf("expected a Warning FinalizerGracePeriodExceeded event, got %q", event)
+			}
+		default:
+			t.Error("expected a FinalizerGracePeriodExceeded event to be recorded, got none")
 		}
 	})
 

@@ -28,11 +28,12 @@ import (
 // through kubectl-apply-shaped input.
 
 var (
-	testCtx    context.Context
-	testCancel context.CancelFunc
-	testEnv    *envtest.Environment
-	testCfg    *rest.Config
-	k8sClient  client.Client
+	testCtx        context.Context
+	testCancel     context.CancelFunc
+	testEnv        *envtest.Environment
+	testCfg        *rest.Config
+	k8sClient      client.Client
+	testReconciler *Reconciler
 )
 
 func TestControllers(t *testing.T) {
@@ -69,10 +70,12 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	Expect((&Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr)).To(Succeed())
+	testReconciler = &Reconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("frequi-controller"),
+	}
+	Expect(testReconciler.SetupWithManager(mgr)).To(Succeed())
 
 	go func() {
 		defer GinkgoRecover()

@@ -6,9 +6,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
@@ -95,6 +99,48 @@ var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 			cond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionTradeBotRefsResolved)
 			g.Expect(cond).NotTo(BeNil())
 			g.Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+	})
+})
+
+// P4-1: WorkloadReady is a status Deployment change, which
+// ownedResourcePredicate (setup.go) deliberately filters out of the Owns()
+// watch - the controller relies on RequeueAfter polling to notice it in a
+// real cluster, not a watch event. A direct Reconcile call here is what
+// makes "became ready" observable in a test without an envtest kubelet
+// (which never runs one) or a real wall-clock wait for that poll.
+var _ = Describe("FreqUI lifecycle Events (P4-1)", func() {
+	It("records a WorkloadReady event when the Deployment transitions to ready", func() {
+		ctx := context.Background()
+		frequi := &freqtradev1alpha1.FreqUI{
+			ObjectMeta: metav1.ObjectMeta{Name: "events-ready", Namespace: testNamespace},
+		}
+		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
+		key := types.NamespacedName{Name: frequi.Name, Namespace: testNamespace}
+
+		var deployment appsv1.Deployment
+		Eventually(func() error {
+			return k8sClient.Get(ctx, key, &deployment)
+		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+		deployment.Status.Replicas = 1
+		deployment.Status.ReadyReplicas = 1
+		deployment.Status.AvailableReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, &deployment)).To(Succeed())
+
+		_, err := testReconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func(g Gomega) {
+			var events corev1.EventList
+			g.Expect(k8sClient.List(ctx, &events, client.InNamespace(testNamespace))).To(Succeed())
+			found := false
+			for _, e := range events.Items {
+				if e.InvolvedObject.Name == frequi.Name && e.Reason == "WorkloadReady" {
+					found = true
+				}
+			}
+			g.Expect(found).To(BeTrue(), "expected a WorkloadReady event for %s", frequi.Name)
 		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 	})
 })

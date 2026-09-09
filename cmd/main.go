@@ -242,8 +242,9 @@ func main() {
 
 	// Setup FreqUI controller
 	if err = (&frequi.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("frequi-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "FreqUI")
 		os.Exit(1)
@@ -251,8 +252,9 @@ func main() {
 
 	// Setup Strategy controller
 	if err = (&strategy.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("strategy-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Strategy")
 		os.Exit(1)
@@ -260,8 +262,9 @@ func main() {
 
 	// Setup TradeBotConfig controller
 	if err = (&tradebotconfig.Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("tradebotconfig-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TradeBotConfig")
 		os.Exit(1)

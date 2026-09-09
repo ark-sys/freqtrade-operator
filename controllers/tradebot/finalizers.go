@@ -2,6 +2,7 @@ package tradebot
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -45,10 +46,13 @@ func (r *Reconciler) finalizeTradeBot(ctx context.Context, tradeBot *freqtradev1
 		}
 		if !scaledDown {
 			if r.finalizerDeadlinePassed(tradeBot) {
-				// TODO(P4-1): also record a warning Event once every
-				// controller has an EventRecorder wired up.
 				logger.Info("StatefulSet did not scale down within the grace period, removing finalizer anyway",
 					"name", sts.Name, "gracePeriod", r.finalizerGracePeriod())
+				if r.Recorder != nil {
+					r.Recorder.Event(tradeBot, corev1.EventTypeWarning, "FinalizerGracePeriodExceeded",
+						fmt.Sprintf("StatefulSet did not scale down within the %s grace period; "+
+							"removing the finalizer anyway", r.finalizerGracePeriod()))
+				}
 			} else {
 				return false, nil
 			}
