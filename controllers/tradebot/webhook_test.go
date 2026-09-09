@@ -8,8 +8,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
@@ -99,6 +101,41 @@ var _ = Describe("TradeBot admission webhook (P1-4)", func() {
 			Interval: metav1.Duration{Duration: 10 * time.Second},
 		}
 		Expect(k8sClient.Create(context.Background(), tradeBot)).To(Succeed())
+	})
+
+	// Regression test for a real deadlock found via e2e testing (P5-3): deleting a whole
+	// namespace tears down objects in no guaranteed order, so the Strategy this TradeBot
+	// references can already be gone by the time the reconciler tries to strip its finalizer -
+	// which is itself an Update, and ValidateUpdate used to re-validate spec.strategy's existence
+	// on every update, including that one. Without the DeletionTimestamp skip
+	// (api/v1alpha1/tradebot_webhook.go), that Update is permanently rejected: the finalizer can
+	// never be removed, so the TradeBot - and its whole namespace - never finishes terminating.
+	// Reproduced directly against a real kind cluster before this fix existed (a `kubectl delete
+	// ns` wedged for 10+ minutes); this proves the same sequence resolves against envtest's real
+	// admission chain, not just that the reconciler's own Go code path is reachable.
+	It("still lets the reconciler strip the finalizer after its Strategy is deleted first", func() {
+		strategy := newTestStrategy("wh-tb-strategy-deadlock")
+		Expect(k8sClient.Create(context.Background(), strategy)).To(Succeed())
+		cfg := newTestTradeBotConfig("wh-tb-config-deadlock")
+		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+		tradeBot := newTestTradeBot("wh-tb-deadlock", strategy.Name, cfg.Name, "trade")
+		Expect(k8sClient.Create(context.Background(), tradeBot)).To(Succeed())
+
+		By("waiting for the reconciler to add its finalizer")
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(context.Background(), client.ObjectKeyFromObject(tradeBot), tradeBot)).To(Succeed())
+			g.Expect(tradeBot.Finalizers).To(ContainElement(BotFinalizer))
+		}).Should(Succeed())
+
+		By("deleting the referenced Strategy first")
+		Expect(k8sClient.Delete(context.Background(), strategy)).To(Succeed())
+
+		By("deleting the TradeBot - it must still fully terminate, not wedge")
+		Expect(k8sClient.Delete(context.Background(), tradeBot)).To(Succeed())
+		Eventually(func(g Gomega) {
+			err := k8sClient.Get(context.Background(), client.ObjectKeyFromObject(tradeBot), tradeBot)
+			g.Expect(errors.IsNotFound(err)).To(BeTrue(), "TradeBot should be fully deleted, not stuck with a finalizer")
+		}).Should(Succeed())
 	})
 })
 

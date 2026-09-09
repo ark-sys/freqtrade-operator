@@ -66,13 +66,25 @@ func (v *TradeBotCustomValidator) ValidateCreate(ctx context.Context, obj runtim
 	return nil, v.validate(ctx, tradeBot)
 }
 
-// ValidateUpdate implements admission.CustomValidator.
+// ValidateUpdate implements admission.CustomValidator. Skips validation entirely once
+// DeletionTimestamp is set: the only update this operator (or anyone) needs to make to a
+// TradeBot already marked for deletion is stripping its finalizer, and re-validating
+// spec.strategy/spec.config's existence on that update is actively harmful, not just
+// unnecessary - a namespace-wide delete tears down objects in no guaranteed order, so the
+// referenced Strategy/TradeBotConfig can easily already be gone by the time this fires. Without
+// this check, that ordering permanently deadlocks: the finalizer can never be removed (this
+// webhook rejects the very update trying to remove it), so the TradeBot - and therefore its
+// whole namespace - can never finish terminating. Verified directly: a real e2e run hit exactly
+// this on a `kubectl delete ns`, wedged for 10+ minutes until the test process was killed.
 func (v *TradeBotCustomValidator) ValidateUpdate(
 	ctx context.Context, _, newObj runtime.Object,
 ) (admission.Warnings, error) {
 	tradeBot, ok := newObj.(*TradeBot)
 	if !ok {
 		return nil, fmt.Errorf("expected a TradeBot but got %T", newObj)
+	}
+	if tradeBot.DeletionTimestamp != nil {
+		return nil, nil
 	}
 	return nil, v.validate(ctx, tradeBot)
 }

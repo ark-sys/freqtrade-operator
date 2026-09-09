@@ -65,13 +65,21 @@ func (v *TradeBotConfigCustomValidator) ValidateCreate(
 	return nil, v.validate(ctx, cfg)
 }
 
-// ValidateUpdate implements admission.CustomValidator.
+// ValidateUpdate implements admission.CustomValidator. Skips validation once DeletionTimestamp
+// is set - same deadlock risk, and same fix, as TradeBotCustomValidator.ValidateUpdate (see its
+// doc comment): the referenced exchange Secret can already be gone by the time something needs
+// to update this object (e.g. to strip its finalizer, if it has one) during a namespace-wide
+// delete, and re-validating the Secret's existence at that point can only block cleanup, never
+// help it.
 func (v *TradeBotConfigCustomValidator) ValidateUpdate(
 	ctx context.Context, _, newObj runtime.Object,
 ) (admission.Warnings, error) {
 	cfg, ok := newObj.(*TradeBotConfig)
 	if !ok {
 		return nil, fmt.Errorf("expected a TradeBotConfig but got %T", newObj)
+	}
+	if cfg.DeletionTimestamp != nil {
+		return nil, nil
 	}
 	return nil, v.validate(ctx, cfg)
 }
