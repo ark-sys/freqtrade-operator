@@ -3,9 +3,10 @@
 ## Building and running
 
 ```bash
-make manifests generate   # regenerate CRDs/RBAC/webhooks and deepcopy code after any api/ change
+make manifests generate  # regenerate CRDs/RBAC/webhooks and deepcopy code after any api/ change
+make api-docs             # regenerate docs/api-reference.md after any api/ change too
 make fmt vet
-make run                  # run the manager against whatever cluster your kubeconfig points at
+make run                 # run the manager against whatever cluster your kubeconfig points at
 ```
 
 `make run` talks to a real cluster (CRDs must already be installed there via `make install`). There's no

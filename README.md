@@ -39,6 +39,10 @@ The operator consists of the following components:
    config from referencing `FreqUI` resources, and runs a leader-only background poller for
    [bot introspection](#bot-introspection).
 
+For every field on every CRD - types, defaults, validation constraints, and doc comments straight from the Go
+source - see [docs/api-reference.md](docs/api-reference.md), regenerated from `api/*/*_types.go` via
+`make api-docs` whenever those types change.
+
 ## Namespace model
 
 Every cross-resource reference this operator follows - `TradeBot.spec.strategyRef`/`.configRef`,

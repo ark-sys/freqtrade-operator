@@ -39,6 +39,11 @@ jobs:
           make helm-sync
           git diff --exit-code helm/
 
+      - name: Verify the generated API reference is up to date
+        run: |
+          make api-docs
+          git diff --exit-code docs/
+
   govulncheck:
     name: govulncheck
     runs-on: ubuntu-latest
