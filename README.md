@@ -566,6 +566,10 @@ make test
 make test-e2e
 ```
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for notable changes to this project.
+
 ## License
 
 This project is licensed under the Apache 2.0 License - see the LICENSE file for details.

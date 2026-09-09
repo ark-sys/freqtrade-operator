@@ -288,6 +288,10 @@ api-docs: crd-ref-docs ## Regenerate docs/api-reference.md from api/*/*_types.go
 	$(CRD_REF_DOCS) --config=hack/crd-ref-docs-config.yaml --source-path=./api \
 		--renderer=markdown --output-mode=single --output-path=docs/api-reference.md
 
+.PHONY: changelog-draft
+changelog-draft: ## Print a draft [Unreleased] section for CHANGELOG.md - a starting point to edit, not a final result.
+	./hack/changelog-draft.sh
+
 # go-install-tool will 'go install' any package with custom target and name of binary, if it doesn't exist
 # $1 - target path with name of binary
 # $2 - package url which can be installed

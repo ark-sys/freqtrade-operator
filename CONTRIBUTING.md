@@ -59,6 +59,7 @@ make test
 make lint            # run twice
 make manifests generate && git diff --exit-code   # generated output must already be committed
 make helm-sync       # if you touched anything under config/crd or config/rbac
+make api-docs && git diff --exit-code docs/       # if you touched anything under api/
 ```
 
 CI runs the same checks; running them locally first avoids a slow feedback loop through GitHub Actions for
@@ -72,6 +73,16 @@ A few conventions this codebase already follows, worth keeping:
   controller needs) over introducing a new abstraction for a single call site.
 - Commit messages explain the *why* behind a change, not a restatement of the diff - see recent history
   (`git log --oneline`) for the expected tone and level of detail.
+
+## Releasing
+
+Tags matching `v*` (e.g. `v0.2.0`) trigger `release.yml`/`helm-release.yml` - see
+[CHANGELOG.md](CHANGELOG.md)'s header for how this project reads SemVer for a CRD-shaped project. Before tagging:
+
+1. Update [CHANGELOG.md](CHANGELOG.md): move `[Unreleased]` into a new `## [x.y.z] - YYYY-MM-DD` section.
+   `make changelog-draft` prints a rough starting point grouped from commits since the last tag - it has no
+   conventional-commit prefixes to key off, so treat its output as a first pass to edit, not a final result.
+2. Commit the changelog update, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
 ## Design decisions
 
