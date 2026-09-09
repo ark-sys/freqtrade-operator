@@ -16,7 +16,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -30,8 +32,9 @@ import (
 )
 
 // pollInterval is how often this checks whether the main container has
-// exited yet.
-const pollInterval = 2 * time.Second
+// exited yet. A var, not a const, so tests can shrink it rather than
+// waiting out the real interval.
+var pollInterval = 2 * time.Second
 
 // maxWait bounds the total time spent waiting for the main container to
 // exit, purely as a safety net against an infinite hang inside this one
@@ -78,6 +81,19 @@ type Options struct {
 func Run(ctx context.Context, opts Options) error {
 	logger := log.FromContext(ctx).WithName("collect-results")
 
+	// The instant every regular container in the pod (here, just "freqtrade") exits, kubelet
+	// sends every remaining native sidecar a SIGTERM - that's the whole point of this being a
+	// native sidecar rather than a second regular container, and exactly the trigger this code
+	// is waiting for. But kubelet's own exit detection (straight from the container runtime) is
+	// far faster than this process's own pollInterval-paced polling of the Kubernetes API for
+	// the same fact. Verified directly on a real cluster: left unhandled, SIGTERM's default Go
+	// disposition is immediate process death with nothing flushed and no cleanup, and it
+	// reliably won that race - the extraction and ConfigMap-write below never ran at all,
+	// silently, on every single real run. signal.NotifyContext turns SIGTERM from "die now" into
+	// "go check right now" instead, handled in waitForMainContainerExit below.
+	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGTERM)
+	defer stop()
+
 	restConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return fmt.Errorf("failed to build in-cluster config: %w", err)
@@ -87,7 +103,7 @@ func Run(ctx context.Context, opts Options) error {
 		return fmt.Errorf("failed to build Kubernetes client: %w", err)
 	}
 
-	if err := waitForMainContainerExit(ctx, c, opts); err != nil {
+	if err := waitForMainContainerExit(ctx, sigCtx, c, opts); err != nil {
 		return err
 	}
 
@@ -104,28 +120,54 @@ func Run(ctx context.Context, opts Options) error {
 	return nil
 }
 
-// waitForMainContainerExit polls this sidecar's own Pod until
-// opts.MainContainerName's status reports Terminated.
-func waitForMainContainerExit(ctx context.Context, c client.Client, opts Options) error {
+// waitForMainContainerExit polls this sidecar's own Pod (via ctx, never cancelled by SIGTERM)
+// until opts.MainContainerName's status reports Terminated. sigCtx is separate from ctx and is
+// cancelled the instant SIGTERM arrives (see Run's own doc comment for why that matters) - on
+// that signal this checks immediately rather than waiting out the rest of pollInterval like an
+// unsignaled tick would. A signal that turns out to be spurious (the main container genuinely
+// hasn't exited yet) just falls back to normal polling from then on: sigCtx.Done() only ever
+// fires once (a cancelled context's Done channel stays closed forever, so reselecting it again
+// would busy-loop), which is why the local sigDone variable is nilled out after first use - a
+// nil channel is never selected, which is exactly "stop watching this" in a Go select.
+func waitForMainContainerExit(ctx, sigCtx context.Context, c client.Client, opts Options) error {
 	deadline := time.Now().Add(maxWait)
 	key := types.NamespacedName{Name: opts.PodName, Namespace: opts.Namespace}
 
-	for {
+	mainContainerExited := func() (bool, error) {
 		var pod corev1.Pod
 		if err := c.Get(ctx, key, &pod); err != nil {
-			return fmt.Errorf("failed to get own Pod %s: %w", key, err)
+			return false, fmt.Errorf("failed to get own Pod %s: %w", key, err)
 		}
 		for _, cs := range pod.Status.ContainerStatuses {
 			if cs.Name == opts.MainContainerName && cs.State.Terminated != nil {
-				return nil
+				return true, nil
 			}
+		}
+		return false, nil
+	}
+
+	sigDone := sigCtx.Done()
+	for {
+		exited, err := mainContainerExited()
+		if err != nil {
+			return err
+		}
+		if exited {
+			return nil
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timed out after %s waiting for container %q to exit", maxWait, opts.MainContainerName)
 		}
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-sigDone:
+			sigDone = nil
+			exited, err := mainContainerExited()
+			if err != nil {
+				return err
+			}
+			if exited {
+				return nil
+			}
 		case <-time.After(pollInterval):
 		}
 	}
