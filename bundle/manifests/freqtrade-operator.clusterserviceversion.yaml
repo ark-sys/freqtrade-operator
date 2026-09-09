@@ -1,0 +1,448 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+    createdAt: "2026-09-09T16:47:12Z"
+    operators.operatorframework.io/builder: operator-sdk-v1.41.1
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
+  name: freqtrade-operator.v0.0.1
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - kind: Backtest
+      name: backtests.freqtrade.io
+      version: v1beta1
+    - kind: FreqUI
+      name: frequis.freqtrade.io
+      version: v1alpha1
+    - kind: Strategy
+      name: strategies.freqtrade.io
+      version: v1alpha1
+    - kind: TradeBotConfig
+      name: tradebotconfigs.freqtrade.io
+      version: v1alpha1
+    - kind: TradeBot
+      name: tradebots.freqtrade.io
+      version: v1alpha1
+    - kind: TradeBot
+      name: tradebots.freqtrade.io
+      version: v1beta1
+  description: |
+    The Freqtrade Operator manages [Freqtrade](https://www.freqtrade.io/) cryptocurrency trading bots as
+    Kubernetes-native custom resources: `TradeBot` for a live, trading (or dry-run) bot; `TradeBotConfig` and
+    `Strategy` for the config and Python strategy it runs; `FreqUI` for a shared web dashboard; and `Backtest`
+    for one-shot backtesting runs with results extracted automatically into `status`.
+
+    The operator renders exchange/notification credentials from Kubernetes Secrets into each bot's config,
+    keeps every trade-mode bot's REST API network-isolated by default, and (optionally) polls each bot's own
+    API on a schedule to surface live state - open trades, balance, profit - as `status` fields and Prometheus
+    metrics, entirely read-only.
+
+    This software deploys automated trading systems. See this operator's SECURITY.md in its source repository
+    for its threat model before pointing it at a real exchange account.
+  displayName: Freqtrade Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          - persistentvolumeclaims
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - get
+        - apiGroups:
+          - ""
+          resources:
+          - secrets
+          - serviceaccounts
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - apps
+          resources:
+          - statefulsets
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - batch
+          resources:
+          - jobs
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - freqtrade.io
+          resources:
+          - backtests
+          - tradebots
+          verbs:
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - freqtrade.io
+          resources:
+          - backtests/finalizers
+          - tradebots/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - freqtrade.io
+          resources:
+          - backtests/status
+          - frequis/status
+          - strategies/status
+          - tradebotconfigs/status
+          - tradebots/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - freqtrade.io
+          resources:
+          - frequis
+          - strategies
+          - tradebotconfigs
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - networking.k8s.io
+          resources:
+          - ingresses
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - networking.k8s.io
+          resources:
+          - networkpolicies
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - rbac.authorization.k8s.io
+          resources:
+          - rolebindings
+          - roles
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - watch
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        serviceAccountName: freqtrade-operator-controller-manager
+      deployments:
+      - label:
+          app.kubernetes.io/managed-by: kustomize
+          app.kubernetes.io/name: freqtrade-operator
+          control-plane: controller-manager
+        name: freqtrade-operator-controller-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: freqtrade-operator
+              control-plane: controller-manager
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: manager
+              labels:
+                app.kubernetes.io/name: freqtrade-operator
+                control-plane: controller-manager
+            spec:
+              containers:
+              - args:
+                - --metrics-bind-address=:8443
+                - --leader-elect
+                - --zap-log-level=debug
+                - --health-probe-bind-address=:8081
+                command:
+                - /manager
+                env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                image: arksys/freqtrade-operator:latest
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                name: manager
+                ports:
+                - containerPort: 9443
+                  name: webhook-server
+                  protocol: TCP
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+                  requests:
+                    cpu: 100m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+              securityContext:
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
+              serviceAccountName: freqtrade-operator-controller-manager
+              terminationGracePeriodSeconds: 10
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        serviceAccountName: freqtrade-operator-controller-manager
+    strategy: deployment
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - freqtrade
+  - trading
+  - cryptocurrency
+  - trading-bot
+  - kubernetes-operator
+  links:
+  - name: Source Repository
+    url: https://github.com/ark-sys/freqtrade-operator
+  - name: Documentation
+    url: https://github.com/ark-sys/freqtrade-operator#readme
+  maintainers:
+  - email: your@email.com
+    name: Khaled Arsalane
+  maturity: alpha
+  minKubeVersion: 1.29.0
+  provider:
+    name: ark-sys
+    url: https://github.com/ark-sys
+  version: 0.0.1
+  webhookdefinitions:
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    conversionCRDs:
+    - tradebots.freqtrade.io
+    deploymentName: freqtrade-operator-controller-manager
+    generateName: ctradebots.kb.io
+    sideEffects: None
+    targetPort: 9443
+    type: ConversionWebhook
+    webhookPath: /convert
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: freqtrade-operator-controller-manager
+    failurePolicy: Fail
+    generateName: vbacktest.kb.io
+    rules:
+    - apiGroups:
+      - freqtrade.io
+      apiVersions:
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - backtests
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-freqtrade-io-v1beta1-backtest
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: freqtrade-operator-controller-manager
+    failurePolicy: Fail
+    generateName: vstrategy.kb.io
+    rules:
+    - apiGroups:
+      - freqtrade.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - strategies
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-freqtrade-io-v1alpha1-strategy
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: freqtrade-operator-controller-manager
+    failurePolicy: Fail
+    generateName: vtradebot.kb.io
+    rules:
+    - apiGroups:
+      - freqtrade.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - tradebots
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-freqtrade-io-v1alpha1-tradebot
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: freqtrade-operator-controller-manager
+    failurePolicy: Fail
+    generateName: vtradebotconfig.kb.io
+    rules:
+    - apiGroups:
+      - freqtrade.io
+      apiVersions:
+      - v1alpha1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - tradebotconfigs
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-freqtrade-io-v1alpha1-tradebotconfig

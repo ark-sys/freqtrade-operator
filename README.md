@@ -128,6 +128,15 @@ helm repo update
 helm install freqtrade-operator ark-sys/freqtrade-operator
 ```
 
+### Using OLM
+
+Every tagged release also publishes an [OLM](https://olm.operatorframework.io/) bundle image
+(`arksys/freqtrade-operator-bundle`), installable via `operator-sdk run bundle` against a cluster that already has
+OLM installed, or addable to your own catalog via `make catalog-build` (see `make help`). This project is not yet
+listed on [OperatorHub](https://operatorhub.io/) - that needs a one-time submission to the
+[community-operators](https://github.com/k8s-operatorhub/community-operators) repository, a manual step not yet
+taken.
+
 ## Usage
 
 ### 1. Create a namespace for your trading bots

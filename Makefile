@@ -28,8 +28,9 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# freqtrade.io/freqtrade-operator-bundle:$VERSION and freqtrade.io/freqtrade-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= freqtrade.io/freqtrade-operator
+# arksys/freqtrade-operator-bundle:$VERSION and arksys/freqtrade-operator-catalog:$VERSION - same registry and
+# org as the manager image itself (freqtrade.io is this project's CRD API group, not a real registry).
+IMAGE_TAG_BASE ?= arksys/freqtrade-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)

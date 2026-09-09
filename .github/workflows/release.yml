@@ -103,6 +103,18 @@ jobs:
           # job just pushed and signed, not a placeholder.
           make build-installer IMG="arksys/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}"
 
+      # OLM bundle image, toward an eventual OperatorHub listing (P7-3) - tag-only, like the GitHub Release
+      # below: an OLM bundle is meant to represent one real, addable-to-a-catalog version, not every dev build
+      # off main. operator-sdk self-installs via the Makefile's own download logic, same as kustomize/
+      # controller-gen already do in test.yml - no new tool pre-install needed in this runner.
+      - name: Build and push OLM bundle image
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          BARE_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          BARE_VERSION="${BARE_VERSION#v}"
+          make bundle IMG="arksys/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}" VERSION="${BARE_VERSION}"
+          make bundle-build bundle-push VERSION="${BARE_VERSION}"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1

@@ -1,0 +1,61 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: freqtrade-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions: {}
+  description: |
+    The Freqtrade Operator manages [Freqtrade](https://www.freqtrade.io/) cryptocurrency trading bots as
+    Kubernetes-native custom resources: `TradeBot` for a live, trading (or dry-run) bot; `TradeBotConfig` and
+    `Strategy` for the config and Python strategy it runs; `FreqUI` for a shared web dashboard; and `Backtest`
+    for one-shot backtesting runs with results extracted automatically into `status`.
+
+    The operator renders exchange/notification credentials from Kubernetes Secrets into each bot's config,
+    keeps every trade-mode bot's REST API network-isolated by default, and (optionally) polls each bot's own
+    API on a schedule to surface live state - open trades, balance, profit - as `status` fields and Prometheus
+    metrics, entirely read-only.
+
+    This software deploys automated trading systems. See this operator's SECURITY.md in its source repository
+    for its threat model before pointing it at a real exchange account.
+  displayName: Freqtrade Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - freqtrade
+  - trading
+  - cryptocurrency
+  - trading-bot
+  - kubernetes-operator
+  links:
+  - name: Source Repository
+    url: https://github.com/ark-sys/freqtrade-operator
+  - name: Documentation
+    url: https://github.com/ark-sys/freqtrade-operator#readme
+  maintainers:
+  - email: your@email.com
+    name: Khaled Arsalane
+  maturity: alpha
+  minKubeVersion: 1.29.0
+  provider:
+    name: ark-sys
+    url: https://github.com/ark-sys
+  version: 0.0.0
