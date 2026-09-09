@@ -249,6 +249,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Set up admission webhooks
+	if err = (&freqtradev1alpha1.TradeBot{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "TradeBot")
+		os.Exit(1)
+	}
+	if err = (&freqtradev1alpha1.TradeBotConfig{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "TradeBotConfig")
+		os.Exit(1)
+	}
+	if err = (&freqtradev1alpha1.Strategy{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Strategy")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

@@ -46,12 +46,21 @@ controllerManager:
   # Termination grace period in seconds
   terminationGracePeriodSeconds: 10
   
-  # Additional volumes for the controller manager
+  # Additional volumes for the controller manager.
+  #
+  # P1-4 admission webhooks (see cmd/main.go's --webhook-cert-path) need a
+  # TLS cert mounted here. This chart does not yet template the
+  # ValidatingWebhookConfiguration or a cert-manager Certificate/Issuer
+  # itself (available today via kustomize: config/webhook + config/certmanager) -
+  # uncomment below once you've pointed a cert-manager Certificate (or any
+  # other source) at a Secret named webhook-server-cert in this release's
+  # namespace, and add --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+  # to extraArgs above.
   volumes: []
   # - name: webhook-certs
   #   secret:
-  #     secretName: webhook-server-certs
-  
+  #     secretName: webhook-server-cert
+
   # Additional volume mounts for the controller manager
   volumeMounts: []
   # - name: webhook-certs

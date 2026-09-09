@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -21,12 +22,30 @@ import (
 
 const testNamespace = "default"
 
+// validTestStrategyScript satisfies the P1-4 admission webhook's shape
+// check (class definition, the three populate_* methods, a freqtrade
+// import) - a fixture creating a Strategy that fails this is rejected
+// before this package's own tests ever run.
+const validTestStrategyScript = `import freqtrade
+from freqtrade.strategy import IStrategy
+
+class SampleStrategy(IStrategy):
+    def populate_indicators(self, dataframe, metadata):
+        return dataframe
+
+    def populate_entry_trend(self, dataframe, metadata):
+        return dataframe
+
+    def populate_exit_trend(self, dataframe, metadata):
+        return dataframe
+`
+
 func newTestStrategy(name string) *freqtradev1alpha1.Strategy {
 	return &freqtradev1alpha1.Strategy{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNamespace},
 		Spec: freqtradev1alpha1.StrategySpec{
 			Name:   "SampleStrategy",
-			Script: "class SampleStrategy:\n    pass",
+			Script: validTestStrategyScript,
 		},
 	}
 }
@@ -38,11 +57,14 @@ func newTestTradeBotConfig(name string) *freqtradev1alpha1.TradeBotConfig {
 			// Bot has no omitempty on its json tag, so controller-gen already
 			// marks spec.bot required in the generated CRD schema even
 			// without an explicit kubebuilder marker. Exchange is
-			// effectively required for a different reason (P0-1). Everything
-			// else can be left nil for these tests, which only care that
-			// config.json renders successfully, not its content (that's
-			// P5-1's job).
-			Bot:      &freqtradev1alpha1.BotConfig{},
+			// effectively required for a different reason (P0-1), and
+			// DryRun must be explicitly true or the P1-4 admission webhook
+			// rejects a live-trading bot with no credentials source -
+			// which every fixture here is, since none set a secretRef.
+			// Everything else can be left nil for these tests, which only
+			// care that config.json renders successfully, not its content
+			// (that's P5-1's job).
+			Bot:      &freqtradev1alpha1.BotConfig{DryRun: ptr.To(true)},
 			Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance"},
 			// APIServer must be non-nil for the api_server section (and so
 			// CORS_origins) to render at all - see BuildTradeBotConfig.
@@ -206,47 +228,17 @@ var _ = Describe("TradeBot controller", func() {
 		})
 	})
 
-	// Full ConfigResolved=False/Reason=ReferenceNotFound conditions are
-	// P1-3's vocabulary; today the observable signal is Status.Phase. The
-	// point of these two specs is P0-1/P0-2: a missing reference must be a
-	// reported error, never a panic that takes the manager down with it.
-	Describe("a TradeBot referencing a resource that doesn't exist", func() {
-		It("reports an Error phase and creates no workload when the Strategy is missing", func() {
-			ctx := context.Background()
-			config := newTestTradeBotConfig("config-missing-strategy")
-			Expect(k8sClient.Create(ctx, config)).To(Succeed())
-
-			tradeBot := newTestTradeBot("bot-missing-strategy", "does-not-exist", config.Name, "trade")
-			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
-			key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
-
-			Eventually(func(g Gomega) {
-				var latest freqtradev1alpha1.TradeBot
-				g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
-				g.Expect(latest.Status.Phase).To(Equal("Error"))
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-			Expect(errors.IsNotFound(k8sClient.Get(ctx, key, &appsv1.StatefulSet{}))).To(BeTrue())
-		})
-
-		It("reports an Error phase and creates no workload when the TradeBotConfig is missing", func() {
-			ctx := context.Background()
-			strategy := newTestStrategy("strategy-missing-config")
-			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
-
-			tradeBot := newTestTradeBot("bot-missing-config", strategy.Name, "does-not-exist", "trade")
-			Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
-			key := types.NamespacedName{Name: tradeBot.Name, Namespace: testNamespace}
-
-			Eventually(func(g Gomega) {
-				var latest freqtradev1alpha1.TradeBot
-				g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
-				g.Expect(latest.Status.Phase).To(Equal("Error"))
-			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
-
-			Expect(errors.IsNotFound(k8sClient.Get(ctx, key, &appsv1.StatefulSet{}))).To(BeTrue())
-		})
-	})
+	// A TradeBot referencing a nonexistent Strategy/TradeBotConfig used to
+	// be constructed here directly - as of P1-4, the admission webhook
+	// rejects exactly that at apply time instead (see the "TradeBot
+	// admission webhook" specs in webhook_test.go), so it can no longer
+	// happen through k8sClient.Create. The reconciler-level concern this
+	// was covering - a missing reference is a reported Error, never a
+	// panic - still matters, since a reference can still be deleted after
+	// the TradeBot is created; that now lives in TestReconcile_MissingReference
+	// (reconcile_test.go), which constructs the state directly against a
+	// fake client instead, bypassing the webhook the same way a deletion of
+	// the referenced object would.
 
 	Describe("deleting a TradeBot", func() {
 		It("scales the StatefulSet to zero and removes the finalizer", func() {

@@ -1,0 +1,33 @@
+# Mounts the cert-manager-issued webhook-server-cert Secret at controller-runtime's
+# own default webhook CertDir (<temp-dir>/k8s-webhook-server/serving-certs), so the
+# webhook server picks it up with no extra flag. This does not add
+# --webhook-cert-path to the manager's args - doing that here would replace
+# the whole args list (a strategic-merge patch can't append to it), and
+# doing it in the base manager.yaml would make a deployment that never
+# enables this WEBHOOK/CERTMANAGER overlay fail to start (cmd/main.go exits
+# if that flag is set but no cert exists at the path). The one thing this
+# costs: cert-manager rotating the Secret won't be picked up until the pod
+# next restarts, since there's no cert watcher without that flag.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          ports:
+            - containerPort: 9443
+              name: webhook-server
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+      volumes:
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: webhook-server-cert

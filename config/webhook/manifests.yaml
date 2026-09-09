@@ -1,0 +1,66 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-freqtrade-io-v1alpha1-strategy
+  failurePolicy: Fail
+  name: vstrategy.kb.io
+  rules:
+  - apiGroups:
+    - freqtrade.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - strategies
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-freqtrade-io-v1alpha1-tradebot
+  failurePolicy: Fail
+  name: vtradebot.kb.io
+  rules:
+  - apiGroups:
+    - freqtrade.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - tradebots
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-freqtrade-io-v1alpha1-tradebotconfig
+  failurePolicy: Fail
+  name: vtradebotconfig.kb.io
+  rules:
+  - apiGroups:
+    - freqtrade.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - tradebotconfigs
+  sideEffects: None

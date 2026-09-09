@@ -1,4 +1,4 @@
-package strategy
+package v1alpha1
 
 import (
 	"strings"
@@ -28,14 +28,14 @@ func TestIsValidPythonClassName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isValidPythonClassName(tt.input); got != tt.want {
-				t.Errorf("isValidPythonClassName(%q) = %v, want %v", tt.input, got, tt.want)
+			if got := IsValidPythonClassName(tt.input); got != tt.want {
+				t.Errorf("IsValidPythonClassName(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
 	}
 }
 
-const validScript = `
+const validStrategyScript = `
 import freqtrade
 from freqtrade.strategy import IStrategy
 
@@ -51,8 +51,6 @@ class SampleStrategy(IStrategy):
 `
 
 func TestValidateStrategyScript(t *testing.T) {
-	r := &Reconciler{}
-
 	tests := []struct {
 		name        string
 		script      string
@@ -60,7 +58,7 @@ func TestValidateStrategyScript(t *testing.T) {
 		wantErr     bool
 		errContains string
 	}{
-		{name: "valid script", script: validScript, strategy: "SampleStrategy", wantErr: false},
+		{name: "valid script", script: validStrategyScript, strategy: "SampleStrategy", wantErr: false},
 		{name: "empty script", script: "   ", strategy: "SampleStrategy", wantErr: true, errContains: "cannot be empty"},
 		{
 			name:        "missing class definition",
@@ -96,9 +94,56 @@ class SampleStrategy(IStrategy):
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := r.validateStrategyScript(tt.script, tt.strategy)
+			err := ValidateStrategyScript(tt.script, tt.strategy)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("validateStrategyScript() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("ValidateStrategyScript() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && tt.errContains != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("expected error to contain %q, got %v", tt.errContains, err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateStrategySpec(t *testing.T) {
+	tests := []struct {
+		name        string
+		strategy    *Strategy
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:     "valid",
+			strategy: &Strategy{Spec: StrategySpec{Name: "SampleStrategy", Script: validStrategyScript}},
+			wantErr:  false,
+		},
+		{
+			name:        "missing name",
+			strategy:    &Strategy{Spec: StrategySpec{Script: validStrategyScript}},
+			wantErr:     true,
+			errContains: "spec.name is required",
+		},
+		{
+			name:        "missing script",
+			strategy:    &Strategy{Spec: StrategySpec{Name: "SampleStrategy"}},
+			wantErr:     true,
+			errContains: "spec.script is required",
+		},
+		{
+			name:        "invalid class name",
+			strategy:    &Strategy{Spec: StrategySpec{Name: "2024Strategy", Script: validStrategyScript}},
+			wantErr:     true,
+			errContains: "not a valid Python class name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateStrategySpec(tt.strategy)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateStrategySpec() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if tt.wantErr && tt.errContains != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.errContains) {

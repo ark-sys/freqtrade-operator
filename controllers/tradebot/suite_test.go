@@ -2,6 +2,10 @@ package tradebot
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -17,6 +21,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
@@ -49,6 +54,9 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
+		WebhookInstallOptions: envtest.WebhookInstallOptions{
+			Paths: []string{filepath.Join("..", "..", "config", "webhook")},
+		},
 	}
 
 	var err error
@@ -63,9 +71,15 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).NotTo(BeNil())
 
 	By("starting the TradeBot controller")
+	webhookInstallOpts := &testEnv.WebhookInstallOptions
 	mgr, err := ctrl.NewManager(testCfg, ctrl.Options{
 		Scheme:  scheme.Scheme,
 		Metrics: metricsserver.Options{BindAddress: "0"},
+		WebhookServer: webhook.NewServer(webhook.Options{
+			Host:    webhookInstallOpts.LocalServingHost,
+			Port:    webhookInstallOpts.LocalServingPort,
+			CertDir: webhookInstallOpts.LocalServingCertDir,
+		}),
 	})
 	Expect(err).NotTo(HaveOccurred())
 
@@ -75,10 +89,32 @@ var _ = BeforeSuite(func() {
 		FinalizerGracePeriod: time.Minute,
 	}).SetupWithManager(mgr)).To(Succeed())
 
+	// The TradeBotConfig and Strategy controllers don't run in this suite -
+	// only TradeBot does - but admission webhooks are independent of which
+	// controller reconciles their type, so registering all three here lets
+	// webhook_test.go cover all of P1-4 without paying for a second envtest
+	// apiserver.
+	Expect((&freqtradev1alpha1.TradeBot{}).SetupWebhookWithManager(mgr)).To(Succeed())
+	Expect((&freqtradev1alpha1.TradeBotConfig{}).SetupWebhookWithManager(mgr)).To(Succeed())
+	Expect((&freqtradev1alpha1.Strategy{}).SetupWebhookWithManager(mgr)).To(Succeed())
+
 	go func() {
 		defer GinkgoRecover()
 		Expect(mgr.Start(testCtx)).To(Succeed(), "failed to run manager")
 	}()
+
+	By("waiting for the webhook server to be ready")
+	caCertPool := x509.NewCertPool()
+	Expect(caCertPool.AppendCertsFromPEM(webhookInstallOpts.LocalServingCAData)).To(BeTrue())
+	dialer := &net.Dialer{Timeout: time.Second}
+	addrPort := fmt.Sprintf("%s:%d", webhookInstallOpts.LocalServingHost, webhookInstallOpts.LocalServingPort)
+	Eventually(func() error {
+		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{RootCAs: caCertPool})
+		if err != nil {
+			return err
+		}
+		return conn.Close()
+	}).Should(Succeed())
 })
 
 var _ = AfterSuite(func() {

@@ -3,7 +3,6 @@ package strategy
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -106,80 +105,18 @@ func (r *Reconciler) validateStrategy(ctx context.Context, strategy *freqtradev1
 	}
 
 	// Validate strategy name format (should be valid Python class name)
-	if !isValidPythonClassName(strategy.Spec.Name) {
+	if !freqtradev1alpha1.IsValidPythonClassName(strategy.Spec.Name) {
 		return fmt.Errorf("strategy name '%s' is not a valid Python class name", strategy.Spec.Name)
 	}
 
-	// Basic script validation
-	if err := r.validateStrategyScript(strategy.Spec.Script, strategy.Spec.Name); err != nil {
+	// Basic script validation - same shape check the admission webhook runs
+	// synchronously (P1-4); this copy is what backs the Ready condition, and
+	// is kept independent so an object that predates the webhook, or a
+	// reconcile that runs while it's unavailable, still gets validated.
+	if err := freqtradev1alpha1.ValidateStrategyScript(strategy.Spec.Script, strategy.Spec.Name); err != nil {
 		return fmt.Errorf("strategy script validation failed: %w", err)
 	}
 
 	logger.V(2).Info("Strategy validation passed", "name", strategy.Name)
 	return nil
-}
-
-// validateStrategyScript performs basic validation of the strategy script
-func (r *Reconciler) validateStrategyScript(script, strategyName string) error {
-	// Check if script is not empty
-	if strings.TrimSpace(script) == "" {
-		return fmt.Errorf("strategy script cannot be empty")
-	}
-
-	// Check if the script contains the expected class definition
-	expectedClassDef := fmt.Sprintf("class %s", strategyName)
-	if !strings.Contains(script, expectedClassDef) {
-		return fmt.Errorf("strategy script must contain class definition: %s", expectedClassDef)
-	}
-
-	// Check for basic required methods (this is a simplified check)
-	requiredMethods := []string{"populate_indicators", "populate_entry_trend", "populate_exit_trend"}
-	for _, method := range requiredMethods {
-		if !strings.Contains(script, fmt.Sprintf("def %s", method)) {
-			return fmt.Errorf("strategy script must contain method: %s", method)
-		}
-	}
-
-	// Check for basic imports that are typically required
-	requiredImports := []string{"import freqtrade", "from freqtrade.strategy"}
-	hasRequiredImport := false
-	for _, importStmt := range requiredImports {
-		if strings.Contains(script, importStmt) {
-			hasRequiredImport = true
-			break
-		}
-	}
-
-	if !hasRequiredImport {
-		return fmt.Errorf("strategy script must contain freqtrade imports")
-	}
-
-	return nil
-}
-
-// isValidPythonClassName checks if a string is a valid Python class name
-func isValidPythonClassName(name string) bool {
-	if name == "" {
-		return false
-	}
-
-	// Must start with a letter or underscore
-	// TODO: A new hope
-	if !(name[0] >= 'A' && name[0] <= 'Z') &&
-		!(name[0] >= 'a' && name[0] <= 'z') &&
-		name[0] != '_' {
-		return false
-	}
-
-	// Rest must be letters, digits, or underscores
-	for _, char := range name[1:] {
-		if !((char >= 'A' && char <= 'Z') ||
-			(char >= 'a' && char <= 'z') ||
-			(char >= '0' && char <= '9') ||
-			char == '_') {
-			return false
-		}
-	}
-
-	return true
 }
