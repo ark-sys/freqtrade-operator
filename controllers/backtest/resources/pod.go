@@ -178,7 +178,29 @@ func BuildPod(
 func buildDownloadDataInitContainer(
 	spec freqtradev1beta1.BacktestSpec, image string, mounts []corev1.VolumeMount,
 ) corev1.Container {
-	dlArgs := []string{"download-data", "--userdir", "/freqtrade/user_data", "--datadir", "/cache"}
+	dlArgs := []string{
+		"download-data", "--config", "/config/config.json",
+		"--userdir", "/freqtrade/user_data", "--datadir", "/cache",
+	}
+	// Mirrors buildArgs' own handling of these three fields: download-data has to fetch the
+	// same (timerange, timeframe, pairs) the run itself will ask backtesting for, or the cache
+	// ends up holding data that simply doesn't cover what the run needs. Verified directly: a
+	// first pass leaving these out downloaded freqtrade's own default window (ending "now"),
+	// which silently didn't overlap a historical --timerange at all - "No history ... found. No
+	// data found. Terminating", despite download-data itself exiting 0 with data on disk.
+	if spec.Timerange != "" {
+		dlArgs = append(dlArgs, "--timerange", spec.Timerange)
+	}
+	if spec.Timeframe != "" {
+		dlArgs = append(dlArgs, "-t", spec.Timeframe)
+	}
+	if len(spec.Pairs) > 0 {
+		dlArgs = append(dlArgs, "--pairs")
+		dlArgs = append(dlArgs, spec.Pairs...)
+	}
+	// DownloadArgs last (D8-style pressure valve, same as RunSpec.ExtraArgs) - anything here
+	// can still override/extend the baseline above, e.g. --days or --exchange for cases the
+	// typed fields don't cover.
 	if spec.Data != nil && len(spec.Data.DownloadArgs) > 0 {
 		dlArgs = append(dlArgs, spec.Data.DownloadArgs...)
 	}

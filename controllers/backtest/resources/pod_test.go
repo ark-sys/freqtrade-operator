@@ -173,6 +173,58 @@ func TestBuildDownloadDataInitContainer_IfMissingWrapsInShellCheck(t *testing.T)
 	}
 }
 
+// Regression test: this init container's Args previously never included --config at all, even
+// though the config Secret is mounted into it (see initMounts in BuildPod) - "freqtrade
+// download-data" with no --config and no --exchange has no idea which exchange to talk to and
+// fails immediately with "This command requires a configured exchange". --timerange and -t were
+// missing too, which is a quieter failure: download-data still exits 0, but silently downloads
+// whatever its own default window is instead of the data the run's own --timerange/--timeframe
+// will actually look for, so backtesting then fails with "No data found" despite the cache PVC
+// having *something* on it. Found directly on a real cluster, not envtest: a Backtest whose
+// pods.data.pvcName was correctly wired still failed both ways in sequence.
+func TestBuildDownloadDataInitContainer_AlwaysPolicyPassesConfigTimerangeAndTimeframe(t *testing.T) {
+	spec := freqtradev1beta1.BacktestSpec{
+		RunSpec: freqtradev1beta1.RunSpec{
+			Timerange: "20230101-20230201",
+			Timeframe: "5m",
+			Pairs:     []string{"BTC/USDT", "ETH/USDT"},
+			Data:      &freqtradev1beta1.DataSourceSpec{PVCName: "cache"},
+		},
+	}
+	c := buildDownloadDataInitContainer(spec, "img", nil)
+
+	want := []string{
+		"download-data", "--config", "/config/config.json",
+		"--userdir", "/freqtrade/user_data", "--datadir", "/cache",
+		"--timerange", "20230101-20230201",
+		"-t", "5m",
+		"--pairs", "BTC/USDT", "ETH/USDT",
+	}
+	if len(c.Command) != 1 || c.Command[0] != "freqtrade" {
+		t.Fatalf("expected command [freqtrade] for policy=always, got %v", c.Command)
+	}
+	if len(c.Args) != len(want) {
+		t.Fatalf("buildDownloadDataInitContainer().Args = %v, want %v", c.Args, want)
+	}
+	for i := range want {
+		if c.Args[i] != want[i] {
+			t.Errorf("Args[%d] = %q, want %q (full: %v)", i, c.Args[i], want[i], c.Args)
+		}
+	}
+}
+
+func TestBuildDownloadDataInitContainer_DownloadArgsAppendedLast(t *testing.T) {
+	spec := freqtradev1beta1.BacktestSpec{
+		RunSpec: freqtradev1beta1.RunSpec{
+			Data: &freqtradev1beta1.DataSourceSpec{PVCName: "cache", DownloadArgs: []string{"--days", "30"}},
+		},
+	}
+	c := buildDownloadDataInitContainer(spec, "img", nil)
+	if len(c.Args) < 2 || c.Args[len(c.Args)-2] != "--days" || c.Args[len(c.Args)-1] != "30" {
+		t.Errorf("expected DownloadArgs appended last, got %v", c.Args)
+	}
+}
+
 func TestMergePodSpecOverrides_ImageOverride(t *testing.T) {
 	backtest := freqtradev1beta1.Backtest{
 		Spec: freqtradev1beta1.BacktestSpec{
