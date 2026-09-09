@@ -4,7 +4,7 @@ This Helm chart deploys the Freqtrade Operator and its Custom Resource Definitio
 
 ## Prerequisites
 
-- Kubernetes 1.19+
+- Kubernetes 1.29+ (native sidecar containers, required for Backtest result extraction)
 - Helm 3.8+
 - (Optional) ArgoCD for GitOps deployments
 

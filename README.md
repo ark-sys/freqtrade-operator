@@ -62,10 +62,11 @@ mechanism this operator has to enforce on your behalf.
 
 ## Prerequisites
 
-- Kubernetes cluster 1.19+
-- kubectl 1.19+
+- Kubernetes cluster 1.29+ (native sidecar containers, GA since 1.29, are required for
+  [Backtest result extraction](#backtest-runs-v1beta1))
+- kubectl 1.29+
 - Helm 3+ (optional, for Helm chart installation)
-- Go 1.19+ (for building from source)
+- Go 1.24+ (for building from source)
 
 ## Installation
 
@@ -529,9 +530,9 @@ sections above:
 
 ### Prerequisites
 
-- Go 1.19+
+- Go 1.24+
 - Docker
-- Kubernetes cluster (or minikube/kind)
+- Kubernetes cluster (or minikube/kind), 1.29+ - see [Prerequisites](#prerequisites) above
 - Operator SDK
 
 ### Setup Development Environment
