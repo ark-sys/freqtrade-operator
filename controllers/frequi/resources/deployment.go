@@ -1,17 +1,11 @@
 package resources
 
 import (
-	"context"
-	"reflect"
-
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // BuildFreqUIDeployment creates a Deployment for FreqUI
@@ -99,48 +93,9 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      frequi.Name,
 			Namespace: frequi.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(&frequi, freqtradev1alpha1.GroupVersion.WithKind("FreqUI")),
-			},
 		},
 		Spec: finalSpec,
 	}
-}
-
-// ApplyDeployment creates or updates the Deployment
-func ApplyDeployment(ctx context.Context, c client.Client, deploy *appsv1.Deployment) error {
-	var existing appsv1.Deployment
-	err := c.Get(ctx, types.NamespacedName{Name: deploy.Name, Namespace: deploy.Namespace}, &existing)
-	if errors.IsNotFound(err) {
-		return c.Create(ctx, deploy)
-	} else if err != nil {
-		return err
-	}
-
-	// Check if update is needed by comparing relevant fields
-	needsUpdate := false
-
-	// Compare spec fields that matter for deployment
-	if !reflect.DeepEqual(existing.Spec.Template.Spec, deploy.Spec.Template.Spec) {
-		needsUpdate = true
-	}
-
-	// Compare template labels
-	if !reflect.DeepEqual(existing.Spec.Template.Labels, deploy.Spec.Template.Labels) {
-		needsUpdate = true
-	}
-
-	// Compare annotations
-	if !reflect.DeepEqual(existing.Spec.Template.Annotations, deploy.Spec.Template.Annotations) {
-		needsUpdate = true
-	}
-
-	// Only update if there are actual changes
-	if needsUpdate {
-		return c.Update(ctx, deploy)
-	}
-
-	return nil
 }
 
 // applyPodSpecOverrides applies user-provided pod specification overrides to the base pod spec

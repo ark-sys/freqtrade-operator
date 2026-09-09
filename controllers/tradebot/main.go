@@ -119,12 +119,17 @@ func keys(m map[string]string) []string {
 // +kubebuilder:rbac:groups=freqtrade.io,resources=strategies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=freqtrade.io,resources=tradebotconfigs,verbs=get;list;watch
 // +kubebuilder:rbac:groups=freqtrade.io,resources=frequis,verbs=list;watch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update
-// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;delete
-// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
+// patch (not update) is what server-side apply issues (shared.Apply,
+// P2-1) - it's a distinct RBAC verb, so replacing the old Update-based
+// ApplyX functions meant replacing this too. update survives only where
+// finalizers.go still calls the plain client Update directly (scaling the
+// StatefulSet to zero, stripping owner refs off a preserved PVC).
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;patch;delete
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile handles the reconciliation loop for TradeBot resources
@@ -248,7 +253,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// 7. Create or update required resources
 	logger.V(2).Info("Reconciling resources", "configDataKeys", keys(configData))
-	if err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData); err != nil {
+	jobSpecChanged, err := r.reconcileResources(ctx, &tradeBot, resources.strategy, configData)
+	if err != nil {
 		logger.Error(err, "Failed to reconcile resources")
 		return r.failReconcile(
 			ctx, &tradeBot, freqtradev1alpha1.ConditionWorkloadReady, freqtradev1alpha1.ReasonReconcileError,
@@ -302,6 +308,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type: freqtradev1alpha1.ConditionReady, Status: status, Reason: reason, Message: message,
 		})
+		meta.SetStatusCondition(&tradeBot.Status.Conditions,
+			workloadImmutableCondition(tradeBot.Name, tradeBot.Generation, jobSpecChanged))
 		tradeBot.Status.Phase = deriveTradeBotPhase(tradeBot.Status.Conditions)
 		tradeBot.Status.Message = message
 	}); err != nil {

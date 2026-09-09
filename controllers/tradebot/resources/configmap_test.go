@@ -24,9 +24,6 @@ func TestBuildStrategyConfigMap(t *testing.T) {
 	if cm.Namespace != "trading" {
 		t.Errorf("expected Namespace %q, got %q", "trading", cm.Namespace)
 	}
-	if len(cm.OwnerReferences) != 1 || cm.OwnerReferences[0].Name != "my-bot" {
-		t.Errorf("expected a single owner reference to my-bot, got %+v", cm.OwnerReferences)
-	}
 	script, ok := cm.Data["SampleStrategy.py"]
 	if !ok {
 		t.Fatalf("expected a SampleStrategy.py key, got %v", cm.Data)

@@ -33,11 +33,12 @@ import (
 // for which task unblocks it.
 
 var (
-	testCtx    context.Context
-	testCancel context.CancelFunc
-	testEnv    *envtest.Environment
-	testCfg    *rest.Config
-	k8sClient  client.Client
+	testCtx        context.Context
+	testCancel     context.CancelFunc
+	testEnv        *envtest.Environment
+	testCfg        *rest.Config
+	k8sClient      client.Client
+	testReconciler *Reconciler
 )
 
 func TestControllers(t *testing.T) {
@@ -83,11 +84,12 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	Expect((&Reconciler{
+	testReconciler = &Reconciler{
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		FinalizerGracePeriod: time.Minute,
-	}).SetupWithManager(mgr)).To(Succeed())
+	}
+	Expect(testReconciler.SetupWithManager(mgr)).To(Succeed())
 
 	// The TradeBotConfig and Strategy controllers don't run in this suite -
 	// only TradeBot does - but admission webhooks are independent of which

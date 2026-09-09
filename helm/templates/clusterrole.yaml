@@ -10,13 +10,12 @@ rules:
   - ""
   resources:
   - configmaps
-  - persistentvolumeclaims
   - secrets
   verbs:
   - create
   - get
   - list
-  - update
+  - patch
   - watch
 - apiGroups:
   - ""
@@ -28,13 +27,24 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - create
   - delete
   - get
   - list
-  - update
+  - patch
   - watch
 - apiGroups:
   - apps
@@ -44,7 +54,7 @@ rules:
   - create
   - get
   - list
-  - update
+  - patch
   - watch
 - apiGroups:
   - apps
@@ -55,6 +65,7 @@ rules:
   - delete
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
@@ -66,6 +77,7 @@ rules:
   - delete
   - get
   - list
+  - patch
   - watch
 - apiGroups:
   - freqtrade.io
@@ -111,6 +123,6 @@ rules:
   - create
   - get
   - list
-  - update
+  - patch
   - watch
 {{- end }}

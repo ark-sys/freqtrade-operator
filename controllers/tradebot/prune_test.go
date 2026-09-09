@@ -74,35 +74,14 @@ func TestPruneStaleWorkloads(t *testing.T) {
 	})
 }
 
-func TestSetWorkloadImmutableCondition(t *testing.T) {
-	newFakeTradeBot := func(t *testing.T, tradeBot *freqtradev1alpha1.TradeBot) (*Reconciler, *freqtradev1alpha1.TradeBot) {
-		t.Helper()
-		scheme := newWorkloadStatusScheme(t)
-		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tradeBot).WithStatusSubresource(tradeBot).Build()
-		return &Reconciler{Client: c}, tradeBot
-	}
-	getTradeBot := func(t *testing.T, r *Reconciler, name string) *freqtradev1alpha1.TradeBot {
-		t.Helper()
-		var got freqtradev1alpha1.TradeBot
-		if err := r.Get(context.Background(), types.NamespacedName{Name: name}, &got); err != nil {
-			t.Fatalf("failed to get TradeBot: %v", err)
-		}
-		return &got
-	}
-
+// TestWorkloadImmutableCondition covers the condition workloadImmutableCondition
+// builds for a Job-mode TradeBot whose spec has (or hasn't) drifted from the
+// Job actually running. It's a pure function - no fake client needed - since
+// P2-1 folded this into Reconcile's single status PatchStatus call instead
+// of giving it an independent one (see resources.go).
+func TestWorkloadImmutableCondition(t *testing.T) {
 	t.Run("spec changed sets the condition true", func(t *testing.T) {
-		seed := &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Generation: 3}}
-		r, tradeBot := newFakeTradeBot(t, seed)
-
-		if err := r.setWorkloadImmutableCondition(context.Background(), tradeBot, true); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		got := getTradeBot(t, r, "my-bot")
-		cond := findCondition(got.Status.Conditions, freqtradev1alpha1.ConditionWorkloadImmutable)
-		if cond == nil {
-			t.Fatal("expected a WorkloadImmutable condition")
-		}
+		cond := workloadImmutableCondition("my-bot", 3, true)
 		if cond.Status != metav1.ConditionTrue {
 			t.Errorf("expected status True, got %v", cond.Status)
 		}
@@ -117,33 +96,16 @@ func TestSetWorkloadImmutableCondition(t *testing.T) {
 		}
 	})
 
-	t.Run("spec unchanged clears a previously-set condition", func(t *testing.T) {
-		r, tradeBot := newFakeTradeBot(t, &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot"}})
-
-		if err := r.setWorkloadImmutableCondition(context.Background(), tradeBot, true); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		tradeBot = getTradeBot(t, r, "my-bot")
-		if err := r.setWorkloadImmutableCondition(context.Background(), tradeBot, false); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		got := getTradeBot(t, r, "my-bot")
-		cond := findCondition(got.Status.Conditions, freqtradev1alpha1.ConditionWorkloadImmutable)
-		if cond == nil {
-			t.Fatal("expected a WorkloadImmutable condition")
-		}
+	t.Run("spec unchanged reports the condition false", func(t *testing.T) {
+		cond := workloadImmutableCondition("my-bot", 5, false)
 		if cond.Status != metav1.ConditionFalse {
-			t.Errorf("expected status False once the spec matches again, got %v", cond.Status)
+			t.Errorf("expected status False, got %v", cond.Status)
+		}
+		if cond.Reason != freqtradev1alpha1.ReasonSpecMatchesWorkload {
+			t.Errorf("expected reason SpecMatchesWorkload, got %v", cond.Reason)
+		}
+		if cond.Message != "" {
+			t.Errorf("expected an empty message when nothing is wrong, got %q", cond.Message)
 		}
 	})
-}
-
-func findCondition(conditions []metav1.Condition, condType string) *metav1.Condition {
-	for i := range conditions {
-		if conditions[i].Type == condType {
-			return &conditions[i]
-		}
-	}
-	return nil
 }

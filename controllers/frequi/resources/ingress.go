@@ -1,17 +1,9 @@
 package resources
 
 import (
-	"context"
-	"reflect"
-
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // TradeBotAPIRoute represents a TradeBot API route configuration
@@ -123,63 +115,12 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 
 	return networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      frequi.Name,
-			Namespace: frequi.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(&frequi, freqtradev1alpha1.GroupVersion.WithKind("FreqUI")),
-			},
+			Name:        frequi.Name,
+			Namespace:   frequi.Namespace,
 			Annotations: annotations,
 		},
 		Spec: finalSpec,
 	}
-}
-
-// ApplyIngress creates or updates the Ingress
-func ApplyIngress(ctx context.Context, c client.Client, ing *networkingv1.Ingress) error {
-	logger := log.FromContext(ctx)
-	logger.V(4).Info("Applying Ingress")
-	var existing networkingv1.Ingress
-	err := c.Get(ctx, types.NamespacedName{Name: ing.Name, Namespace: ing.Namespace}, &existing)
-	if errors.IsNotFound(err) {
-		logger.V(2).Info("Creating a new Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
-		return c.Create(ctx, ing)
-	} else if err != nil {
-
-		logger.V(1).Error(err, "Failed to get Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
-		return err
-	}
-
-	// Check if update is needed by comparing relevant fields
-	needsUpdate := false
-
-	// Compare ingress rules
-	if !reflect.DeepEqual(existing.Spec.Rules, ing.Spec.Rules) {
-		needsUpdate = true
-	}
-
-	// Compare TLS configuration
-	if !reflect.DeepEqual(existing.Spec.TLS, ing.Spec.TLS) {
-		needsUpdate = true
-	}
-
-	// Compare ingress class name
-	if !reflect.DeepEqual(existing.Spec.IngressClassName, ing.Spec.IngressClassName) {
-		needsUpdate = true
-	}
-
-	// Compare default backend
-	if !reflect.DeepEqual(existing.Spec.DefaultBackend, ing.Spec.DefaultBackend) {
-		needsUpdate = true
-	}
-
-	// Only update if there are actual changes
-	if needsUpdate {
-		ing.ResourceVersion = existing.ResourceVersion
-		logger.V(2).Info("Updating existing Ingress", "Namespace", ing.Namespace, "Name", ing.Name)
-		return c.Update(ctx, ing)
-	}
-
-	return nil
 }
 
 // applyIngressSpecOverrides applies user-provided ingress specification overrides to the base ingress spec

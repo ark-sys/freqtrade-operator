@@ -2,15 +2,13 @@
 package resources
 
 import (
-	"context"
+	"strings"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Job mode is leaving TradeBot entirely once Backtest/Hyperopt land (v1beta1);
@@ -61,9 +59,6 @@ func BuildJob(
 			Name:      tradeBot.Name,
 			Namespace: tradeBot.Namespace,
 			Labels:    map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(&tradeBot, freqtradev1alpha1.GroupVersion.WithKind("TradeBot")),
-			},
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit:            &backoff,
@@ -78,23 +73,13 @@ func BuildJob(
 	}
 }
 
-// ApplyJob creates the Job if it doesn't already exist. It deliberately never
-// updates: batchv1.Job.Spec.Template is immutable after creation, so an
-// Update here would be rejected by the API server on every single reconcile
-// once the TradeBot's spec drifts from the Job that was first created for it
-// (see reconcileResources, which surfaces that drift as a condition instead).
-// If the Job already exists, job is overwritten with the existing object so
-// the caller can compare what was desired against what's actually running.
-func ApplyJob(ctx context.Context, c client.Client, job *batchv1.Job) error {
-	var existing batchv1.Job
-	err := c.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &existing)
-	switch {
-	case err == nil:
-		*job = existing
-		return nil
-	case errors.IsNotFound(err):
-		return c.Create(ctx, job)
-	default:
-		return err
-	}
+// IsJobTemplateImmutableError reports whether err is the API server
+// rejecting an attempt to change batchv1.Job.spec.template on an existing
+// Job. Verified empirically against envtest: server-side apply enforces
+// this the same way a typed Update does, failing with an Invalid error
+// whose message says the field is immutable. reconcileResources uses this
+// to tell "the Job's spec drifted from what's running" (expected, surfaced
+// as the WorkloadImmutable condition) apart from a genuine apply failure.
+func IsJobTemplateImmutableError(err error) bool {
+	return errors.IsInvalid(err) && strings.Contains(err.Error(), "field is immutable")
 }

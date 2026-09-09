@@ -19,9 +19,6 @@ func TestBuildUserDataPVC_Defaults(t *testing.T) {
 	if pvc.Name != "my-bot-user-data" {
 		t.Errorf("expected Name %q, got %q", "my-bot-user-data", pvc.Name)
 	}
-	if len(pvc.OwnerReferences) != 1 || pvc.OwnerReferences[0].Name != "my-bot" {
-		t.Errorf("expected a single owner reference to my-bot, got %+v", pvc.OwnerReferences)
-	}
 	gotSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 	if gotSize.String() != "1Gi" {
 		t.Errorf("expected default storage size 1Gi, got %s", gotSize.String())

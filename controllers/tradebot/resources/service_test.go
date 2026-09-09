@@ -27,9 +27,6 @@ func TestBuildService_Defaults(t *testing.T) {
 	if svc.Spec.Selector["name"] != "my-bot" {
 		t.Errorf("expected selector name=my-bot, got %v", svc.Spec.Selector)
 	}
-	if len(svc.OwnerReferences) != 1 || svc.OwnerReferences[0].Name != "my-bot" {
-		t.Errorf("expected a single owner reference to my-bot, got %+v", svc.OwnerReferences)
-	}
 }
 
 func TestBuildService_Overrides(t *testing.T) {

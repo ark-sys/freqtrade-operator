@@ -26,9 +26,6 @@ func TestBuildStatefulSet(t *testing.T) {
 	if sts.Namespace != "trading" {
 		t.Errorf("expected Namespace %q, got %q", "trading", sts.Namespace)
 	}
-	if len(sts.OwnerReferences) != 1 || sts.OwnerReferences[0].Name != "my-bot" {
-		t.Errorf("expected a single owner reference to my-bot, got %+v", sts.OwnerReferences)
-	}
 	if sts.Spec.Replicas == nil || *sts.Spec.Replicas != 1 {
 		t.Errorf("expected 1 replica, got %+v", sts.Spec.Replicas)
 	}

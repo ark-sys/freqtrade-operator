@@ -30,9 +30,10 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=freqtrade.io,resources=frequis/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=freqtrade.io,resources=tradebots,verbs=get;list;watch
 // +kubebuilder:rbac:groups=freqtrade.io,resources=tradebotconfigs,verbs=get;list;watch
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update
-// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update
+// patch (not update) is what server-side apply issues (shared.Apply, P2-1).
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;patch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;patch
 
 // Reconcile handles the reconciliation loop for FreqUI resources
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -148,14 +149,14 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 
 	// 1. Reconcile Deployment
 	deployment := resources.BuildFreqUIDeployment(*frequi)
-	if err := resources.ApplyDeployment(ctx, r.Client, &deployment); err != nil {
+	if err := shared.Apply(ctx, r.Client, frequi, &deployment); err != nil {
 		return fmt.Errorf("failed to apply deployment: %w", err)
 	}
 	logger.V(2).Info("Deployment reconciled", "name", deployment.Name)
 
 	// 2. Reconcile Service
 	service := resources.BuildFreqUIService(*frequi)
-	if err := resources.ApplyService(ctx, r.Client, &service); err != nil {
+	if err := shared.Apply(ctx, r.Client, frequi, &service); err != nil {
 		return fmt.Errorf("failed to apply service: %w", err)
 	}
 	logger.V(2).Info("Service reconciled", "name", service.Name)
@@ -197,7 +198,7 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 	}
 
 	ingress := resources.BuildFreqUIIngress(*frequi, apiRoutes)
-	if err := resources.ApplyIngress(ctx, r.Client, &ingress); err != nil {
+	if err := shared.Apply(ctx, r.Client, frequi, &ingress); err != nil {
 		return fmt.Errorf("failed to apply ingress: %w", err)
 	}
 	logger.V(2).Info("Ingress reconciled", "name", ingress.Name)

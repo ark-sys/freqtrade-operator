@@ -25,9 +25,6 @@ func TestBuildSecret(t *testing.T) {
 	if secret.Type != corev1.SecretTypeOpaque {
 		t.Errorf("expected type Opaque, got %q", secret.Type)
 	}
-	if len(secret.OwnerReferences) != 1 || secret.OwnerReferences[0].Name != "my-bot" {
-		t.Errorf("expected a single owner reference to my-bot, got %+v", secret.OwnerReferences)
-	}
 	if secret.StringData["config.json"] != secretData["config.json"] {
 		t.Errorf("expected StringData to round-trip, got %v", secret.StringData)
 	}

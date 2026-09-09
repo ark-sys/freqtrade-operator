@@ -3,7 +3,6 @@ package tradebot
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -13,7 +12,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,28 +56,37 @@ func (r *Reconciler) fetchReferencedResources(
 // strategy must be the already-resolved Strategy referenced by tradeBot.Spec.Strategy
 // (fetchReferencedResources fetches it once per reconcile; this stops a second,
 // redundant fetch here and lets Build{StatefulSet,Job} stay pure functions).
+//
+// The returned bool is jobSpecChanged - whether a Job-mode TradeBot's spec
+// no longer matches the Job actually running (see the Job branch below). It
+// is only meaningful when err is nil: Reconcile folds it into the same
+// PatchStatus call that sets every other condition, rather than this
+// function writing WorkloadImmutable itself - a second, independent
+// PatchStatus call earlier in the same reconcile previously raced the
+// final one (its own re-fetch could read a cache that hadn't yet observed
+// the earlier call's write, silently reverting it).
 func (r *Reconciler) reconcileResources(
 	ctx context.Context,
 	tradeBot *freqtradev1alpha1.TradeBot,
 	strategy *freqtradev1alpha1.Strategy,
-	configData map[string]string) error {
+	configData map[string]string) (bool, error) {
 
 	logger := log.FromContext(ctx)
 	logger.V(2).Info("Reconciling resources for TradeBot", "name", tradeBot.Name)
 
 	// 1. Create a config.json Secret with the TradeBotConfig data
 	configSecret := resources.BuildSecret(*tradeBot, configData)
-	if err := resources.ApplySecret(ctx, r.Client, &configSecret); err != nil {
+	if err := shared.Apply(ctx, r.Client, tradeBot, &configSecret); err != nil {
 		logger.Error(err, "Failed to apply Secret")
-		return fmt.Errorf("failed to apply Secret: %w", err)
+		return false, fmt.Errorf("failed to apply Secret: %w", err)
 	}
 	logger.V(2).Info("Secret applied successfully", "name", configSecret.Name)
 
 	// 2. Create a ConfigMap for the Strategy script
 	strategyConfigMap := resources.BuildStrategyConfigMap(*tradeBot, *strategy)
-	if err := resources.ApplyConfigMap(ctx, r.Client, &strategyConfigMap); err != nil {
+	if err := shared.Apply(ctx, r.Client, tradeBot, &strategyConfigMap); err != nil {
 		logger.Error(err, "Failed to apply Strategy ConfigMap")
-		return fmt.Errorf("failed to apply Strategy ConfigMap: %w", err)
+		return false, fmt.Errorf("failed to apply Strategy ConfigMap: %w", err)
 	}
 	logger.V(2).Info("Strategy ConfigMap applied successfully", "name", strategyConfigMap.Name)
 
@@ -94,7 +101,7 @@ func (r *Reconciler) reconcileResources(
 	// still trading on stale config.
 	if err := r.pruneStaleWorkloads(ctx, tradeBot, effectiveCmd); err != nil {
 		logger.Error(err, "Failed to prune stale workloads")
-		return fmt.Errorf("failed to prune stale workloads: %w", err)
+		return false, fmt.Errorf("failed to prune stale workloads: %w", err)
 	}
 
 	// jobSpecChanged is only ever set true inside the Job branch below; this
@@ -103,46 +110,53 @@ func (r *Reconciler) reconcileResources(
 	jobSpecChanged := false
 
 	if effectiveCmd == "trade" {
+		// PVC storage may only grow, never shrink - the API server already
+		// enforces that (a request to reduce Resources.Requests.Storage is
+		// rejected), so an attempted shrink surfaces as a normal apply error
+		// here rather than the previous silent no-op.
 		pvc := resources.BuildUserDataPVC(*tradeBot)
-		if err := resources.ApplyPVC(ctx, r.Client, &pvc); err != nil {
+		if err := shared.Apply(ctx, r.Client, tradeBot, &pvc); err != nil {
 			logger.Error(err, "Failed to apply PVC")
-			return fmt.Errorf("failed to apply PVC: %w", err)
+			return false, fmt.Errorf("failed to apply PVC: %w", err)
 		}
 		logger.V(2).Info("PVC applied successfully", "name", pvc.Name)
 		// Stateful, long-running bot
 		sts := resources.BuildStatefulSet(*tradeBot, strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, pvc.Name)
-		if err := resources.ApplyStatefulSet(ctx, r.Client, &sts); err != nil {
+		if err := shared.Apply(ctx, r.Client, tradeBot, &sts); err != nil {
 			logger.Error(err, "Failed to apply StatefulSet")
-			return fmt.Errorf("failed to apply StatefulSet: %w", err)
+			return false, fmt.Errorf("failed to apply StatefulSet: %w", err)
 		}
 		logger.V(2).Info("StatefulSet applied successfully", "name", sts.Name)
 
 		svc := resources.BuildService(*tradeBot)
-		if err := resources.ApplyService(ctx, r.Client, &svc); err != nil {
+		if err := shared.Apply(ctx, r.Client, tradeBot, &svc); err != nil {
 			logger.Error(err, "Failed to apply Service")
-			return fmt.Errorf("failed to apply Service: %w", err)
+			return false, fmt.Errorf("failed to apply Service: %w", err)
 		}
 		logger.V(2).Info("Service applied successfully", "name", svc.Name)
 	} else {
-		// One-shot commands -> Job. desiredJob is never mutated; appliedJob is
-		// passed to ApplyJob, which overwrites it with the existing Job when
-		// one is already running, letting us detect drift below.
+		// One-shot commands -> Job. batchv1.Job.spec.template is immutable
+		// once created - verified empirically, server-side apply enforces
+		// this exactly like a typed Update would - so applying an unchanged
+		// desired Job is a clean no-op, and the apply failing with
+		// IsJobTemplateImmutableError *is* the drift signal, not something to
+		// detect separately by comparing specs (which would have to compare
+		// an undefaulted desired spec against a defaulted existing one).
 		desiredJob := resources.BuildJob(*tradeBot, strategy.Spec.Name, configSecret.Name, strategyConfigMap.Name, "")
-		appliedJob := desiredJob.DeepCopy()
-		if err := resources.ApplyJob(ctx, r.Client, appliedJob); err != nil {
+		switch err := shared.Apply(ctx, r.Client, tradeBot, &desiredJob); {
+		case err == nil:
+			logger.V(2).Info("Job applied successfully", "name", desiredJob.Name)
+		case resources.IsJobTemplateImmutableError(err):
+			jobSpecChanged = true
+			logger.V(1).Info("Job spec changed after creation; template is immutable, surfacing as WorkloadImmutable",
+				"name", desiredJob.Name)
+		default:
 			logger.Error(err, "Failed to apply Job")
-			return fmt.Errorf("failed to apply Job: %w", err)
+			return false, fmt.Errorf("failed to apply Job: %w", err)
 		}
-		logger.V(2).Info("Job applied successfully", "name", appliedJob.Name)
-
-		jobSpecChanged = !reflect.DeepEqual(desiredJob.Spec.Template.Spec, appliedJob.Spec.Template.Spec)
 	}
 
-	if err := r.setWorkloadImmutableCondition(ctx, tradeBot, jobSpecChanged); err != nil {
-		return fmt.Errorf("failed to update WorkloadImmutable condition: %w", err)
-	}
-
-	return nil
+	return jobSpecChanged, nil
 }
 
 // pruneStaleWorkloads deletes the workload type the TradeBot is NOT currently
@@ -204,40 +218,36 @@ func (r *Reconciler) pruneStaleWorkloads(
 	return nil
 }
 
-// setWorkloadImmutableCondition surfaces the fact that a Job-mode TradeBot's
-// spec no longer matches the Job actually running: Job.Spec.Template is
-// immutable after creation (see ApplyJob), so the changed spec was silently
-// not applied unless we say so here.
+// workloadImmutableCondition builds the WorkloadImmutable condition: whether
+// a Job-mode TradeBot's spec no longer matches the Job actually running.
+// Job.Spec.Template is immutable after creation (see
+// resources.IsJobTemplateImmutableError), so the changed spec was silently
+// not applied unless this says so.
 //
-// This does its own PatchStatus round-trip rather than mutating
-// tradeBot.Status.Conditions in memory for the caller's later status write
-// to pick up: Reconcile's own final PatchStatus call re-fetches tradeBot
-// from scratch (that's how PatchStatus avoids conflicts), which would
-// silently discard an in-memory-only condition set earlier in the same
-// pass. A separate, immediate patch is the only way this condition
-// actually survives.
-func (r *Reconciler) setWorkloadImmutableCondition(
-	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot, specChanged bool,
-) error {
-	return shared.PatchStatus(ctx, r.Client, tradeBot, func() {
-		condition := metav1.Condition{
-			Type:               freqtradev1alpha1.ConditionWorkloadImmutable,
-			Status:             metav1.ConditionFalse,
-			Reason:             freqtradev1alpha1.ReasonSpecMatchesWorkload,
-			Message:            "",
-			ObservedGeneration: tradeBot.Generation,
-		}
-		if specChanged {
-			condition.Status = metav1.ConditionTrue
-			condition.Reason = freqtradev1alpha1.ReasonSpecChangeIgnored
-			condition.Message = fmt.Sprintf(
-				"TradeBot spec changed after Job %q was created; batchv1.Job.spec.template is immutable, "+
-					"so the change was not applied. Delete and recreate this TradeBot to run with the new spec. "+
-					"Results from the current run are on an emptyDir and will be lost when its pod is gone "+
-					"(per-run result PVCs are planned for a future Backtest/Hyperopt CRD).",
-				tradeBot.Name,
-			)
-		}
-		meta.SetStatusCondition(&tradeBot.Status.Conditions, condition)
-	})
+// Kept pure - no I/O, no PatchStatus call of its own - so Reconcile's single
+// final PatchStatus call can set this condition alongside every other one it
+// computes, in one round-trip. An earlier version gave this its own
+// independent PatchStatus call instead, which raced the final one: that
+// call's own re-fetch could read a cache that hadn't yet observed this
+// one's write, silently reverting it.
+func workloadImmutableCondition(tradeBotName string, observedGeneration int64, specChanged bool) metav1.Condition {
+	condition := metav1.Condition{
+		Type:               freqtradev1alpha1.ConditionWorkloadImmutable,
+		Status:             metav1.ConditionFalse,
+		Reason:             freqtradev1alpha1.ReasonSpecMatchesWorkload,
+		Message:            "",
+		ObservedGeneration: observedGeneration,
+	}
+	if specChanged {
+		condition.Status = metav1.ConditionTrue
+		condition.Reason = freqtradev1alpha1.ReasonSpecChangeIgnored
+		condition.Message = fmt.Sprintf(
+			"TradeBot spec changed after Job %q was created; batchv1.Job.spec.template is immutable, "+
+				"so the change was not applied. Delete and recreate this TradeBot to run with the new spec. "+
+				"Results from the current run are on an emptyDir and will be lost when its pod is gone "+
+				"(per-run result PVCs are planned for a future Backtest/Hyperopt CRD).",
+			tradeBotName,
+		)
+	}
+	return condition
 }

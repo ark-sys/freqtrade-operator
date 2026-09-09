@@ -8,12 +8,20 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
+
+// FieldOwner identifies this operator's writes for server-side apply. All
+// resources it manages are applied under one owner, since nothing else is
+// meant to co-manage them - client.ForceOwnership resolves any conflict in
+// this operator's own favor rather than erroring.
+const FieldOwner = "freqtrade-operator"
 
 // ConditionedObject is any CRD whose status carries the standard
 // Conditions/ObservedGeneration pair - all four CRDs in this operator
@@ -57,6 +65,37 @@ func PatchStatus(ctx context.Context, c client.Client, obj ConditionedObject, mu
 		}
 		return c.Status().Update(ctx, obj)
 	})
+}
+
+// Apply patches obj into the cluster via server-side apply, after setting
+// owner as its controller reference. This is the one shared replacement for
+// what used to be six-going-on-nine near-identical ApplyX functions, each
+// doing get -> reflect.DeepEqual a hand-picked field subset -> Update: those
+// comparisons were subtly wrong in every case, since the API server
+// defaults fields (terminationMessagePath, dnsPolicy, ...) that never
+// appear in the freshly-built desired object, so DeepEqual was always
+// false and every reconcile issued a pointless Update - write
+// amplification, and for a StatefulSet, a potential rolling restart of a
+// live trading bot. Server-side apply only ever considers fields this
+// field manager's own applied configuration mentions, so a defaulted field
+// it never set is simply not part of the comparison.
+//
+// controllerutil.SetControllerReference (rather than a hand-built
+// OwnerReference) gets the scheme check and the
+// already-owned-by-another-controller error for free. obj's GVK is looked
+// up and set explicitly: server-side apply's patch body needs it, and a
+// typed Go struct literal never carries it (TypeMeta is normally left for
+// the API server to infer from the request path).
+func Apply(ctx context.Context, c client.Client, owner, obj client.Object) error {
+	if err := controllerutil.SetControllerReference(owner, obj, c.Scheme()); err != nil {
+		return fmt.Errorf("failed to set controller reference: %w", err)
+	}
+	gvk, err := apiutil.GVKForObject(obj, c.Scheme())
+	if err != nil {
+		return fmt.Errorf("failed to look up GroupVersionKind: %w", err)
+	}
+	obj.GetObjectKind().SetGroupVersionKind(gvk)
+	return c.Patch(ctx, obj, client.Apply, client.FieldOwner(FieldOwner), client.ForceOwnership)
 }
 
 // EnqueueTradeBotsByConfigRef creates a handler function that enqueues TradeBots referencing a config CRD
