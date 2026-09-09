@@ -48,6 +48,15 @@ kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/d
 kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/operator.yaml
 ```
 
+Every image the release workflow pushes is signed with [cosign](https://docs.sigstore.dev/) (keyless, via GitHub Actions'
+own OIDC identity - no key to fetch or trust out of band) and ships an SPDX SBOM as a release asset. Verify an image with:
+
+```bash
+cosign verify arksys/freqtrade-operator:<tag> \
+  --certificate-identity-regexp 'https://github.com/ark-sys/freqtrade-operator/.github/workflows/release.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
 ### Building from source
 
 1. Clone the repository:

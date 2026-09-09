@@ -2,6 +2,7 @@
 FROM golang:1.24 AS builder
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -21,15 +22,19 @@ COPY controllers/ controllers/
 # was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
 # the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
 # by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/main.go
+# -trimpath and -ldflags="-s -w" drop build-machine file paths and debug symbols (smaller binary, nothing
+# about where it was built leaked into it); -X main.version stamps in what was actually built, since the
+# distroless final image below has no shell to run `manager --version` against otherwise.
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -trimpath \
+    -ldflags="-s -w -X main.version=${VERSION}" \
+    -o manager cmd/main.go
 
-# Use Alpine as base image to support multiple architectures
-FROM alpine:3.19
+# distroless/static:nonroot (kubebuilder's own default) ships no shell and no package manager - nothing for
+# a CVE scanner to flag beyond the Go binary itself - while still including ca-certificates and a working
+# nonroot user. That user is already UID/GID 65532, the same one this image ran as before under a manually
+# created Alpine user, so nothing depending on that UID elsewhere (e.g. pod securityContexts) needs to change.
+FROM gcr.io/distroless/static:nonroot
 WORKDIR /
-RUN apk --no-cache add ca-certificates && \
-    addgroup -S -g 65532 nonroot && \
-    adduser -S -u 65532 -G nonroot nonroot
-
 COPY --from=builder /workspace/manager .
 USER 65532:65532
 

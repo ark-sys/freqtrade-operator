@@ -7,6 +7,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write   # softprops/action-gh-release creates/updates the GitHub Release
+  id-token: write   # sigstore/cosign-installer's keyless signing needs an OIDC token
+
 jobs:
   build:
     name: Build and Release
@@ -31,23 +35,57 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Get version
+      # latest only ever points at an actual tagged release - a push straight
+      # to main (untagged) still gets its own versioned tag below, but never
+      # moves latest, so that alias can't silently go backwards/sideways to
+      # whatever the most recent commit happened to be (P3-5).
+      - name: Get version and tags
         id: get_version
         run: |
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            VERSION="${GITHUB_REF#refs/tags/}"
+            TAGS="arksys/freqtrade-operator:${VERSION}"$'\n'"arksys/freqtrade-operator:latest"
           else
-            echo "VERSION=v$(date +'%Y%m%d')-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            VERSION="v$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
+            TAGS="arksys/freqtrade-operator:${VERSION}"
           fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+          {
+            echo "TAGS<<EOF"
+            echo "$TAGS"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: |
-            arksys/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}
-            arksys/freqtrade-operator:latest
+          build-args: |
+            VERSION=${{ steps.get_version.outputs.VERSION }}
+          tags: ${{ steps.get_version.outputs.TAGS }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Keyless signing: cosign requests a short-lived certificate from
+      # Sigstore's Fulcio using this job's own GitHub Actions OIDC token
+      # (id-token: write, above) and records the signature in Sigstore's
+      # public Rekor transparency log - no signing key for this repo to
+      # generate, store, or ever rotate. Signs by digest, not by tag: a tag
+      # is mutable, the digest docker/build-push-action just pushed is what
+      # was actually built.
+      - name: Sign the image
+        run: cosign sign --yes "arksys/freqtrade-operator@${{ steps.build.outputs.digest }}"
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: arksys/freqtrade-operator@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: freqtrade-operator-sbom.spdx.json
+          upload-artifact: true
 
       - name: Generate release artifacts
         run: |
@@ -62,6 +100,7 @@ jobs:
         with:
           files: |
             freqtrade-operator-crds.tar.gz
+            freqtrade-operator-sbom.spdx.json
           draft: false
           prerelease: false
-          generate_release_notes: true 
+          generate_release_notes: true

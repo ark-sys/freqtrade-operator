@@ -49,6 +49,13 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+
+	// version is stamped in at build time via -ldflags "-X main.version=..."
+	// (see the Dockerfile and Makefile's docker-build target) - P3-5, so
+	// what's actually running is identifiable without a shell to run
+	// `manager --version` against (the distroless final image has none).
+	// "dev" is what a plain `go build`/`go run` (no ldflags) gets.
+	version = "dev"
 )
 
 func init() {
@@ -301,7 +308,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog.Info("starting manager")
+	setupLog.Info("starting manager", "version", version)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
