@@ -6,6 +6,7 @@ import (
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
 
@@ -114,6 +115,67 @@ func TestBuildPod_NoCacheMeansNoCacheVolumeOrInitContainer(t *testing.T) {
 	if len(podSpec.InitContainers) != 2 {
 		t.Errorf("expected exactly two init containers with no cache, got %d: %+v",
 			len(podSpec.InitContainers), podSpec.InitContainers)
+	}
+}
+
+// Regression test: the results PVC BuildResultsPVC provisions was never actually mounted
+// anywhere - a Backtest's raw result file only ever lived on the pod's own ephemeral user-data
+// emptyDir, so it never survived past whatever TTLSecondsAfterFinished eventually reaped the Job
+// pod, despite status.resultsPVCName naming a real, durable-looking PVC. Unlike the cache volume,
+// this is unconditional: every Backtest gets a results PVC (BuildResultsPVC has no gating field of
+// its own), so BuildPod must always mount it, not just when spec.data is set.
+func TestBuildPod_AlwaysMountsResultsPVCIntoSidecarOnly(t *testing.T) {
+	const resultsVolumeName = "results"
+	backtest := freqtradev1beta1.Backtest{ObjectMeta: metav1.ObjectMeta{Name: "my-run"}}
+	podSpec := BuildPod(backtest, "freqtradeorg/freqtrade:2024.1", "operator-img", "SampleStrategy", "cfg", "strategy-cm")
+
+	var resultsVol *corev1.Volume
+	for i := range podSpec.Volumes {
+		if podSpec.Volumes[i].Name == resultsVolumeName {
+			resultsVol = &podSpec.Volumes[i]
+		}
+	}
+	if resultsVol == nil || resultsVol.PersistentVolumeClaim == nil ||
+		resultsVol.PersistentVolumeClaim.ClaimName != ResultsPVCName("my-run") {
+		t.Fatalf("expected a results volume bound to %s, got %+v", ResultsPVCName("my-run"), podSpec.Volumes)
+	}
+
+	sidecar := podSpec.InitContainers[len(podSpec.InitContainers)-1]
+	if sidecar.Name != "collect-results" {
+		t.Fatalf("expected the last init container to be collect-results, got %s", sidecar.Name)
+	}
+	found := false
+	for _, vm := range sidecar.VolumeMounts {
+		if vm.Name == resultsVolumeName {
+			found = true
+			if vm.ReadOnly {
+				t.Error("expected the sidecar's results mount to be writable, got ReadOnly")
+			}
+			if vm.MountPath != ResultsPVCMountPath {
+				t.Errorf("expected mount path %s, got %s", ResultsPVCMountPath, vm.MountPath)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected the sidecar to mount the results volume, got %+v", sidecar.VolumeMounts)
+	}
+
+	argFound := false
+	for i, a := range sidecar.Args {
+		if a == "--results-pvc-dir" && i+1 < len(sidecar.Args) && sidecar.Args[i+1] == ResultsPVCMountPath {
+			argFound = true
+		}
+	}
+	if !argFound {
+		t.Errorf("expected --results-pvc-dir %s in sidecar Args, got %v", ResultsPVCMountPath, sidecar.Args)
+	}
+
+	for _, c := range podSpec.Containers {
+		for _, vm := range c.VolumeMounts {
+			if vm.Name == resultsVolumeName {
+				t.Errorf("expected only the sidecar to mount results, but main container %s does too", c.Name)
+			}
+		}
 	}
 }
 

@@ -76,13 +76,14 @@ func buildArgs(spec freqtradev1beta1.BacktestSpec, strategyName string, hasCache
 
 // BuildPod constructs the PodSpec for a Backtest run. Unlike
 // controllers/tradebot's BuildPod, there is no trade-vs-job branch here:
-// every Backtest is a one-shot run, full stop - no probes, no ports, no
-// long-lived user-data PVC (user_data is an emptyDir; only the results PVC
-// the P6-2 sidecar's own summary ultimately gets read from, mounted
-// separately by BuildJob, outlives the pod). operatorImage is the
-// operator's own image (not the freqtrade one) - it runs the results
-// sidecar via the same binary, `/manager collect-results ...` (P6-2), so
-// this never has to build, scan, or release a second image for it.
+// every Backtest is a one-shot run, full stop - no probes, no ports.
+// user-data is an emptyDir and dies with the pod; the results PVC (always
+// mounted, RW, into the P6-2 sidecar only) is what actually outlives it -
+// the sidecar copies the run's own raw result file there before writing
+// its extracted summary ConfigMap. operatorImage is the operator's own
+// image (not the freqtrade one) - it runs the results sidecar via the
+// same binary, `/manager collect-results ...` (P6-2), so this never has
+// to build, scan, or release a second image for it.
 func BuildPod(
 	backtest freqtradev1beta1.Backtest, image, operatorImage, strategyName, configSecretName, strategyConfigMapName string,
 ) corev1.PodSpec {
@@ -103,6 +104,12 @@ func BuildPod(
 			},
 		},
 		{Name: "user-data", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		{
+			Name: "results",
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: ResultsPVCName(backtest.Name)},
+			},
+		},
 	}
 	if hasCache {
 		volumes = append(volumes, corev1.Volume{
@@ -292,14 +299,20 @@ func sidecarTokenVolume() corev1.Volume {
 	}
 }
 
+// ResultsPVCMountPath is where the sidecar mounts the results PVC (RW) to copy the run's own raw
+// result file onto it - exported so cmd/main.go's runCollectResults can default --results-pvc-dir
+// to this exact value instead of an independently hardcoded copy that could drift out of sync.
+const ResultsPVCMountPath = "/results"
+
 // buildSidecarContainer is the P6-2 results-collection sidecar: a native
 // sidecar (RestartPolicy: Always on an init container entry, GA since
 // Kubernetes 1.29 - see the README's note on the version floor this
 // implies) that waits for the freqtrade container to exit, reads its
-// result file off the shared user-data volume, and writes a summary
-// ConfigMap the operator's own reconcile loop later adopts and parses.
-// Runs the operator's own image/binary rather than a second one to build
-// and release.
+// result file off the shared user-data volume, copies it onto the results
+// PVC (durable beyond the Job pod's own lifetime, unlike user-data's
+// emptyDir), and writes a summary ConfigMap the operator's own reconcile
+// loop later adopts and parses. Runs the operator's own image/binary
+// rather than a second one to build and release.
 func buildSidecarContainer(operatorImage, backtestName, strategyName string) corev1.Container {
 	always := corev1.ContainerRestartPolicyAlways
 	return corev1.Container{
@@ -311,6 +324,7 @@ func buildSidecarContainer(operatorImage, backtestName, strategyName string) cor
 			"collect-results",
 			"--backtest-name", backtestName,
 			"--strategy-name", strategyName,
+			"--results-pvc-dir", ResultsPVCMountPath,
 		},
 		Env: []corev1.EnvVar{
 			{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{
@@ -323,6 +337,7 @@ func buildSidecarContainer(operatorImage, backtestName, strategyName string) cor
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: "user-data", MountPath: "/freqtrade/user_data", ReadOnly: true},
 			{Name: "sidecar-token", MountPath: sidecarTokenServiceAccountMountPath, ReadOnly: true},
+			{Name: "results", MountPath: ResultsPVCMountPath},
 		},
 		SecurityContext: shared.RestrictedSecurityContext(),
 	}

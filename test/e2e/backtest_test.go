@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,9 +30,9 @@ import (
 )
 
 // backtestContext covers P5-3's "run a Backtest to completion" acceptance criterion: results
-// land on the PVC (proven indirectly via status.resultsPVCName being set and status.phase
-// reaching Succeeded - the PVC is only referenced once the Job that wrote to it has finished)
-// and the extracted summary appears in status.results.
+// land on the PVC - verified directly, by mounting it read-only from a throwaway probe pod, not
+// just inferred from status.resultsPVCName being non-empty - and the extracted summary appears
+// in status.results.
 func backtestContext() {
 	Context("Backtest runs to completion", Ordered, func() {
 		const (
@@ -84,6 +85,43 @@ func backtestContext() {
 
 			By("checking the results PVC was actually written to, not just referenced")
 			Expect(bt.Status.ResultsPVCName).NotTo(BeEmpty())
+
+			By("mounting the results PVC read-only from a throwaway pod and checking it's non-empty")
+			probePod := "e2e-backtest-results-probe"
+			cmd := exec.Command("kubectl", "run", probePod, "--restart=Never",
+				"-n", tradingNamespace,
+				"--image=busybox:latest",
+				"--overrides", fmt.Sprintf(`{
+					"spec": {
+						"containers": [{
+							"name": "%s",
+							"image": "busybox:latest",
+							"command": ["sh", "-c", "ls -A /results | grep -q ."],
+							"volumeMounts": [{"name": "results", "mountPath": "/results", "readOnly": true}],
+							"securityContext": {
+								"allowPrivilegeEscalation": false,
+								"capabilities": {"drop": ["ALL"]},
+								"runAsNonRoot": true,
+								"runAsUser": 1000,
+								"seccompProfile": {"type": "RuntimeDefault"}
+							}
+						}],
+						"securityContext": {"runAsUser": 1000, "runAsGroup": 1000, "fsGroup": 1000},
+						"volumes": [{"name": "results", "persistentVolumeClaim": {"claimName": "%s"}}]
+					}
+				}`, probePod, bt.Status.ResultsPVCName),
+			)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to create the results-PVC probe pod")
+
+			verifyProbeSucceeded := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", probePod, "-n", tradingNamespace,
+					"-o", "jsonpath={.status.phase}")
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(Equal("Succeeded"), "results PVC was empty or unreadable")
+			}
+			Eventually(verifyProbeSucceeded, "1m").Should(Succeed())
 
 			By("checking the extracted summary landed in status.results")
 			Expect(bt.Status.Results).NotTo(BeNil())

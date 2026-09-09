@@ -47,6 +47,7 @@ import (
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/controllers/backtest"
 	"github.com/ark-sys/freqtrade-operator/controllers/backtest/collectresults"
+	backtestresources "github.com/ark-sys/freqtrade-operator/controllers/backtest/resources"
 	"github.com/ark-sys/freqtrade-operator/controllers/frequi"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	"github.com/ark-sys/freqtrade-operator/controllers/strategy"
@@ -399,6 +400,8 @@ func runCollectResults(args []string) error {
 	strategyName := fs.String("strategy-name", "", "The strategy name to look up in the result file (required).")
 	resultsDir := fs.String("results-dir", "/freqtrade/user_data/backtest_results",
 		"Where freqtrade writes backtest-result-*.json and .last_result.json.")
+	resultsPVCDir := fs.String("results-pvc-dir", backtestresources.ResultsPVCMountPath,
+		"Where the results PVC is mounted - the raw result file is copied here so it survives the Job pod.")
 	mainContainer := fs.String("main-container", "freqtrade", "The main container this waits to see exit.")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -414,6 +417,7 @@ func runCollectResults(args []string) error {
 		Namespace:         os.Getenv("POD_NAMESPACE"),
 		MainContainerName: *mainContainer,
 		ResultsDir:        *resultsDir,
+		ResultsPVCDir:     *resultsPVCDir,
 	})
 }
 

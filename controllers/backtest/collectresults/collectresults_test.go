@@ -2,6 +2,8 @@ package collectresults
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -163,5 +165,41 @@ func TestExtract_WritesErrorKeyWhenResultFileMissing(t *testing.T) {
 	}
 	if _, hasError := data[errorConfigMapDataKey]; !hasError {
 		t.Errorf("expected an %s key when the result file is missing, got %v", errorConfigMapDataKey, data)
+	}
+}
+
+// Regression test: the results PVC BuildResultsPVC provisions (controllers/backtest/resources)
+// was never actually mounted or written to by anything - a Backtest's raw result file only ever
+// lived on the pod's own ephemeral user-data emptyDir, gone the moment the Job pod's TTL reaped
+// it, despite status.resultsPVCName naming a real, durable-looking PVC.
+func TestCopyResultFileToPVC_CopiesTheLatestResultFile(t *testing.T) {
+	resultsDir := t.TempDir()
+	pvcDir := t.TempDir()
+	writeTempFile(t, resultsDir, ".last_result.json", `{"latest_backtest": "backtest-result-1.json"}`)
+	writeTempFile(t, resultsDir, "backtest-result-1.json", `{"strategy": {}}`)
+
+	copyResultFileToPVC(Options{ResultsDir: resultsDir, ResultsPVCDir: pvcDir}, discardLogger(t))
+
+	got, err := os.ReadFile(filepath.Join(pvcDir, "backtest-result-1.json"))
+	if err != nil {
+		t.Fatalf("expected the result file to be copied onto the PVC dir, got: %v", err)
+	}
+	if string(got) != `{"strategy": {}}` {
+		t.Errorf("expected the copy to match the source content exactly, got %q", got)
+	}
+}
+
+func TestCopyResultFileToPVC_MissingResultFileIsNonFatal(t *testing.T) {
+	pvcDir := t.TempDir()
+	// Should not panic, and should leave the destination untouched - this is the same
+	// non-fatal, logged-only treatment extract gives a missing result file.
+	copyResultFileToPVC(Options{ResultsDir: t.TempDir(), ResultsPVCDir: pvcDir}, discardLogger(t))
+
+	entries, err := os.ReadDir(pvcDir)
+	if err != nil {
+		t.Fatalf("unexpected error reading pvcDir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected nothing written to pvcDir when the result file is missing, got %v", entries)
 	}
 }

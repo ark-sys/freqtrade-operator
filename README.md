@@ -484,16 +484,14 @@ typed field whenever one exists.
 `status.phase` (`Pending`/`Running`/`Succeeded`/`Failed`) and the `WorkloadReady` condition reflect the underlying
 Job. Once it succeeds, a results-collection sidecar in the same pod (a native sidecar - `restartPolicy: Always` on
 an init container entry, GA since Kubernetes **1.29** - running this operator's own image, not a second one to
-build and release) reads the run's own result file (freqtrade writes this as a `backtest-result-<ts>.zip`
-containing the actual JSON alongside a config echo, the strategy source, and a couple of `.feather` files - the
-sidecar knows to look inside it) and writes a summary ConfigMap (`<name>-results`) the operator reads back into
-`status.results` and the `ResultsAvailable` condition. A summary that can't be extracted (a malformed or missing
-result file) reports `ResultsAvailable=False`/`ResultsUnavailable` rather than failing the `Backtest` - the run
-happened either way. The raw result file itself is **not** on `spec.results` PVC (nothing in this operator mounts
-that PVC into the run's own pod at all yet - `status.resultsPVCName` names a real PVC, but as of now it stays
-empty); it only ever exists on the run pod's own ephemeral storage, so it's reachable only for as long as that pod
-still exists (`spec.ttlSecondsAfterFinished`, a day by default) via e.g. `kubectl cp` from the `freqtrade` or
-`collect-results` container.
+build and release) copies the run's own result file (freqtrade writes this as a `backtest-result-<ts>.zip`
+containing the actual JSON alongside a config echo, the strategy source, and a couple of `.feather` files) onto
+`spec.results`' PVC - durable beyond the Job pod's own lifetime, unlike the emptyDir it's read from - and writes a
+summary ConfigMap (`<name>-results`) the operator reads back into `status.results` and the `ResultsAvailable`
+condition. A summary that can't be extracted (a malformed or missing result file) reports
+`ResultsAvailable=False`/`ResultsUnavailable` rather than failing the `Backtest` - the run happened either way,
+and the raw file itself still gets copied onto the results PVC regardless, addressable by mounting `status.resultsPVCName`
+from another pod (or `kubectl cp` while the run's own pod still exists).
 
 ### Running many backtests and comparing results
 

@@ -65,18 +65,21 @@ type Options struct {
 	Namespace         string
 	MainContainerName string
 	ResultsDir        string
+	// ResultsPVCDir is where the results PVC (durable beyond this Job pod, unlike ResultsDir's
+	// own emptyDir) is mounted - copyResultFileToPVC's destination.
+	ResultsPVCDir string
 }
 
-// Run waits for the main freqtrade container to exit, then attempts to
-// extract a summary from its result file and writes it to
-// "<BacktestName>-results". A failure to find or parse that file is
-// reported via the ConfigMap's own errorConfigMapDataKey, not a non-zero
-// exit - per P6-2's own design, the run already happened and only the
-// summary is missing, which controllers/backtest/results.go surfaces as
-// ResultsAvailable=False/ResultsUnavailable rather than failing the
-// Backtest. A non-nil return here is reserved for something this sidecar
-// itself couldn't recover from (no Kubernetes API access at all, its own
-// config malformed) - kubelet restarts it (RestartPolicy: Always) rather
+// Run waits for the main freqtrade container to exit, then does two independent,
+// independently-fault-tolerant things with its result file: copies the raw file onto the results
+// PVC (copyResultFileToPVC - durable beyond this Job pod, unlike the emptyDir it's read from) and
+// extracts a summary into "<BacktestName>-results" (extract, below). A failure to find, read, or
+// parse that file is reported via the ConfigMap's own errorConfigMapDataKey, not a non-zero exit
+// - per P6-2's own design, the run already happened and only the summary/raw-file copy is
+// missing, which controllers/backtest/results.go surfaces as
+// ResultsAvailable=False/ResultsUnavailable rather than failing the Backtest. A non-nil return
+// here is reserved for something this sidecar itself couldn't recover from (no Kubernetes API
+// access at all, its own config malformed) - kubelet restarts it (RestartPolicy: Always) rather
 // than the Job silently completing with no results ConfigMap at all.
 func Run(ctx context.Context, opts Options) error {
 	logger := log.FromContext(ctx).WithName("collect-results")
@@ -107,6 +110,7 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 
+	copyResultFileToPVC(opts, logger)
 	data := extract(opts, logger)
 
 	cm := corev1.ConfigMap{
@@ -171,6 +175,34 @@ func waitForMainContainerExit(ctx, sigCtx context.Context, c client.Client, opts
 		case <-time.After(pollInterval):
 		}
 	}
+}
+
+// copyResultFileToPVC preserves the run's own raw result file beyond the Job pod's own lifetime -
+// ResultsDir is an emptyDir (see pod.go's BuildPod) that dies with the pod, so without this
+// nothing about a Backtest's actual result file (as opposed to the small extracted summary
+// extract, below, puts in status.results) survives past whatever TTLSecondsAfterFinished
+// eventually reaps. Best-effort and logged-only like extract's own errors, for the same reason:
+// a Backtest already ran either way, and losing the durable copy is never worth failing the run
+// over. Resolves the latest result file itself (independently of extract's own resolution of the
+// same file) so this keeps working even if extract's own parsing fails on a file that's
+// otherwise perfectly readable.
+func copyResultFileToPVC(opts Options, logger logr.Logger) {
+	resultFile, err := latestResultFile(opts.ResultsDir)
+	if err != nil {
+		logger.Error(err, "failed to determine the latest result file for the PVC copy")
+		return
+	}
+	raw, err := os.ReadFile(resultFile)
+	if err != nil {
+		logger.Error(err, "failed to read the result file for the PVC copy", "file", resultFile)
+		return
+	}
+	dest := filepath.Join(opts.ResultsPVCDir, filepath.Base(resultFile))
+	if err := os.WriteFile(dest, raw, 0o644); err != nil {
+		logger.Error(err, "failed to copy the result file onto the results PVC", "dest", dest)
+		return
+	}
+	logger.Info("copied the result file to the results PVC", "dest", dest)
 }
 
 // extract reads and parses the freqtrade result file, returning ConfigMap
