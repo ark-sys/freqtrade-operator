@@ -1,11 +1,47 @@
 package collectresults
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+// writeTempZip builds a zip at dir/name whose entries are exactly {entryName: content}
+// plus a same-prefixed "_config.json" decoy entry - matching the shape a real freqtrade
+// backtest-result-<ts>.zip carries (results JSON, a config echo, strategy source, feather
+// files), so the "pick the right entry" logic in readResultBytes has something to get wrong
+// if it regresses to e.g. "the first .json entry in the archive".
+func writeTempZip(t *testing.T, dir, name, entryName, content string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create %s: %v", path, err)
+	}
+	defer func() { _ = f.Close() }()
+
+	zw := zip.NewWriter(f)
+	decoyName := strings.TrimSuffix(entryName, ".json") + "_config.json"
+	for _, entry := range []struct{ name, content string }{
+		{decoyName, `{"this": "is a config echo, not results"}`},
+		{entryName, content},
+	} {
+		w, err := zw.Create(entry.name)
+		if err != nil {
+			t.Fatalf("failed to create zip entry %s: %v", entry.name, err)
+		}
+		if _, err := w.Write([]byte(entry.content)); err != nil {
+			t.Fatalf("failed to write zip entry %s: %v", entry.name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("failed to close zip writer: %v", err)
+	}
+	return path
+}
 
 func writeTempFile(t *testing.T, dir, name, content string) string {
 	t.Helper()
@@ -23,7 +59,7 @@ func TestParseResultFile_HappyPath(t *testing.T) {
 			"SampleStrategy": {
 				"total_trades": 42,
 				"profit_total_abs": 123.45,
-				"profit_total_pct": 12.3,
+				"profit_total": 0.123,
 				"winrate": 0.55,
 				"max_drawdown_account": 0.08,
 				"sharpe": 1.5,
@@ -46,6 +82,12 @@ func TestParseResultFile_HappyPath(t *testing.T) {
 	if results.ProfitAbs != "123.45" {
 		t.Errorf("expected ProfitAbs 123.45, got %q", results.ProfitAbs)
 	}
+	// Regression: the real field is "profit_total" (a ratio), not "profit_total_pct" - there is
+	// no such sibling field at the strategy level, only on best_pair/worst_pair. Confirmed
+	// directly against a real freqtrade run's own result file.
+	if results.ProfitPct != "12.3" {
+		t.Errorf("expected ProfitPct 12.3 (profit_total ratio * 100), got %q", results.ProfitPct)
+	}
 	if results.WinRatePct != "55" {
 		t.Errorf("expected WinRatePct 55 (ratio * 100), got %q", results.WinRatePct)
 	}
@@ -57,6 +99,45 @@ func TestParseResultFile_HappyPath(t *testing.T) {
 	}
 	if results.ResultFile != path {
 		t.Errorf("expected ResultFile %q, got %q", path, results.ResultFile)
+	}
+}
+
+// Regression test: freqtrade's own default is to write backtest-result-<ts>.zip, not a plain
+// .json file - confirmed directly against a real run's own output. parseResultFile previously
+// tried to json.Unmarshal the zip's raw bytes directly ("invalid character 'P' looking for
+// beginning of value" - PK, the zip magic bytes), never extracting anything at all.
+func TestParseResultFile_ZipArchiveExtractsTheMatchingEntry(t *testing.T) {
+	dir := t.TempDir()
+	resultJSON := `{"strategy": {"SampleStrategy": {"total_trades": 9, "profit_total_abs": 1}}}`
+	path := writeTempZip(t, dir, "backtest-result-1.zip", "backtest-result-1.json", resultJSON)
+
+	results, err := parseResultFile(path, "SampleStrategy")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results.TotalTrades != 9 {
+		t.Errorf("expected TotalTrades 9 (read from the zip's matching entry, not its _config.json decoy), got %d",
+			results.TotalTrades)
+	}
+}
+
+func TestParseResultFile_ZipMissingMatchingEntryIsAnError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "empty.zip")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create %s: %v", path, err)
+	}
+	if err := zip.NewWriter(f).Close(); err != nil {
+		t.Fatalf("failed to write empty zip: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("failed to close %s: %v", path, err)
+	}
+
+	_, err = parseResultFile(path, "SampleStrategy")
+	if err == nil {
+		t.Fatal("expected an error for a zip with no matching entry, got nil")
 	}
 }
 

@@ -1,11 +1,15 @@
 package collectresults
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 )
@@ -28,9 +32,15 @@ type freqtradeResultFile struct {
 }
 
 type freqtradeStrategyStats struct {
-	TotalTrades        int                `json:"total_trades"`
-	ProfitTotalAbs     float64            `json:"profit_total_abs"`
-	ProfitTotalPct     float64            `json:"profit_total_pct"`
+	TotalTrades    int     `json:"total_trades"`
+	ProfitTotalAbs float64 `json:"profit_total_abs"`
+	// ProfitTotal is a ratio (e.g. -0.00083, not -0.08) - there is no sibling
+	// "profit_total_pct" field at this (strategy) level, unlike best_pair/
+	// worst_pair below, which carry both. Verified directly against a real
+	// run's own result file: parseResultFile's formatPercent (not
+	// formatFloat) is what turns this into the percentage BacktestResults
+	// reports.
+	ProfitTotal        float64            `json:"profit_total"`
 	Winrate            float64            `json:"winrate"`
 	MaxDrawdownAccount float64            `json:"max_drawdown_account"`
 	Sharpe             float64            `json:"sharpe"`
@@ -42,6 +52,49 @@ type freqtradeStrategyStats struct {
 
 type freqtradePairStat struct {
 	Key string `json:"key"`
+}
+
+// readResultBytes returns the raw bytes of freqtrade's own
+// backtest-result-<ts>.json, whether path points at that file directly or -
+// confirmed directly against a real run's own output, not assumed - at the
+// backtest-result-<ts>.zip archive .last_result.json actually names by
+// default. The results JSON inside that zip always shares the zip's own
+// basename (only the extension differs), alongside a same-prefixed
+// _config.json (a config echo, not results - reading whichever .json
+// happened to come first would silently pick the wrong one) and per-run
+// .py/.feather files this package has no use for.
+func readResultBytes(path string) ([]byte, error) {
+	if !strings.HasSuffix(path, ".zip") {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", path, err)
+		}
+		return raw, nil
+	}
+
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, fmt.Errorf("opening %s as a zip: %w", path, err)
+	}
+	defer func() { _ = r.Close() }()
+
+	entryName := strings.TrimSuffix(filepath.Base(path), ".zip") + ".json"
+	for _, f := range r.File {
+		if f.Name != entryName {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, fmt.Errorf("opening %s inside %s: %w", entryName, path, err)
+		}
+		defer func() { _ = rc.Close() }()
+		raw, err := io.ReadAll(rc)
+		if err != nil {
+			return nil, fmt.Errorf("reading %s inside %s: %w", entryName, path, err)
+		}
+		return raw, nil
+	}
+	return nil, fmt.Errorf("%s has no %s entry", path, entryName)
 }
 
 // parseResultFile reads and extracts a summary from one freqtrade result
@@ -56,9 +109,9 @@ type freqtradePairStat struct {
 // `omitempty` on BacktestResults anyway, so a zero value renders as
 // "not reported" rather than a misleading "0".
 func parseResultFile(path, strategyName string) (*freqtradev1beta1.BacktestResults, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := readResultBytes(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading %s: %w", path, err)
+		return nil, err
 	}
 
 	var parsed freqtradeResultFile
@@ -74,7 +127,7 @@ func parseResultFile(path, strategyName string) (*freqtradev1beta1.BacktestResul
 	results := &freqtradev1beta1.BacktestResults{
 		TotalTrades:    stats.TotalTrades,
 		ProfitAbs:      formatFloat(stats.ProfitTotalAbs),
-		ProfitPct:      formatFloat(stats.ProfitTotalPct),
+		ProfitPct:      formatPercent(stats.ProfitTotal),
 		WinRatePct:     formatPercent(stats.Winrate),
 		MaxDrawdownPct: formatPercent(stats.MaxDrawdownAccount),
 		SharpeRatio:    formatFloat(stats.Sharpe),
