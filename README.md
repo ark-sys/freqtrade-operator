@@ -2,6 +2,14 @@
 
 A Kubernetes operator for managing FreqTrade cryptocurrency trading bots.
 
+> **Disclaimer.** This software deploys and manages automated cryptocurrency trading systems. Running any of these
+> resources with `dry_run: false` and real exchange credentials places real funds at risk of loss through strategy
+> behavior, exchange conditions, software defects, or misconfiguration. The maintainers and contributors provide this
+> software "as is", without warranty of any kind (see [LICENSE](LICENSE)), and are not responsible for financial
+> losses incurred through its use. You are solely responsible for the strategies you run, the credentials you grant
+> this operator, and the funds under their control. See [SECURITY.md](SECURITY.md) for the threat model this design
+> assumes.
+
 ## Overview
 
 The FreqTrade Operator provides a Kubernetes-native way to deploy and manage FreqTrade bots. It introduces custom resources for all FreqTrade components and handles the deployment and configuration of the bots.
@@ -18,16 +26,35 @@ Key features:
 The operator consists of the following components:
 
 1. **Custom Resource Definitions (CRDs)**:
-   - `TradeBot`: Main resource for deploying a FreqTrade bot
-   - `TradeBotConfig`: Configuration file for a TradeBot
-   - `Strategy`: Python script of the Strategy run by the bot
-   - `FreqUI`: Web interface for monitoring and managing the bot
+   - `TradeBot` (`v1beta1`, trade-only): the live bot - a StatefulSet bound to its referenced `TradeBotConfig` and
+     `Strategy`. `v1alpha1` is still served for compatibility, converted transparently; see
+     [Deploying a TradeBot](#deploying-a-tradebot).
+   - `TradeBotConfig`: the rendered `config.json` a `TradeBot` or `Backtest` runs with
+   - `Strategy`: the Python strategy script a bot or run executes
+   - `FreqUI`: web interface for monitoring and managing bots
+   - `Backtest` (`v1beta1`): a one-shot backtesting run, with its own results PVC and extracted summary; see
+     [Backtest runs](#backtest-runs-v1beta1)
 
-2. **Controllers**:
-   - `TradeBotController`: Manages the lifecycle of TradeBot resources
-   - `TradeBotConfigController`: Manages the lifecycle of TradeBotConfig resources.
-   - `StrategyController`: Manages the lifecycle of Strategy resources.
-   - `FreqUIController`: Manages the lifecycle of FreqUI resources and updates CORS settings on referenced TradeBots.
+2. **Controllers**: one per CRD above, each owning that resource's lifecycle - `TradeBot`'s also renders CORS/JWT
+   config from referencing `FreqUI` resources, and runs a leader-only background poller for
+   [bot introspection](#bot-introspection).
+
+## Namespace model
+
+Every cross-resource reference this operator follows - `TradeBot.spec.strategyRef`/`.configRef`,
+`Backtest.spec.strategyRef`/`.configRef`, `FreqUI.spec.tradeBotRefs`, every `secretRef` - is **same-namespace-only**.
+A `TradeBot` cannot reference a `Strategy`, `TradeBotConfig`, or credential `Secret` in a different namespace than
+its own. This is a deliberate design decision (D3), not a current limitation waiting to be lifted: it keeps RBAC
+boundaries meaningful (a `Role` scoped to one namespace is a real security boundary, not one an object's own spec
+can silently reach past) and keeps every reference resolvable with a plain namespaced `Get` - no cluster-scoped
+lookup, and no admission-time check that has to reason about a second namespace's RBAC to decide whether a
+reference is even allowed.
+
+**Recommended pattern:** one namespace per trading environment, not per bot - e.g. `trading-prod`,
+`trading-staging`, `trading-backtest`. Bots, their configs, strategies, and credential Secrets that belong together
+live together; environments that shouldn't be able to affect each other (most importantly, staging and prod
+sharing no namespace at all) are isolated by the same boundary Kubernetes RBAC already uses, with no extra
+mechanism this operator has to enforce on your behalf.
 
 ## Prerequisites
 
@@ -41,12 +68,13 @@ The operator consists of the following components:
 ### Using pre-built images
 
 ```bash
-# Apply CRDs
-kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/crds.yaml
-
-# Deploy the operator
-kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/operator.yaml
+kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/install.yaml
 ```
+
+`install.yaml` is a one-file install - CRDs, RBAC, webhooks, and the operator Deployment together, built by
+`make build-installer` against the exact image the same release job builds, signs, and pushes. The CRDs alone are
+also published separately as `freqtrade-operator-crds.tar.gz`, for anyone managing RBAC/Deployment themselves (e.g.
+via the Helm chart below) but still wanting the plain CRD YAMLs.
 
 Every image the release workflow pushes is signed with [cosign](https://docs.sigstore.dev/) (keyless, via GitHub Actions'
 own OIDC identity - no key to fetch or trust out of band) and ships an SPDX SBOM as a release asset. Verify an image with:
@@ -78,6 +106,16 @@ make deploy IMG=your-registry/freqtrade-operator:latest
 ```
 
 ### Using Helm
+
+The Helm chart is published to GHCR as an OCI artifact on every release (`.github/workflows/helm-release.yml`):
+
+```bash
+helm install freqtrade-operator oci://ghcr.io/ark-sys/freqtrade-operator --version <chart-version>
+```
+
+The same workflow also publishes a traditional chart repository via GitHub Pages, but that requires Pages to be
+enabled for this repository first (not yet done as of this writing - `https://ark-sys.github.io/freqtrade-operator/`
+currently 404s). Once it is:
 
 ```bash
 helm repo add ark-sys https://ark-sys.github.io/freqtrade-operator/
@@ -171,6 +209,48 @@ To enable this mode, the `trade` command must be provided with the `--freqaimode
 
 This command materializes the TradeBot resource as a StatefulSet that binds configuration and strategy from referenced resources.
 Also, this resource will look for annotation to determine if a GPU is to be used. If a GPU is available, the TradeBot container will be setup with GPU support.
+
+## Upgrading to v1beta1
+
+This only matters if you have an existing install from before the `v1beta1` split (P6-4/P6-5) - if this is a fresh
+install, skip to [Installation](#installation).
+
+**Trade-mode TradeBots need no action.** `v1alpha1` is still served, and every existing trade-mode TradeBot
+(`spec.freqtrade_command` unset or `trade`) converts to and from `v1beta1` transparently. Upgrade the operator and
+they keep reconciling exactly as before.
+
+**Job-mode TradeBots (`backtesting`/`hyperopt`/`plot`) need migrating first.** Find them before you upgrade:
+
+```bash
+kubectl get tradebots -A -o json | \
+  jq -r '.items[] | select(.spec.freqtrade_command != null and .spec.freqtrade_command != "trade") | "\(.metadata.namespace)/\(.metadata.name): \(.spec.freqtrade_command)"'
+```
+
+For each one, recreate it as a [Backtest](#backtest-runs-v1beta1) (the same run, expressed as a dedicated one-shot
+resource instead of a mode on a live bot - see [Deploying a TradeBot](#deploying-a-tradebot) for why), then delete
+the old Job-mode TradeBot. Do this *before* upgrading, not after: once the operator's CRDs are updated,
+`v1beta1` becomes the storage version, and `v1beta1` has no representation for Job mode at all
+(`api/v1alpha1/tradebot_conversion.go`'s `ConvertTo` rejects it outright). A Job-mode object left in place still
+reads back fine immediately after the upgrade - the controller's own `Get` requests `v1alpha1` and needs no actual
+conversion for an object still stored as `v1alpha1` bytes - which is exactly why the reconciler carries a second,
+explicit rejection for it (see the `3.5` step in [controllers/tradebot/main.go](controllers/tradebot/main.go)).
+But any write that has to round-trip that object through `v1beta1` storage, including the status patch the
+reconciler itself issues to report that rejection, hits the same conversion error - so an un-migrated Job-mode
+TradeBot doesn't fail cleanly with a friendly `ReasonJobModeRemoved` message, it gets stuck retrying a conversion
+error every few seconds instead. Migrating first avoids this path entirely.
+
+**Upgrading the CRDs themselves, via Helm:** `helm upgrade` never touches the contents of a chart's `crds/`
+directory - that's a deliberate Helm limitation (CRDs are treated as install-once, cluster-scoped, too risky to
+prune automatically), not specific to this chart. Apply the new CRDs yourself before or as part of every upgrade:
+
+```bash
+kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/freqtrade-operator-crds.tar.gz
+helm upgrade freqtrade-operator oci://ghcr.io/ark-sys/freqtrade-operator --version <chart-version>
+```
+
+(fetch and extract the tarball first - `kubectl apply -f <url>` doesn't unpack `.tar.gz` on its own). The
+`install.yaml` path (`kubectl apply -f .../install.yaml`) already includes the CRDs on every apply, so a plain
+re-apply is sufficient there.
 
 ## Config changes and restarts
 
@@ -367,6 +447,79 @@ mounting it from another pod.
 > best-effort reading of freqtrade's own result JSON, not verified against a real run's output file - if extraction
 > is silently landing on `ResultsUnavailable` for successful runs, this is the first place to check
 > ([controllers/backtest/collectresults/parse.go](controllers/backtest/collectresults/parse.go)).
+
+### Running many backtests and comparing results
+
+Because a `Backtest`'s spec is immutable and its name is its identity, sweeping a parameter is just applying one
+`Backtest` per value you want to try, then reading their `status.results` back - there's no in-place "edit and
+rerun" step to serialize on:
+
+```bash
+for tf in 5m 15m 1h; do
+  cat <<EOF | kubectl apply -f -
+apiVersion: freqtrade.io/v1beta1
+kind: Backtest
+metadata:
+  name: sample-strategy-tf-${tf}
+  labels:
+    app: sample-strategy
+spec:
+  configRef: {name: my-tradebotconfig}
+  strategyRef: {name: my-strategy}
+  timerange: "20230101-20230201"
+  timeframe: ${tf}
+  stakeAmount: unlimited
+EOF
+done
+
+# Jobs run in parallel (subject to whatever your cluster/namespace resource
+# quota allows) - poll until every run has left Pending/Running:
+kubectl get backtests -l app=sample-strategy -w
+
+# status.results is printed as columns directly - no need to dig into YAML
+# for the common case of eyeballing which run did best:
+kubectl get backtests -l app=sample-strategy \
+  -o custom-columns='NAME:.metadata.name,TRADES:.status.results.totalTrades,PROFIT:.status.results.profitAbs,WINRATE:.status.results.winRatePct'
+```
+
+Give related runs a shared label (`app=sample-strategy` above, or whatever grouping makes sense for your sweep) when
+you create them - `Backtest` doesn't group runs into a "study" or "experiment" object of its own, so a label
+selector is the mechanism for finding everything that belongs to one comparison later.
+
+Each `Backtest` gets its own results PVC (`spec.results.size`, default namespace storage class unless overridden),
+which by default is deleted along with the `Backtest` (`spec.results.retentionPolicy: Delete`). Runs accumulate -
+there is currently no cluster-wide pruning of old `Backtest` objects or their PVCs (D10) - so clean up runs you no
+longer need with `kubectl delete backtest -l ...` once you've captured what you wanted from `status.results`, rather
+than leaving a sweep's full history to grow unbounded.
+
+`Hyperopt` (parameter optimization, rather than a single fixed-parameter run) is not implemented yet - `Backtest`
+ships alone in the first `v1beta1` release by design (D7), with `Hyperopt` following as its own CRD in a later
+minor once `Backtest` has real operating experience behind it.
+
+## Production checklist
+
+A few things worth deciding deliberately before pointing any of this at a real exchange account, gathered from
+sections above:
+
+- **Resource limits.** Every TradeBot pod gets a default `resources` block (100m/1 CPU request/limit, 256Mi/1Gi
+  memory) via `spec.app.pod.resources` if left unset - enough to keep the container out of `BestEffort` QoS, not
+  necessarily enough for every strategy. A FreqAI bot in particular should set its own, larger `spec.app.pod.resources`
+  explicitly; the default is sized for a plain trade-mode bot.
+- **Trades-DB PVC backups.** Each bot's `tradesv3.sqlite` lives on its own PVC (`<tradebot-name>-user-data`, 1Gi on
+  the `standard` storage class by default, overridable via `spec.app.pvc`) - it is not covered by anything in
+  [Config Secret backups](#config-secret-backups), which only concerns the *credential* Secret. Losing this PVC
+  loses trade history and open-position bookkeeping, not funds directly, but back it up like any other stateful
+  data your incident response would want after a node or cluster failure.
+- **Monitoring.** At minimum, alert on `freqtrade_bot_up == 0` (see [Bot introspection](#bot-introspection)) - it's
+  the one signal that means "this bot has gone quiet and the operator can no longer confirm what it's doing."
+  `freqtrade_operator_reconcile_errors_total` and the operator's own liveness/readiness are worth a second alert
+  tier: a struggling operator can't roll out config changes or report drift even while bots keep trading unaffected.
+- **Config-drift semantics.** Decide `spec.updateStrategy` per bot deliberately (see
+  [Config changes and restarts](#config-changes-and-restarts)) rather than leaving the default everywhere - `Manual`
+  (the default) is the right choice for anything holding open positions, since it never restarts a bot out from
+  under itself, but that also means a `TradeBotConfig` edit silently does nothing to the running bot until someone
+  acts on the `ConfigDrift` condition. Alert on `freqtrade_operator_config_drift == 1` if a stale-but-unnoticed
+  config is a risk for your bots.
 
 ## Development
 
