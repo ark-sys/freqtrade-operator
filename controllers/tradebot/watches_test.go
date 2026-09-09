@@ -45,7 +45,7 @@ var _ = Describe("watching referenced TradeBotConfig/Strategy (P2-3)", func() {
 		Eventually(func(g Gomega) {
 			var secret corev1.Secret
 			g.Expect(k8sClient.Get(ctx, secretKey, &secret)).To(Succeed())
-			g.Expect(string(secret.Data["config.json"])).To(ContainSubstring(`"stake_amount": "100"`))
+			g.Expect(string(secret.Data["config.json"])).To(ContainSubstring(`"stake_amount": 100`))
 		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 
 		// Only the TradeBotConfig is touched from here on - if the Secret
@@ -59,7 +59,7 @@ var _ = Describe("watching referenced TradeBotConfig/Strategy (P2-3)", func() {
 		Eventually(func(g Gomega) {
 			var secret corev1.Secret
 			g.Expect(k8sClient.Get(ctx, secretKey, &secret)).To(Succeed())
-			g.Expect(string(secret.Data["config.json"])).To(ContainSubstring(`"stake_amount": "150"`))
+			g.Expect(string(secret.Data["config.json"])).To(ContainSubstring(`"stake_amount": 150`))
 		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 	})
 

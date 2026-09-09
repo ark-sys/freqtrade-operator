@@ -88,7 +88,7 @@ var _ = Describe("config drift (P2-4)", func() {
 		var secret corev1.Secret
 		secretKey := types.NamespacedName{Name: tradeBot.Name + "-config", Namespace: testNamespace}
 		Expect(k8sClient.Get(ctx, secretKey, &secret)).To(Succeed())
-		Expect(string(secret.Data["config.json"])).To(ContainSubstring(`"stake_amount": "200"`),
+		Expect(string(secret.Data["config.json"])).To(ContainSubstring(`"stake_amount": 200`),
 			"the Secret must be rewritten with the new config even though the workload isn't restarted yet")
 
 		var sts appsv1.StatefulSet

@@ -1,6 +1,8 @@
 package configbuilder
 
 import (
+	"strconv"
+
 	"github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
 
@@ -43,7 +45,7 @@ func BuildTradeBotConfig(
 			cfg["stake_currency"] = bot.StakeCurrency
 		}
 		if bot.StakeAmount != "" {
-			cfg["stake_amount"] = bot.StakeAmount
+			cfg["stake_amount"] = renderStakeAmount(bot.StakeAmount)
 		}
 		if bot.MaxOpenTrades != nil {
 			cfg["max_open_trades"] = *bot.MaxOpenTrades
@@ -432,4 +434,27 @@ func BuildTradeBotConfig(
 	}
 
 	return cfg, nil
+}
+
+// renderStakeAmount converts BotConfig.StakeAmount - a Kubernetes API string,
+// since the CRD field has to be a plain string type to accept freqtrade's own
+// "unlimited" keyword - into whatever JSON type freqtrade's own config schema
+// actually requires for the given value. freqtrade's schema types
+// stake_amount as `number` or `string`, but constrains the string variant to
+// match exactly "unlimited" - any other numeric-looking string (e.g. "100")
+// fails freqtrade's own config validation at startup with "does not match
+// 'unlimited'", since a quoted JSON string is never a number no matter what
+// characters it contains. Verified directly: a real TradeBot pod with
+// stake_amount: "100" crash-looped on exactly that error before this fix.
+func renderStakeAmount(raw string) interface{} {
+	if raw == "unlimited" {
+		return raw
+	}
+	if f, err := strconv.ParseFloat(raw, 64); err == nil {
+		return f
+	}
+	// Not a number and not "unlimited" - pass through as-is; freqtrade's own
+	// config validation will reject it with a clear error rather than this
+	// function guessing at a fallback that might silently mask a typo.
+	return raw
 }
