@@ -28,4 +28,7 @@ func TestBuildSecret(t *testing.T) {
 	if secret.StringData["config.json"] != secretData["config.json"] {
 		t.Errorf("expected StringData to round-trip, got %v", secret.StringData)
 	}
+	if secret.Labels[ContainsCredentialsLabel] != "true" {
+		t.Errorf("expected %s=true so backup tooling can exclude it, got %v", ContainsCredentialsLabel, secret.Labels)
+	}
 }

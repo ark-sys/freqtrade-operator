@@ -201,8 +201,32 @@ once you've confirmed the change is safe to apply.
 `TradeBot.status.appliedConfigHash` always reflects the hash of the config currently rendered into the Secret, whether or
 not it has been rolled out to the running pods yet.
 
+## Config Secret backups
 
+The rendered `config.json` Secret (`<tradebot-name>-config`) necessarily contains live exchange API keys - every Secret
+this operator creates for a TradeBot carries the label `freqtrade.io/contains-credentials: "true"` so a backup tool can
+be configured to exclude it, e.g. with [Velero](https://velero.io/)'s label selectors:
 
+```bash
+velero backup create my-backup --exclude-namespaces freqtrade --selector 'freqtrade.io/contains-credentials!=true'
+```
+
+or the equivalent label-exclusion option in Kasten, Stash, or whatever your cluster uses.
+
+**Recommended production topology:** keys still land in etcd unencrypted unless the cluster has
+[encryption at rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/) enabled. For clusters that need
+credentials to never touch etcd at all, point `secretRef` at a Secret synced from your vault by the
+[External Secrets Operator](https://external-secrets.io/) or mounted via a
+[CSI Secret Store driver](https://secrets-store-csi-driver.sigs.k8s.io/) instead of a plain `kubectl apply`'d one - this
+operator only ever reads the Secret by name, so either integrates transparently. Neither is wired up by this chart; both
+are worth evaluating for anything beyond local/dev use.
+
+The rendered Secret is deliberately *not* `immutable: true` + named by `status.appliedConfigHash`, even though the hash
+is already computed and available (see above). Doing that would mean a config change creates a new Secret object rather
+than updating the existing one, which would need the StatefulSet's volume reference - not just the config-hash annotation
+- to move in step with `spec.updateStrategy`, coupling the Secret's identity to the same Manual/Auto gating its *content*
+already goes through independently. That's a real feature, not a rejected idea, but it's a bigger one than "harden the
+Secret" implies - revisit it if immutable audit trails for the config Secret specifically become a real requirement.
 
 
 ## Development
