@@ -91,6 +91,17 @@ aid, not a substitute for actually reading what changed.
   image default (`registry.horizonscloud.ovh/...`) that wasn't the image releases actually publish to; a
   hardcoded wrong GitHub org (`freqtrade.github.io` / `ghcr.io/freqtrade`) in the Helm release workflow and every
   Helm chart example/doc file.
+- `release.yml` pushed the manager image to Docker Hub (`arksys/freqtrade-operator`) via `DOCKER_USERNAME`/
+  `DOCKER_PASSWORD` secrets that were never actually provisioned on the repo, so the release workflow failed
+  outright on every run. Switched to GHCR (`ghcr.io/ark-sys/freqtrade-operator`), authenticating with the
+  ambient `GITHUB_TOKEN` the same way `helm-release.yml` already did for the chart - no registry secrets to
+  provision or rotate.
+- `config/default/kustomization.yaml`'s cert-manager CA-injection `replacements` only ever targeted
+  `tradebots.freqtrade.io`. B2/B3's conversion webhooks for `TradeBotConfig`/`Strategy`/`FreqUI` never got a
+  matching entry, so their CRDs kept the literal unsubstituted `CERTIFICATE_NAMESPACE/CERTIFICATE_NAME`
+  placeholder forever and `spec.conversion.webhook.clientConfig.caBundle` never populated - every create/update
+  of a `TradeBotConfig` or `Strategy` failed outright with a TLS trust error on any real cluster. `make test`'s
+  envtest never exercises CA injection at all, which is why it went uncaught.
 
 ### Security
 - Plaintext credential fields (`TradeBotConfig` exchange/API-server/Telegram) are rejected by `v1alpha1`'s
@@ -111,6 +122,14 @@ aid, not a substitute for actually reading what changed.
   to itself, and `v1alpha1`'s admission webhook rejects any write to a `TradeBot` that has ever had `spec.state`
   set to `Stopped`, closing the same hole for a third-party `v1alpha1` writer (an old GitOps pipeline, a stray
   `kubectl edit`) the reconciler-side fix can't reach.
+- Four vulnerabilities `govulncheck` flagged as actually reachable from this code, not just present somewhere in
+  the dependency graph: a grpc-go HTTP/2 transport/xDS RBAC issue (GO-2026-6061), an `x/text` infinite loop on
+  invalid input (GO-2026-5970), an `x/net/idna` Punycode-validation bypass (GO-2026-5026), an HTTP/2
+  SETTINGS_MAX_FRAME_SIZE infinite loop (GO-2026-4918, also `x/net`), and a PATH-hijacking arbitrary-code-execution
+  issue in the OpenTelemetry Go SDK (GO-2026-4394). Fixed by bumping `google.golang.org/grpc`, `golang.org/x/net`,
+  `golang.org/x/text`, and the `go.opentelemetry.io/otel` family past their fixed versions - which in turn raised
+  this module's minimum Go version to 1.26 (`x/net`'s fix requires it), so `golangci-lint` also needed bumping to
+  a build that supports linting against it.
 - Release images are signed with cosign (keyless, via GitHub Actions OIDC) and ship an SPDX SBOM; the manager runs
   as a distroless, non-root image.
 
