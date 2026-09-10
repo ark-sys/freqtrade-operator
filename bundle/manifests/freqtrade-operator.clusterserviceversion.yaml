@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
-    createdAt: "2026-09-09T16:47:12Z"
+    createdAt: "2026-09-10T20:12:26Z"
     operators.operatorframework.io/builder: operator-sdk-v1.41.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
   name: freqtrade-operator.v0.0.1
@@ -19,12 +19,21 @@ spec:
     - kind: FreqUI
       name: frequis.freqtrade.io
       version: v1alpha1
+    - kind: FreqUI
+      name: frequis.freqtrade.io
+      version: v1beta1
     - kind: Strategy
       name: strategies.freqtrade.io
       version: v1alpha1
+    - kind: Strategy
+      name: strategies.freqtrade.io
+      version: v1beta1
     - kind: TradeBotConfig
       name: tradebotconfigs.freqtrade.io
       version: v1alpha1
+    - kind: TradeBotConfig
+      name: tradebotconfigs.freqtrade.io
+      version: v1beta1
     - kind: TradeBot
       name: tradebots.freqtrade.io
       version: v1alpha1
@@ -359,9 +368,12 @@ spec:
     - v1
     containerPort: 443
     conversionCRDs:
+    - frequis.freqtrade.io
+    - strategies.freqtrade.io
+    - tradebotconfigs.freqtrade.io
     - tradebots.freqtrade.io
     deploymentName: freqtrade-operator-controller-manager
-    generateName: ctradebots.kb.io
+    generateName: cfrequisstrategiestradebotconfigstradebots.kb.io
     sideEffects: None
     targetPort: 9443
     type: ConversionWebhook
@@ -446,3 +458,23 @@ spec:
     targetPort: 9443
     type: ValidatingAdmissionWebhook
     webhookPath: /validate-freqtrade-io-v1alpha1-tradebotconfig
+  - admissionReviewVersions:
+    - v1
+    containerPort: 443
+    deploymentName: freqtrade-operator-controller-manager
+    failurePolicy: Fail
+    generateName: vtradebotconfigv1beta1.kb.io
+    rules:
+    - apiGroups:
+      - freqtrade.io
+      apiVersions:
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - tradebotconfigs
+    sideEffects: None
+    targetPort: 9443
+    type: ValidatingAdmissionWebhook
+    webhookPath: /validate-freqtrade-io-v1beta1-tradebotconfig

@@ -41,6 +41,9 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: freqtrade.io/v1alpha1 TradeBot is deprecated; use freqtrade.io/v1beta1.
+      See https://github.com/ark-sys/freqtrade-operator#upgrading-to-v1beta1
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -5775,6 +5778,11 @@ spec:
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
               data:
+                description: |-
+                  Deprecated: no effect since v1beta1 - TradeBot is trade-only there and
+                  has no Job-mode pod to cache data for; use a Backtest instead. Absent
+                  from v1beta1 entirely; kept here only because it's a served v1alpha1
+                  field.
                 properties:
                   downloadArgs:
                     description: |-
@@ -5894,8 +5902,15 @@ spec:
                     type: boolean
                   lastPollError:
                     description: |-
-                      LastPollError is the most recent poll failure's message, or empty
-                      after a successful poll.
+                      LastPollError is either the most recent poll failure's message (the
+                      whole poll failed - BotReachable is False and the rest of this
+                      struct is stale, unchanged from before this attempt), or a note
+                      about which best-effort fields (OpenTrades/MaxOpenTrades,
+                      TotalProfitAbs/TotalProfitPct, the freqtrade_bot_balance metric)
+                      could not be refreshed on an otherwise-successful poll (BotReachable
+                      is True and everything else here is fresh) - e.g. a reachable bot
+                      that isn't currently running. Empty after a poll that refreshed
+                      everything.
                     type: string
                   lastPollTime:
                     description: |-
@@ -5909,9 +5924,12 @@ spec:
                     type: integer
                   state:
                     description: |-
-                      State is freqtrade's own run state: running, stopped, or unknown
-                      (the operator either hasn't polled successfully yet, or the bot's
-                      api_server isn't reachable/configured - see BotReachable for why).
+                      State is freqtrade's own run state, from a successful poll's
+                      show_config response: running or stopped. Stopped is a normal,
+                      deliberate operational state (BotReachable stays True for it - see
+                      pollWithClient) - not a failure, and not the same thing as
+                      unreachable. unknown means the operator has never completed a poll
+                      that reached show_config at all; check BotReachable for why.
                     enum:
                     - running
                     - stopped
@@ -11774,6 +11792,22 @@ spec:
                     default: 60s
                     type: string
                 type: object
+              state:
+                default: Running
+                description: |-
+                  State is the bot's desired run state (P4-4, D9): Running (the
+                  default) or Stopped. Continuously reconciled by the TradeBot
+                  controller against status.bot.state (populated by the poller,
+                  P4-3) via POST /api/v1/start or /api/v1/stop - not just applied
+                  once, since a bot that crashes and restarts comes back Running and
+                  must be re-stopped without anyone asking again. v1alpha1 has no
+                  equivalent field at all - see tradebot_conversion.go's own note on
+                  why every write this reconciler makes to a TradeBot's own
+                  spec/metadata goes through this v1beta1 type instead.
+                enum:
+                - Running
+                - Stopped
+                type: string
               strategyRef:
                 description: |-
                   StrategyRef references the Strategy this bot runs, same namespace
