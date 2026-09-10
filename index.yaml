@@ -1,0 +1,32 @@
+apiVersion: v1
+entries:
+  freqtrade-operator:
+  - annotations:
+      category: Trading
+      licenses: Apache-2.0
+    apiVersion: v2
+    appVersion: v20260910-c63f08f
+    created: "2026-09-10T06:52:34.27442228Z"
+    description: A Helm chart for deploying the Freqtrade Operator and its Custom
+      Resource Definitions
+    digest: eb791d2eb749cede76a1d24f84785e4f5ed21431614cbc6156a5072d889fb200
+    home: https://github.com/ark-sys/freqtrade-operator
+    keywords:
+    - freqtrade
+    - trading
+    - cryptocurrency
+    - operator
+    - kubernetes
+    - controller
+    kubeVersion: '>=1.29.0-0'
+    maintainers:
+    - name: Khaled Arsalane
+      url: https://github.com/ark-sys
+    name: freqtrade-operator
+    sources:
+    - https://github.com/ark-sys/freqtrade-operator
+    type: application
+    urls:
+    - https://ark-sys.github.io/freqtrade-operator/freqtrade-operator-0.1.0-dev.20260910.c63f08f.tgz
+    version: 0.1.0-dev.20260910.c63f08f
+generated: "2026-09-10T06:52:34.266450108Z"
