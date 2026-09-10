@@ -105,12 +105,22 @@ func TestTradeBotConvertRoundTrip_AlphaToBeta(t *testing.T) {
 // starting from v1beta1 (the shape a v1beta1-native client would actually
 // send) must round-trip cleanly too, since ConvertFrom never rejects
 // anything (a v1beta1 TradeBot is always representable in v1alpha1 - trade
-// mode was always v1alpha1's own default).
+// mode was always v1alpha1's own default). Spec.State (P4-4) is the one
+// deliberate exception, the mirror image of AlphaToBeta's
+// FreqtradeCommand/FreqtradeArguments/Data: v1alpha1 has no field for it
+// at all, so it can't survive a round trip through it - alternating
+// between the two real enum values (rather than the fuzzer's raw random
+// string) exercises the actual lossy case meaningfully.
 func TestTradeBotConvertRoundTrip_BetaToAlpha(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		original := &v1beta1.TradeBot{}
 		tradeBotFuzzer(int64(i)).Fill(original)
 		original.TypeMeta = metav1.TypeMeta{} // not part of any conversion function's contract - see this test's own doc comment
+		if i%2 == 0 {
+			original.Spec.State = v1beta1.TradeBotStateRunning
+		} else {
+			original.Spec.State = v1beta1.TradeBotStateStopped
+		}
 
 		converted := &TradeBot{}
 		if err := converted.ConvertFrom(original); err != nil {
@@ -122,8 +132,10 @@ func TestTradeBotConvertRoundTrip_BetaToAlpha(t *testing.T) {
 			t.Fatalf("iteration %d: ConvertTo failed converting back: %v", i, err)
 		}
 
-		if !apiequality.Semantic.DeepEqual(original, roundTripped) {
-			t.Errorf("iteration %d: round trip mismatch.\noriginal:  %+v\nroundtrip: %+v", i, original, roundTripped)
+		want := original.DeepCopy()
+		want.Spec.State = "" // has no v1alpha1 representation - see this test's own doc comment
+		if !apiequality.Semantic.DeepEqual(want, roundTripped) {
+			t.Errorf("iteration %d: round trip mismatch.\noriginal:  %+v\nroundtrip: %+v", i, want, roundTripped)
 		}
 	}
 }

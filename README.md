@@ -403,7 +403,8 @@ directly, or adapt it.
 ## Bot introspection
 
 The operator polls each trade-mode bot's own freqtrade REST API on a schedule and surfaces what it learns in
-`status.bot` and as Prometheus metrics - read-only: nothing here can start, stop, or otherwise act on a bot.
+`status.bot` and as Prometheus metrics - read-only, in the sense that nothing here **acts** on a bot: starting or
+stopping one is a separate, deliberate capability, [below](#bot-state-control).
 
 ```yaml
 spec:
@@ -442,6 +443,32 @@ unbounded across a namespace's bot lifecycle.
 
 Only the leader replica polls; polling never runs inside the reconcile loop, so a slow or hung bot can't stall
 reconciliation of any TradeBot, including itself.
+
+## Bot state control
+
+`TradeBot.spec.state` (`v1beta1` only) starts or stops a live bot's trading loop without restarting it - the
+operator continuously reconciles it, so a bot that crashes and comes back up is re-stopped without you having to
+ask again:
+
+```yaml
+spec:
+  state: Stopped   # default: Running
+```
+
+This calls freqtrade's own `/api/v1/start`/`/api/v1/stop` - stopping means no new entries; any trade already open is
+left to exit on its own configured signals, exactly like stopping a bot by hand through the freqtrade UI or API.
+It's not the same thing as [Bot introspection](#bot-introspection) above (which only observes), and not the same as
+`TradeBotConfig`'s `spec.advanced.initial_state`, which only sets a bot's state at startup, in `config.json` -
+`spec.state` is for changing a **running** bot's state without the restart that avoiding open positions is the
+whole point of.
+
+The operator only ever calls start/stop - never anything that opens or closes a position (force-exiting,
+force-buying, or force-entering a trade); those stay with you. It also never acts on a bot it can't currently
+reach: if `BotReachable` is `False`, `StateReconciled` reports `False`/`BotUnreachable` instead of retrying
+blindly, and resumes once the next poll confirms the bot is back.
+
+`spec.state` exists only on `v1beta1` - see [Upgrading to v1beta1](#upgrading-to-v1beta1) if you're still creating
+TradeBots as `v1alpha1`: once you set it, that object can only be edited via `v1beta1` from then on.
 
 ## Backtest runs (v1beta1)
 

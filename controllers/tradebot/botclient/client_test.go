@@ -29,6 +29,16 @@ func TestClient_HappyPath(t *testing.T) {
 			_, _ = w.Write([]byte(`{"profit_all_coin":12.5,"profit_all_percent":3.2}`))
 		case "/api/v1/balance":
 			_, _ = w.Write([]byte(`{"total":1042.75}`))
+		case "/api/v1/start":
+			if r.Method != http.MethodPost {
+				t.Errorf("Start: expected POST, got %s", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"status":"starting trader ..."}`))
+		case "/api/v1/stop":
+			if r.Method != http.MethodPost {
+				t.Errorf("Stop: expected POST, got %s", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"status":"stopping trader ..."}`))
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -61,6 +71,12 @@ func TestClient_HappyPath(t *testing.T) {
 	balance, err := c.Balance(ctx)
 	if err != nil || balance.Total != 1042.75 {
 		t.Errorf("Balance: got (%+v, %v)", balance, err)
+	}
+	if err := c.Start(ctx); err != nil {
+		t.Errorf("Start: unexpected error: %v", err)
+	}
+	if err := c.Stop(ctx); err != nil {
+		t.Errorf("Stop: unexpected error: %v", err)
 	}
 }
 

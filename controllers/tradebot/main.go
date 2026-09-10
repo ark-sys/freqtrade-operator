@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
+	"github.com/ark-sys/freqtrade-operator/controllers/tradebot/botclient"
 	"github.com/ark-sys/freqtrade-operator/controllers/tradebotconfig/configbuilder"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
@@ -222,9 +223,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				// TradeBot's reconciliation too.
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
-			var latestTradeBot freqtradev1alpha1.TradeBot
+			// Fetched and updated as v1beta1, not tradeBot's own v1alpha1
+			// copy (P4-4): v1alpha1 has no Spec.State field at all, so a
+			// v1alpha1 Update round-trips the whole object through a
+			// conversion that silently resets any v1beta1-only field back
+			// to its CRD default - verified directly, this reset a Stopped
+			// bot back to Running. Every write this reconciler makes to a
+			// TradeBot's own spec/metadata goes through v1beta1 for
+			// exactly this reason; reads of fields v1alpha1 still carries
+			// (Config, Strategy, App, ...) keep using tradeBot above.
+			var latestTradeBotBeta freqtradev1beta1.TradeBot
 			latestKey := client.ObjectKey{Namespace: tradeBot.Namespace, Name: tradeBot.Name}
-			if getErr := r.Get(ctx, latestKey, &latestTradeBot); getErr != nil {
+			if getErr := r.Get(ctx, latestKey, &latestTradeBotBeta); getErr != nil {
 				if errors.IsNotFound(getErr) {
 					logger.V(2).Info("TradeBot resource not found during finalizer removal, ignoring")
 					return ctrl.Result{}, nil
@@ -233,13 +243,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				logger.V(2).Info("Requeue requested", "reason", "finalizer removal get error", "error", getErr)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, getErr
 			}
-			controllerutil.RemoveFinalizer(&latestTradeBot, BotFinalizer)
-			if err := r.Update(ctx, &latestTradeBot); err != nil {
+			controllerutil.RemoveFinalizer(&latestTradeBotBeta, BotFinalizer)
+			if err := r.Update(ctx, &latestTradeBotBeta); err != nil {
 				logger.V(1).Error(err, "Failed to remove finalizer from TradeBot")
 				logger.V(2).Info("Requeue requested", "reason", "finalizer update error", "error", err)
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 			}
-			logger.V(1).Info("Finalizer removed from TradeBot", "name", latestTradeBot.Name)
+			logger.V(1).Info("Finalizer removed from TradeBot", "name", latestTradeBotBeta.Name)
 		}
 		logger.V(1).Info("TradeBot deletion handling complete", "name", tradeBot.Name)
 		return ctrl.Result{}, nil
@@ -248,8 +258,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// 3. Add finalizer if it doesn't exist
 	if !controllerutil.ContainsFinalizer(&tradeBot, BotFinalizer) {
 		logger.V(1).Info("Adding finalizer to TradeBot", "name", tradeBot.Name)
-		controllerutil.AddFinalizer(&tradeBot, BotFinalizer)
-		if err := r.Update(ctx, &tradeBot); err != nil {
+		// v1beta1, not tradeBot's own v1alpha1 copy - see the identical
+		// note on the finalizer-removal Get below.
+		var tradeBotBeta freqtradev1beta1.TradeBot
+		if err := r.Get(ctx, req.NamespacedName, &tradeBotBeta); err != nil {
+			logger.V(1).Error(err, "Failed to get TradeBot as v1beta1 to add finalizer")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, client.IgnoreNotFound(err)
+		}
+		controllerutil.AddFinalizer(&tradeBotBeta, BotFinalizer)
+		if err := r.Update(ctx, &tradeBotBeta); err != nil {
 			logger.V(1).Error(err, "Failed to add finalizer to TradeBot")
 			logger.V(2).Info("Requeue requested", "reason", "add finalizer error", "error", err)
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, err
@@ -415,9 +432,156 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		newConfigHash:     outcome.appliedConfigHash,
 	})
 
+	// 9. Reconcile spec.state (P4-4). v1beta1-only (see reconcileState's
+	// own doc comment on why this needs its own fetch), compared
+	// continuously against the poller's own observation, never applied
+	// once - a bot that crashes and restarts comes back Running and must
+	// be re-stopped without anyone asking again.
+	requeueAfter, err := r.reconcileStateAndComputeRequeue(ctx, req.NamespacedName, &tradeBot, workload.requeueAfter)
+	if err != nil {
+		logger.Error(err, "Failed to reconcile bot state")
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, err
+	}
+
 	logger.V(1).Info("TradeBot reconciliation completed successfully",
 		"name", tradeBot.Name, "phase", tradeBot.Status.Phase, "message", message)
-	return ctrl.Result{RequeueAfter: workload.requeueAfter}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
+}
+
+// reconcileStateAndComputeRequeue fetches the TradeBot fresh as v1beta1,
+// reconciles spec.state against it, and folds the result into
+// defaultRequeueAfter - the shorter of the two wins, so a just-issued
+// state change gets re-verified sooner than the routine interval.
+// Extracted from Reconcile purely to keep its own cyclomatic complexity
+// down; there's no other reason to split it here.
+func (r *Reconciler) reconcileStateAndComputeRequeue(
+	ctx context.Context, key client.ObjectKey, tradeBot *freqtradev1alpha1.TradeBot, defaultRequeueAfter time.Duration,
+) (time.Duration, error) {
+	var tradeBotBeta freqtradev1beta1.TradeBot
+	if err := r.Get(ctx, key, &tradeBotBeta); err != nil {
+		return defaultRequeueAfter, client.IgnoreNotFound(err)
+	}
+	stateChangeRequeue, err := r.reconcileState(ctx, tradeBot, &tradeBotBeta)
+	if err != nil {
+		return 0, err
+	}
+	if stateChangeRequeue > 0 && (defaultRequeueAfter == 0 || stateChangeRequeue < defaultRequeueAfter) {
+		return stateChangeRequeue, nil
+	}
+	return defaultRequeueAfter, nil
+}
+
+// reconcileState compares tradeBotBeta.Spec.State (Running|Stopped,
+// v1beta1-only, P4-4) against tradeBot.Status.Bot.State (the poller's most
+// recent observation, P4-3) and, on a mismatch with a reachable bot,
+// delegates to reconcileStateChange to actually issue the call. Split out
+// specifically so tests can exercise reconcileStateChange directly against
+// an httptest.Server - the same reason poll/pollWithClient are split
+// (P4-3): a real bot's base URL is in-cluster DNS, which nothing in a unit
+// test can make resolve to a local test server.
+func (r *Reconciler) reconcileState(
+	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot, tradeBotBeta *freqtradev1beta1.TradeBot,
+) (time.Duration, error) {
+	desired := tradeBotBeta.Spec.State
+	if desired == "" {
+		// +kubebuilder:default=Running: a plain Get doesn't backfill CRD
+		// defaults onto an in-memory struct for an object stored before
+		// this field existed, so an explicit fallback is still needed here.
+		desired = freqtradev1beta1.TradeBotStateRunning
+	}
+
+	if !meta.IsStatusConditionTrue(tradeBot.Status.Conditions, freqtradev1alpha1.ConditionBotReachable) {
+		// Never retry-storm an unreachable bot (P4-4): rely entirely on
+		// the poller's own backoff to eventually flip BotReachable, rather
+		// than probing the bot a second way on top of it.
+		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
+				Reason:  freqtradev1alpha1.ReasonBotUnreachable,
+				Message: "Bot is unreachable; desired state cannot be verified or enforced",
+			})
+		})
+	}
+
+	observed := "unknown"
+	if tradeBot.Status.Bot != nil {
+		observed = tradeBot.Status.Bot.State
+	}
+	if (desired == freqtradev1beta1.TradeBotStateRunning && observed == "running") ||
+		(desired == freqtradev1beta1.TradeBotStateStopped && observed == "stopped") {
+		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionTrue,
+				Reason: freqtradev1alpha1.ReasonAsExpected,
+			})
+		})
+	}
+
+	username, password, _, err := resolveCredentials(ctx, r.Client, tradeBot)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "Failed to resolve credentials for state reconciliation")
+		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
+				Reason: freqtradev1alpha1.ReasonStateChangeFailed, Message: err.Error(),
+			})
+		})
+	}
+
+	return r.reconcileStateChange(ctx, tradeBot, botclient.New(botBaseURL(tradeBot), username, password), desired)
+}
+
+// reconcileStateChange issues exactly one start or stop call to align a
+// reachable bot's actual state with desired, then records the outcome -
+// success (an Event, plus StateChangePending, since only the next poll
+// actually confirms it landed) or failure (a Warning Event, plus
+// StateChangeFailed) - into StateReconciled. "Requeue to re-verify, do not
+// fire-and-forget," per the plan's own instruction: the returned duration
+// is non-zero exactly when a call was just issued, so the caller re-checks
+// once the poller's next poll has had a chance to confirm it.
+//
+// Hard scope boundary: start and stop only, via botClient's own Start/Stop
+// - never anything that opens or closes a position on the human's behalf.
+func (r *Reconciler) reconcileStateChange(
+	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot, botClient *botclient.Client, desired string,
+) (time.Duration, error) {
+	logger := log.FromContext(ctx)
+
+	action, eventReason := "start", "BotStarted"
+	var callErr error
+	if desired == freqtradev1beta1.TradeBotStateStopped {
+		action, eventReason = "stop", "BotStopped"
+		callErr = botClient.Stop(ctx)
+	} else {
+		callErr = botClient.Start(ctx)
+	}
+
+	if callErr != nil {
+		logger.Error(callErr, "Failed to change bot state", "action", action)
+		if r.Recorder != nil {
+			r.Recorder.Event(tradeBot, corev1.EventTypeWarning, "BotStateChangeFailed",
+				fmt.Sprintf("Failed to %s bot: %v", action, callErr))
+		}
+		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
+				Reason: freqtradev1alpha1.ReasonStateChangeFailed, Message: callErr.Error(),
+			})
+		})
+	}
+
+	if r.Recorder != nil {
+		r.Recorder.Event(tradeBot, corev1.EventTypeNormal, eventReason,
+			fmt.Sprintf("Issued %s to align with spec.state=%s", action, desired))
+	}
+	patchErr := shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
+			Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
+			Reason:  freqtradev1alpha1.ReasonStateChangePending,
+			Message: fmt.Sprintf("Issued %s; waiting for the next poll to confirm", action),
+		})
+	})
+	return pollInterval(tradeBot) + 5*time.Second, patchErr
 }
 
 // lifecycleEventInputs is the "before" half of the before/after comparison

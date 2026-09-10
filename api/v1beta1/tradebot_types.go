@@ -34,9 +34,27 @@ type TradeBotSpec struct {
 	// freqtrade REST API for live trading state (P4-3, D4).
 	Introspection *IntrospectionSpec `json:"introspection,omitempty"`
 
-	// State is a deliberately later addition (P4-4, D9) - not part of this
-	// phase. Bot introspection (above) stays read-only until then.
+	// State is the bot's desired run state (P4-4, D9): Running (the
+	// default) or Stopped. Continuously reconciled by the TradeBot
+	// controller against status.bot.state (populated by the poller,
+	// P4-3) via POST /api/v1/start or /api/v1/stop - not just applied
+	// once, since a bot that crashes and restarts comes back Running and
+	// must be re-stopped without anyone asking again. v1alpha1 has no
+	// equivalent field at all - see tradebot_conversion.go's own note on
+	// why every write this reconciler makes to a TradeBot's own
+	// spec/metadata goes through this v1beta1 type instead.
+	// +kubebuilder:validation:Enum=Running;Stopped
+	// +kubebuilder:default=Running
+	State string `json:"state,omitempty"`
 }
+
+// TradeBotState* are Spec.State's two valid values (P4-4) - exported so
+// every consumer (the TradeBot reconciler, v1alpha1's admission webhook)
+// compares against these instead of a repeated string literal.
+const (
+	TradeBotStateRunning = "Running"
+	TradeBotStateStopped = "Stopped"
+)
 
 // TBAppConfig, PodSpec/ServiceSpec/PVCSpec, IntrospectionSpec and
 // BotStatus below are field-for-field identical to their v1alpha1

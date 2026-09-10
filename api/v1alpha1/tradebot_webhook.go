@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -139,6 +140,28 @@ func (v *TradeBotCustomValidator) validate(ctx context.Context, tradeBot *TradeB
 		tradeBot.Spec.Introspection.Interval.Duration < minIntrospectionInterval {
 		return fmt.Errorf("spec.introspection.interval: must be at least %s, got %s",
 			minIntrospectionInterval, tradeBot.Spec.Introspection.Interval.Duration)
+	}
+
+	// P4-4: v1alpha1 has no spec.state field at all, so a v1alpha1 write
+	// has no way to carry it through - ConvertTo, given only this
+	// incoming object, cannot know what the currently-stored value even
+	// is, so it always comes back at the CRD default (Running) once this
+	// write lands. Verified directly: a completely unrelated v1alpha1
+	// field edit was enough to silently reset a Stopped bot back to
+	// Running this way. On a Create this Get 404s (nothing stored yet)
+	// and the check is a no-op; on an Update, reject rather than risk it
+	// - once spec.state has ever been set to anything but the default,
+	// v1beta1 is the only version this object can safely be written
+	// through.
+	var stored v1beta1.TradeBot
+	storedKey := types.NamespacedName{Name: tradeBot.Name, Namespace: tradeBot.Namespace}
+	if err := v.Client.Get(ctx, storedKey, &stored); err == nil && stored.Spec.State == v1beta1.TradeBotStateStopped {
+		return fmt.Errorf(
+			"TradeBot %s/%s has spec.state=Stopped (set via v1beta1) - writing it via v1alpha1 would silently "+
+				"reset that back to Running, since v1alpha1 has no field for it at all; use v1beta1 for this "+
+				"object from now on",
+			tradeBot.Namespace, tradeBot.Name,
+		)
 	}
 
 	return nil

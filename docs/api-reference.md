@@ -2864,6 +2864,7 @@ _Appears in:_
 | `app` _[TBAppConfig](#tbappconfig)_ |  |  |  |
 | `updateStrategy` _string_ | UpdateStrategy controls what happens when a config change can't take<br />effect without a restart - see v1alpha1.TradeBotSpec's identical<br />field for the full explanation (P2-4). | Manual | Enum: [Manual Auto] <br /> |
 | `introspection` _[IntrospectionSpec](#introspectionspec)_ | Introspection controls the operator's own polling of this bot's<br />freqtrade REST API for live trading state (P4-3, D4). |  |  |
+| `state` _string_ | State is the bot's desired run state (P4-4, D9): Running (the<br />default) or Stopped. Continuously reconciled by the TradeBot<br />controller against status.bot.state (populated by the poller,<br />P4-3) via POST /api/v1/start or /api/v1/stop - not just applied<br />once, since a bot that crashes and restarts comes back Running and<br />must be re-stopped without anyone asking again. v1alpha1 has no<br />equivalent field at all - see tradebot_conversion.go's own note on<br />why every write this reconciler makes to a TradeBot's own<br />spec/metadata goes through this v1beta1 type instead. | Running | Enum: [Running Stopped] <br /> |
 
 
 #### TradeBotStatus

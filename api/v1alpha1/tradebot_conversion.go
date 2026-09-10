@@ -83,6 +83,19 @@ func (t *TradeBot) ConvertFrom(srcRaw conversion.Hub) error {
 	// FreqtradeCommand/FreqtradeArguments/Data have no v1beta1 source -
 	// left at their zero value, which is exactly "trade" (the default a
 	// blank FreqtradeCommand already means).
+	//
+	// src.Spec.State (P4-4) has no v1alpha1 destination at all - silently
+	// dropped here, same as ConvertTo below never sets it going the other
+	// way. This is genuinely lossy, unlike everything else in this
+	// function: a v1alpha1 write to an object that has State=Stopped set
+	// would silently convert it back to the default (Running) once
+	// persisted. Nothing at this layer can prevent that - ConvertTo, given
+	// only the object being converted, has no way to know a different
+	// value was ever stored. The actual guard lives one layer up, in
+	// api/v1alpha1/tradebot_webhook.go's validate, which rejects a
+	// v1alpha1 write outright once State has ever been set to anything
+	// but the default (verified directly: without that guard, an
+	// unrelated field edit was enough to silently reset a Stopped bot).
 
 	if src.Spec.App != nil {
 		var app TBAppConfig

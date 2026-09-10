@@ -57,10 +57,26 @@ same Basic Auth credentials rendered into that bot's config. This means the oper
 actively uses those credentials to make outbound HTTP calls, not just Kubernetes to store them - a pod compromise
 of the manager already implied Secret read access across every namespace it watches, so this isn't a new grant, but
 it is a new *behavior*: the manager now originates authenticated network traffic to every bot it introspects.
-Introspection is strictly read-only (D9) - `ping`, `version`, `show_config`, `count`, `profit`, `balance` - never
-anything that can start, stop, or otherwise act on a bot. Position-affecting endpoints (`forceexit`, `forcebuy`,
-`forceenter`) are permanently out of scope for this operator, not merely deferred; revisiting that would need its
-own, separate threat model.
+Introspection itself is strictly read-only (D9) - `ping`, `version`, `show_config`, `count`, `profit`, `balance`.
+
+### What P4-4 state control changes
+
+`TradeBot.spec.state` (`v1beta1` only) lets the operator start or stop a bot's trading loop without a restart,
+continuously reconciled against the bot's own observed state (P4-3) - a bot that crashes and comes back up is
+re-stopped without anyone having to ask again. This is mostly a safety property, a kill switch reachable via
+`kubectl` rather than the exchange UI or freqtrade's own API directly, but it is a genuinely new capability: the
+operator can now halt trading on its own, not just observe it.
+
+The hard boundary from introspection carries over unchanged: only `/api/v1/start` and `/api/v1/stop`.
+Position-affecting endpoints (`forceexit`, `forcebuy`, `forceenter`) remain permanently out of scope for this
+operator, not merely deferred - opening or closing a position is a trading decision that stays with the human;
+revisiting that would need its own, separate threat model.
+
+`spec.state` has no `v1alpha1` representation at all, which has a real, non-obvious consequence worth knowing if
+you're still on it: a `v1alpha1` write to a `TradeBot` that has ever had `spec.state=Stopped` set is rejected
+outright, because `v1alpha1` has no way to carry that value through a write and would otherwise silently reset it
+back to `Running` on the next unrelated edit. Once you use `spec.state`, write that object via `v1beta1` only (see
+the README's [Upgrading to v1beta1](README.md#upgrading-to-v1beta1)).
 
 ### Supply chain
 

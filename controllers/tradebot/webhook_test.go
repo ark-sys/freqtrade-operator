@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 )
 
 // This file covers the P1-4 admission webhooks: rejecting bad input
@@ -101,6 +102,58 @@ var _ = Describe("TradeBot admission webhook (P1-4)", func() {
 			Interval: metav1.Duration{Duration: 10 * time.Second},
 		}
 		Expect(k8sClient.Create(context.Background(), tradeBot)).To(Succeed())
+	})
+
+	// P4-4: verified directly (see this test's own setup) that a v1alpha1
+	// Update touching a completely unrelated field silently reset
+	// spec.state back to Running before this guard existed - v1alpha1 has
+	// no field for it, so ConvertTo has no way to know the stored value
+	// even needs preserving. This proves the guard (api/v1alpha1/
+	// tradebot_webhook.go's validate) actually stops that, against the
+	// real admission chain, not just in isolation.
+	It("rejects a v1alpha1 write to a TradeBot with spec.state=Stopped set via v1beta1", func() {
+		strategy := newTestStrategy("wh-tb-state-strategy")
+		Expect(k8sClient.Create(context.Background(), strategy)).To(Succeed())
+		cfg := newTestTradeBotConfig("wh-tb-state-config")
+		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+		tradeBot := newTestTradeBot("wh-tb-state-stopped", strategy.Name, cfg.Name, "trade")
+		Expect(k8sClient.Create(context.Background(), tradeBot)).To(Succeed())
+
+		// Wait for the reconciler's own finalizer-add Update to land first -
+		// otherwise it races with this test's own Update below and can bump
+		// resourceVersion out from under it (a test-only conflict, nothing
+		// to do with the guard this test actually exercises).
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(context.Background(), client.ObjectKeyFromObject(tradeBot), tradeBot)).To(Succeed())
+			g.Expect(tradeBot.Finalizers).To(ContainElement(BotFinalizer))
+		}).Should(Succeed())
+
+		var beta freqtradev1beta1.TradeBot
+		Expect(k8sClient.Get(context.Background(), client.ObjectKeyFromObject(tradeBot), &beta)).To(Succeed())
+		beta.Spec.State = freqtradev1beta1.TradeBotStateStopped
+		Expect(k8sClient.Update(context.Background(), &beta)).To(Succeed())
+
+		Expect(k8sClient.Get(context.Background(), client.ObjectKeyFromObject(tradeBot), tradeBot)).To(Succeed())
+		tradeBot.Spec.FreqtradeArguments = []string{"--dry-run-wallet=1000"}
+		err := k8sClient.Update(context.Background(), tradeBot)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.state=Stopped"))
+		Expect(err.Error()).To(ContainSubstring("v1beta1"))
+	})
+
+	// The mirror image of the test above: a v1alpha1 write to a TradeBot
+	// that has never had spec.state set to anything but the default is
+	// completely unaffected by the new guard.
+	It("still allows a v1alpha1 write to a TradeBot with spec.state left at its Running default", func() {
+		strategy := newTestStrategy("wh-tb-state-ok-strategy")
+		Expect(k8sClient.Create(context.Background(), strategy)).To(Succeed())
+		cfg := newTestTradeBotConfig("wh-tb-state-ok-config")
+		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+		tradeBot := newTestTradeBot("wh-tb-state-running", strategy.Name, cfg.Name, "trade")
+		Expect(k8sClient.Create(context.Background(), tradeBot)).To(Succeed())
+
+		tradeBot.Spec.FreqtradeArguments = []string{"--dry-run-wallet=1000"}
+		Expect(k8sClient.Update(context.Background(), tradeBot)).To(Succeed())
 	})
 
 	// Regression test for a real deadlock found via e2e testing (P5-3): deleting a whole

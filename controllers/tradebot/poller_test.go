@@ -500,13 +500,12 @@ func TestResolveCredentials_SecretRefOverridesPlaintext(t *testing.T) {
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret, tradeBotConfig).Build()
-	p := &BotPoller{Client: c}
 	tradeBot := &freqtradev1alpha1.TradeBot{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
 		Spec:       freqtradev1alpha1.TradeBotSpec{Config: "my-config"},
 	}
 
-	username, password, exchange, err := p.resolveCredentials(context.Background(), tradeBot)
+	username, password, exchange, err := resolveCredentials(context.Background(), c, tradeBot)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

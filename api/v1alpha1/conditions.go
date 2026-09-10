@@ -37,6 +37,12 @@ const (
 	// starting up - this condition is specifically about whether
 	// status.bot can currently be trusted.
 	ConditionBotReachable = "BotReachable"
+	// ConditionStateReconciled reports whether spec.state (v1beta1-only,
+	// P4-4) matches the bot's last-observed actual state
+	// (status.bot.state, from the same poller). Continuously reconciled,
+	// not a one-shot action: a bot that crashes and restarts comes back
+	// Running and must be re-stopped without anyone asking again.
+	ConditionStateReconciled = "StateReconciled"
 )
 
 // Condition reasons. Shared across every condition type and controller that
@@ -112,6 +118,23 @@ const (
 	// populated and this stays neither True nor False (a distinct reason,
 	// not one of Reachable's own success/failure pair).
 	ReasonIntrospectionDisabled = "IntrospectionDisabled"
+
+	// ReasonBotUnreachable is the StateReconciled=False reason (P4-4): the
+	// bot is unreachable (BotReachable=False), so desired state cannot be
+	// verified or enforced right now. Deliberately does not retry the
+	// start/stop call itself here - it relies entirely on the poller's own
+	// backoff to eventually flip BotReachable, rather than probing the bot
+	// a second way on top of it.
+	ReasonBotUnreachable = "BotUnreachable"
+	// ReasonStateChangePending is the StateReconciled=False reason: a
+	// start/stop call was just issued to align the bot with spec.state,
+	// but hasn't been confirmed yet - that only happens once the poller's
+	// next poll refreshes status.bot.state.
+	ReasonStateChangePending = "StateChangePending"
+	// ReasonStateChangeFailed is the StateReconciled=False reason: the bot
+	// was reachable per the last poll, but the start/stop call itself
+	// failed (e.g. it went unreachable in the moments since).
+	ReasonStateChangeFailed = "StateChangeFailed"
 
 	// ReasonAsExpected is the positive-case reason for a condition type when
 	// nothing more specific applies - e.g. ConfigResolved=True. Kubernetes

@@ -369,16 +369,20 @@ func (p *BotPoller) updateBackoff(
 func (p *BotPoller) poll(
 	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot,
 ) (botStatus *freqtradev1alpha1.BotStatus, reachable metav1.Condition, exchange string, balance *float64) {
-	username, password, exchange, err := p.resolveCredentials(ctx, tradeBot)
+	username, password, exchange, err := resolveCredentials(ctx, p.Client, tradeBot)
 	if err != nil {
 		return nil, unreachableCondition(tradeBot, freqtradev1alpha1.ReasonConnectionRefused, err), exchange, nil
 	}
 
-	baseURL := fmt.Sprintf(
-		"http://%s.%s.svc.cluster.local:%d", tradeBot.Name, tradeBot.Namespace, resources.FreqtradeAPIPort,
-	)
-	botStatus, reachable, balance = pollWithClient(ctx, botclient.New(baseURL, username, password), tradeBot)
+	botStatus, reachable, balance = pollWithClient(ctx, botclient.New(botBaseURL(tradeBot), username, password), tradeBot)
 	return botStatus, reachable, exchange, balance
+}
+
+// botBaseURL returns tradeBot's own in-cluster freqtrade REST API base URL
+// - shared by the poller (P4-3) and the TradeBot reconciler's state
+// reconciliation (P4-4), so both talk to a bot exactly the same way.
+func botBaseURL(tradeBot *freqtradev1alpha1.TradeBot) string {
+	return fmt.Sprintf("http://%s.%s.svc.cluster.local:%d", tradeBot.Name, tradeBot.Namespace, resources.FreqtradeAPIPort)
 }
 
 // pollWithClient does the actual HTTP work for one bot: ping, then (if
@@ -516,15 +520,18 @@ func formatFloat(f float64) string {
 // resolveCredentials reads back the same Basic Auth credentials
 // configbuilder already renders into this bot's config.json, applying the
 // identical secretRef-overrides-plaintext precedence (P3-1) so a bot
-// configured either way is still pollable. Also returns the exchange name
+// configured either way is still reachable. Also returns the exchange name
 // (from the same TradeBotConfig fetch), a metric label the poller has no
-// other cheap source for.
-func (p *BotPoller) resolveCredentials(
-	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot,
+// other cheap source for. A package-level function, not a *BotPoller
+// method (P4-4): shared verbatim by the poller and the TradeBot
+// reconciler's state reconciliation, which talks to a bot exactly the
+// same way but isn't a BotPoller.
+func resolveCredentials(
+	ctx context.Context, c client.Client, tradeBot *freqtradev1alpha1.TradeBot,
 ) (username, password, exchange string, err error) {
 	var tradeBotConfig freqtradev1alpha1.TradeBotConfig
 	key := types.NamespacedName{Name: tradeBot.Spec.Config, Namespace: tradeBot.Namespace}
-	if err := p.Client.Get(ctx, key, &tradeBotConfig); err != nil {
+	if err := c.Get(ctx, key, &tradeBotConfig); err != nil {
 		return "", "", "", fmt.Errorf("failed to get TradeBotConfig %s: %w", tradeBot.Spec.Config, err)
 	}
 	if tradeBotConfig.Spec.Exchange != nil {
@@ -538,7 +545,7 @@ func (p *BotPoller) resolveCredentials(
 	password = tradeBotConfig.Spec.APIServer.Password
 	if tradeBotConfig.Spec.APIServer.SecretRef != "" {
 		secretData, err := configbuilder.GetSecretData(
-			ctx, p.Client, tradeBot.Namespace, tradeBotConfig.Spec.APIServer.SecretRef,
+			ctx, c, tradeBot.Namespace, tradeBotConfig.Spec.APIServer.SecretRef,
 		)
 		if err != nil {
 			return "", "", exchange, fmt.Errorf("failed to get API credentials secret: %w", err)

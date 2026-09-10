@@ -1,7 +1,24 @@
-// Package botclient is a minimal, read-only freqtrade REST API client
-// (P4-3). It never runs inside the reconcile loop - see
-// controllers/tradebot's BotPoller, the only caller - so a slow or hung bot
-// can never stall a reconcile.
+// Package botclient is a minimal freqtrade REST API client. Every typed
+// method goes through do(), a general method+path+body primitive
+// (P4-3/D9), specifically so this package could grow beyond the
+// originally poll-only (P4-3) surface without a rewrite - which is
+// exactly what P4-4's Start/Stop later did.
+//
+// Hard scope boundary (P4-4): Start and Stop - POST /api/v1/start and
+// /api/v1/stop - are the only state-changing calls this client will ever
+// make. It will never add a method for opening or closing a position on
+// a human's behalf (force-entering, force-exiting, or force-buying a
+// trade); those are trading decisions and stay with the human, never the
+// operator.
+//
+// The read-only methods (Ping, Version, ShowConfig, Count, Profit,
+// Balance) still never run inside the TradeBot reconcile loop itself -
+// see controllers/tradebot's BotPoller, their only caller - so a slow or
+// hung bot can never stall a reconcile. Start/Stop are the one exception,
+// called directly from the reconciler (P4-4): unlike polling, issuing a
+// desired-state change is exactly reconcile-loop work, and the reconciler
+// already bounds it the same way it bounds every other outbound call in
+// that loop.
 package botclient
 
 import (
@@ -198,4 +215,23 @@ func (c *Client) Balance(ctx context.Context) (*BalanceResponse, error) {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// Start calls POST /api/v1/start (P4-4) - see this package's own doc
+// comment for the hard scope boundary this and Stop sit inside. The
+// response body (freqtrade returns a status message either way, whether
+// this was a no-op because the bot was already running or not) is
+// discarded, same as Ping: the caller only needs to know whether the call
+// itself succeeded.
+func (c *Client) Start(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/start", nil, nil)
+}
+
+// Stop calls POST /api/v1/stop (P4-4). Freqtrade's own semantics: this
+// stops the trading loop (no new entries; any already-open trade is left
+// to exit on its own configured signals) - it does not close open
+// positions, which is exactly why this is safe to call unconditionally on
+// a mismatch rather than something that needs the human's judgment first.
+func (c *Client) Stop(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/stop", nil, nil)
 }

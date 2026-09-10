@@ -11781,6 +11781,22 @@ spec:
                     default: 60s
                     type: string
                 type: object
+              state:
+                default: Running
+                description: |-
+                  State is the bot's desired run state (P4-4, D9): Running (the
+                  default) or Stopped. Continuously reconciled by the TradeBot
+                  controller against status.bot.state (populated by the poller,
+                  P4-3) via POST /api/v1/start or /api/v1/stop - not just applied
+                  once, since a bot that crashes and restarts comes back Running and
+                  must be re-stopped without anyone asking again. v1alpha1 has no
+                  equivalent field at all - see tradebot_conversion.go's own note on
+                  why every write this reconciler makes to a TradeBot's own
+                  spec/metadata goes through this v1beta1 type instead.
+                enum:
+                - Running
+                - Stopped
+                type: string
               strategyRef:
                 description: |-
                   StrategyRef references the Strategy this bot runs, same namespace

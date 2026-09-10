@@ -26,9 +26,14 @@ aid, not a substitute for actually reading what changed.
   native sidecar into `status.results` (D1, D6, D8).
 - Bot introspection: a leader-only poller reads each trade-mode bot's own freqtrade REST API on a schedule and
   surfaces `status.bot` plus per-bot Prometheus metrics (`freqtrade_bot_up`, `_open_trades`, `_profit_abs`, ...) -
-  read-only, nothing here can act on a bot (D4, D9).
+  read-only on its own; see bot state control below for the one capability that isn't (D4, D9).
   Kubernetes Events on every controller, and operator-level Prometheus metrics (`freqtrade_operator_tradebots`,
   `_config_drift`, `_reconcile_errors_total`, `_config_render_duration_seconds`).
+- `TradeBot.spec.state` (`v1beta1` only, P4-4): `Running`/`Stopped`, continuously reconciled against the poller's
+  own observation of the bot (not applied once) via freqtrade's `/api/v1/start`/`/api/v1/stop` - a bot that crashes
+  and comes back up is re-stopped without anyone asking again. Skips the call and reports
+  `StateReconciled=False/BotUnreachable` rather than retrying an unreachable bot. Hard scope boundary: start/stop
+  only, never anything that opens or closes a position - see [SECURITY.md](SECURITY.md).
 - Admission webhooks (validation and defaults) for `TradeBot`, `TradeBotConfig`, `Strategy`, and `Backtest`;
   conversion webhooks converting `TradeBot`, `TradeBotConfig`, `Strategy`, and `FreqUI` transparently between
   `v1alpha1` and `v1beta1`.
@@ -92,6 +97,9 @@ aid, not a substitute for actually reading what changed.
 - Every trade-mode bot gets a default-deny `NetworkPolicy` on its REST API port; JWT signing keys are generated
   server-side when not supplied and validated for minimum length; CORS origins are derived from referencing
   `FreqUI` resources instead of left wide open.
+- The operator can now halt trading (`spec.state`, above) - a new capability, documented in SECURITY.md's threat
+  model. `spec.state` has no `v1alpha1` representation, so a `v1alpha1` write to a `TradeBot` that has ever had it
+  set to `Stopped` is rejected outright, rather than silently resetting it back to `Running`.
 - Release images are signed with cosign (keyless, via GitHub Actions OIDC) and ship an SPDX SBOM; the manager runs
   as a distroless, non-root image.
 
