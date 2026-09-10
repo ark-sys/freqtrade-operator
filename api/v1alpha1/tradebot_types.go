@@ -28,6 +28,10 @@ type TradeBotSpec struct {
 
 	App *TBAppConfig `json:"app,omitempty"`
 
+	// Deprecated: no effect since v1beta1 - TradeBot is trade-only there and
+	// has no Job-mode pod to cache data for; use a Backtest instead. Absent
+	// from v1beta1 entirely; kept here only because it's a served v1alpha1
+	// field.
 	Data *DataCacheSpec `json:"data,omitempty"`
 
 	// UpdateStrategy controls what happens when a config change can't take

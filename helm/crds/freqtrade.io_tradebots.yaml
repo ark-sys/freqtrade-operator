@@ -5764,6 +5764,11 @@ spec:
                 pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                 type: string
               data:
+                description: |-
+                  Deprecated: no effect since v1beta1 - TradeBot is trade-only there and
+                  has no Job-mode pod to cache data for; use a Backtest instead. Absent
+                  from v1beta1 entirely; kept here only because it's a served v1alpha1
+                  field.
                 properties:
                   downloadArgs:
                     description: |-

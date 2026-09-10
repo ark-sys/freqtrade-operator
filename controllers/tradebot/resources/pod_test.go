@@ -14,6 +14,17 @@ import (
 // package's tests - what value it holds doesn't matter to any of them.
 const testImage = "freqtradeorg/freqtrade@sha256:test"
 
+// testBotName and testNamespace are the fixture TradeBot name/namespace
+// shared across this package's tests.
+const (
+	testBotName   = "my-bot"
+	testNamespace = "trading"
+)
+
+// dummyProbeCommand is a real no-op shell command, used as Exec probe
+// command content in tests that only care whether an override propagates.
+const dummyProbeCommand = "true"
+
 func volumeNamed(spec corev1.PodSpec, name string) *corev1.Volume {
 	for i := range spec.Volumes {
 		if spec.Volumes[i].Name == name {
@@ -33,176 +44,40 @@ func initContainerNamed(spec corev1.PodSpec, name string) *corev1.Container {
 }
 
 func TestBuildPod_TradeMode(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
-	spec := BuildPod(
-		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
-	)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", nil)
 
 	container := spec.Containers[0]
-	if container.Args[0] != "trade" {
+	if container.Args[0] != freqCommandTrade {
 		t.Errorf("expected first arg 'trade', got %v", container.Args)
 	}
-	if containsArg(container.Args, "--userdir") {
-		t.Errorf("trade mode should not set --userdir explicitly, got %v", container.Args)
-	}
 	if container.LivenessProbe == nil || container.ReadinessProbe == nil {
-		t.Error("expected trade mode to set liveness and readiness probes")
+		t.Error("expected liveness and readiness probes")
 	}
 	if len(container.Ports) != 1 || container.Ports[0].ContainerPort != 8080 {
-		t.Errorf("expected port 8080 exposed in trade mode, got %+v", container.Ports)
+		t.Errorf("expected port 8080 exposed, got %+v", container.Ports)
 	}
 	v := volumeNamed(spec, "user-data")
 	if v == nil || v.PersistentVolumeClaim == nil || v.PersistentVolumeClaim.ClaimName != "my-bot-data" {
 		t.Errorf("expected user-data backed by the given PVC, got %+v", v)
 	}
-	if initContainerNamed(spec, "init-download-data") != nil {
-		t.Error("trade mode should never add a download-data init container")
-	}
 }
 
-func TestBuildPod_JobModeNoCache(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+func TestBuildPod_ExtraFreqArgsAppended(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
-	freqArgs := []string{"--timerange", "20240101-"}
-	spec := BuildPod(
-		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", freqArgs,
-	)
+	freqArgs := []string{"--some-flag", "value"}
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", freqArgs)
 
-	container := spec.Containers[0]
-	if container.Args[0] != "backtesting" {
-		t.Errorf("expected first arg 'backtesting', got %v", container.Args)
-	}
-	if !containsArg(container.Args, "--userdir") {
-		t.Errorf("job mode must set --userdir explicitly, got %v", container.Args)
-	}
-	if containsArg(container.Args, "--datadir") {
-		t.Errorf("job mode without a cache PVC should not set --datadir, got %v", container.Args)
-	}
-	if !containsArg(container.Args, "--timerange") {
-		t.Errorf("expected extra freqArgs to be appended, got %v", container.Args)
-	}
-	if container.LivenessProbe != nil || container.ReadinessProbe != nil {
-		t.Error("job mode should not set probes - nothing serves the API")
-	}
-	if v := volumeNamed(spec, "user-data"); v == nil || v.EmptyDir == nil {
-		t.Errorf("expected user-data to be an emptyDir with no PVC name, got %+v", v)
-	}
-	if v := volumeNamed(spec, "cache"); v != nil {
-		t.Errorf("expected no cache volume without Spec.Data, got %+v", v)
-	}
-	if spec.RestartPolicy != corev1.RestartPolicyOnFailure {
-		t.Errorf("expected RestartPolicy OnFailure by default in job mode, got %q", spec.RestartPolicy)
-	}
-}
-
-func TestBuildPod_JobModeWithCache(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
-		Spec: freqtradev1alpha1.TradeBotSpec{
-			Data: &freqtradev1alpha1.DataCacheSpec{
-				PVCName:      "shared-cache",
-				DownloadArgs: []string{"--exchange", "binance"},
-			},
-		},
-	}
-
-	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
-
-	container := spec.Containers[0]
-	if !containsArg(container.Args, "--datadir") {
-		t.Errorf("expected --datadir when a cache PVC is configured, got %v", container.Args)
-	}
-
-	cacheVol := volumeNamed(spec, "cache")
-	if cacheVol == nil || cacheVol.PersistentVolumeClaim == nil || cacheVol.PersistentVolumeClaim.ClaimName != "shared-cache" {
-		t.Fatalf("expected a cache volume backed by the shared-cache PVC, got %+v", cacheVol)
-	}
-
-	found := false
-	for _, m := range container.VolumeMounts {
-		if m.Name == "cache" {
-			found = true
-			if !m.ReadOnly {
-				t.Error("expected the main container's cache mount to be read-only")
-			}
-		}
-	}
-	if !found {
-		t.Error("expected the main container to mount the cache volume")
-	}
-
-	dl := initContainerNamed(spec, "init-download-data")
-	if dl == nil {
-		t.Fatal("expected a download-data init container when a cache PVC is configured with the default policy")
-	}
-	if !containsArg(dl.Args, "--exchange") {
-		t.Errorf("expected DownloadArgs to be appended to the download-data init container, got %v", dl.Args)
-	}
-	for _, m := range dl.VolumeMounts {
-		if m.Name == "cache" && m.ReadOnly {
-			t.Error("expected the download-data init container's cache mount to be writable")
-		}
-	}
-}
-
-func TestBuildPod_DownloadPolicyNeverSkipsDownload(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
-		Spec: freqtradev1alpha1.TradeBotSpec{
-			Data: &freqtradev1alpha1.DataCacheSpec{PVCName: "shared-cache", DownloadPolicy: "never"},
-		},
-	}
-
-	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
-
-	if initContainerNamed(spec, "init-download-data") != nil {
-		t.Error("expected DownloadPolicy=never to skip the download-data init container")
-	}
-	// The cache volume itself must still be mounted even when the download
-	// step is skipped, so a pre-populated cache can still be used.
-	if volumeNamed(spec, "cache") == nil {
-		t.Error("expected the cache volume to still be present with DownloadPolicy=never")
-	}
-}
-
-// TestBuildPod_DownloadPolicyIfMissingOnlyDownloadsWhenEmpty covers the real
-// "ifMissing" semantics: previously this policy value existed in the API
-// but behaved identically to "always" (P1-1 - "do not ship a lie"). The
-// init container now wraps the freqtrade invocation in a shell conditional;
-// dlArgs are passed as positional parameters after the script text ($@),
-// never interpolated into it, so nothing here is a shell-injection risk.
-func TestBuildPod_DownloadPolicyIfMissingOnlyDownloadsWhenEmpty(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
-		Spec: freqtradev1alpha1.TradeBotSpec{
-			Data: &freqtradev1alpha1.DataCacheSpec{PVCName: "shared-cache", DownloadPolicy: "ifMissing"},
-		},
-	}
-
-	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
-
-	dl := initContainerNamed(spec, "init-download-data")
-	if dl == nil {
-		t.Fatal("expected a download-data init container with DownloadPolicy=ifMissing")
-	}
-	if len(dl.Command) < 3 || dl.Command[0] != "sh" || dl.Command[1] != "-c" {
-		t.Fatalf("expected a shell conditional, got Command=%v", dl.Command)
-	}
-	if !strings.Contains(dl.Command[2], "ls -A /cache") {
-		t.Errorf("expected the script to check whether /cache is empty, got %q", dl.Command[2])
-	}
-	if !strings.Contains(dl.Command[2], `"$@"`) {
-		t.Errorf("expected the script to forward args via \"$@\" rather than interpolating them, got %q", dl.Command[2])
-	}
-	if !containsArg(dl.Args, "download-data") {
-		t.Errorf("expected the freqtrade subcommand to be passed as a positional arg, got %v", dl.Args)
+	if !containsArg(spec.Containers[0].Args, "--some-flag") {
+		t.Errorf("expected extra freqArgs to be appended, got %v", spec.Containers[0].Args)
 	}
 }
 
 func TestBuildPod_AppliesPodSpecOverrides(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 		Spec: freqtradev1alpha1.TradeBotSpec{
 			App: &freqtradev1alpha1.TBAppConfig{
 				PodSpec: &freqtradev1alpha1.PodSpec{
@@ -213,9 +88,7 @@ func TestBuildPod_AppliesPodSpecOverrides(t *testing.T) {
 		},
 	}
 
-	spec := BuildPod(
-		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
-	)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", nil)
 
 	if spec.Containers[0].Image != "custom/freqtrade:latest" {
 		t.Errorf("expected the overridden image to apply, got %q", spec.Containers[0].Image)
@@ -240,19 +113,25 @@ func TestMergePodSpecOverrides_EveryFieldOverridden(t *testing.T) {
 		Containers: []corev1.Container{{Name: "freqtrade", Image: "default:image"}},
 	}
 	override := &freqtradev1alpha1.PodSpec{
-		Image:            "override:image",
-		Resources:        corev1.ResourceRequirements{Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}},
+		Image: "override:image",
+		Resources: corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
+		},
 		Env:              []corev1.EnvVar{{Name: "TZ", Value: "UTC"}},
 		VolumeMounts:     []corev1.VolumeMount{{Name: "extra", MountPath: "/extra"}},
 		Volumes:          []corev1.Volume{{Name: "extra"}},
 		SecurityContext:  &corev1.PodSecurityContext{RunAsNonRoot: ptrBoolPod(true)},
 		InitContainers:   []corev1.Container{{Name: "custom-init"}},
 		ImagePullSecrets: []corev1.LocalObjectReference{{Name: "regcred"}},
-		LivenessProbe:    &corev1.Probe{ProbeHandler: corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"true"}}}},
-		ReadinessProbe:   &corev1.Probe{ProbeHandler: corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"true"}}}},
-		Affinity:         &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}},
-		NodeSelector:     map[string]string{"disktype": "ssd"},
-		Tolerations:      []corev1.Toleration{{Key: "dedicated", Operator: corev1.TolerationOpExists}},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{dummyProbeCommand}}},
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{dummyProbeCommand}}},
+		},
+		Affinity:     &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}},
+		NodeSelector: map[string]string{"disktype": "ssd"},
+		Tolerations:  []corev1.Toleration{{Key: "dedicated", Operator: corev1.TolerationOpExists}},
 		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
 			{MaxSkew: 1, TopologyKey: "zone"},
 		},
@@ -311,7 +190,7 @@ func TestMergePodSpecOverrides_OnlyOverridesSetFields(t *testing.T) {
 			Image:     "default:image",
 			Resources: corev1.ResourceRequirements{},
 		}},
-		NodeSelector: map[string]string{"default": "true"},
+		NodeSelector: map[string]string{"default": "enabled"},
 	}
 
 	got := mergePodSpecOverrides(defaultSpec, &freqtradev1alpha1.PodSpec{
@@ -324,7 +203,7 @@ func TestMergePodSpecOverrides_OnlyOverridesSetFields(t *testing.T) {
 	if got.Containers[0].Image != "override:image" {
 		t.Errorf("expected image overridden, got %q", got.Containers[0].Image)
 	}
-	if got.NodeSelector["default"] != "true" {
+	if got.NodeSelector["default"] != "enabled" {
 		t.Errorf("expected NodeSelector left untouched since no override was given, got %v", got.NodeSelector)
 	}
 }
@@ -355,11 +234,9 @@ func assertRestrictedSecurityContext(t *testing.T, containerName string, sc *cor
 }
 
 func TestBuildPod_RestrictedSecurityContextByDefault(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
-	spec := BuildPod(
-		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
-	)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", nil)
 
 	assertRestrictedSecurityContext(t, "freqtrade", spec.Containers[0].SecurityContext)
 	initUserData := initContainerNamed(spec, "init-user-data")
@@ -380,7 +257,7 @@ func TestBuildPod_RestrictedSecurityContextByDefault(t *testing.T) {
 
 func TestBuildPod_FixVolumePermissionsOptIn(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 		Spec: freqtradev1alpha1.TradeBotSpec{
 			App: &freqtradev1alpha1.TBAppConfig{
 				PVCSpec: &freqtradev1alpha1.PVCSpec{FixVolumePermissions: ptrBoolPod(true)},
@@ -388,9 +265,7 @@ func TestBuildPod_FixVolumePermissionsOptIn(t *testing.T) {
 		},
 	}
 
-	spec := BuildPod(
-		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
-	)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", nil)
 
 	initUserData := initContainerNamed(spec, "init-user-data")
 	if initUserData == nil {
@@ -412,11 +287,9 @@ func TestBuildPod_FixVolumePermissionsOptIn(t *testing.T) {
 }
 
 func TestBuildPod_DefaultResourcesAvoidBestEffortQoS(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
-	spec := BuildPod(
-		tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "trade", nil,
-	)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", nil)
 
 	resources := spec.Containers[0].Resources
 	if len(resources.Requests) == 0 || len(resources.Limits) == 0 {
@@ -424,22 +297,13 @@ func TestBuildPod_DefaultResourcesAvoidBestEffortQoS(t *testing.T) {
 	}
 }
 
-func TestBuildPod_ImageAppliesToMainAndDownloadInitContainerNotInitUserData(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
-		Spec: freqtradev1alpha1.TradeBotSpec{
-			Data: &freqtradev1alpha1.DataCacheSpec{PVCName: "cache-pvc"},
-		},
-	}
+func TestBuildPod_ImageAppliesToMainAndInitUserData(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
-	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "", "backtesting", nil)
+	spec := BuildPod(tradeBot, testImage, "SampleStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", nil)
 
 	if spec.Containers[0].Image != testImage {
 		t.Errorf("expected the main container to use the resolved image %q, got %q", testImage, spec.Containers[0].Image)
-	}
-	downloadInit := initContainerNamed(spec, "init-download-data")
-	if downloadInit == nil || downloadInit.Image != testImage {
-		t.Errorf("expected init-download-data to use the resolved image %q, got %+v", testImage, downloadInit)
 	}
 	initUserData := initContainerNamed(spec, "init-user-data")
 	if initUserData == nil || initUserData.Image != "busybox:latest" {

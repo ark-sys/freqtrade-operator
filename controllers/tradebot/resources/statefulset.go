@@ -31,7 +31,6 @@ func BuildStatefulSet(
 ) appsv1.StatefulSet {
 	replicas := int32(1)
 
-	// Build the reusable PodSpec for trade mode.
 	podSpec := BuildPod(
 		tradeBot,
 		image,
@@ -39,7 +38,6 @@ func BuildStatefulSet(
 		configSecretName,
 		strategyConfigMapName,
 		pvcName,
-		"trade", // force long-running mode here
 		tradeBot.Spec.FreqtradeArguments,
 	)
 

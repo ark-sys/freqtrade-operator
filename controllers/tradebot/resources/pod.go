@@ -3,7 +3,6 @@ package resources
 
 import (
 	"reflect"
-	"strings"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
@@ -11,7 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// BuildPod constructs a reusable PodSpec for running Freqtrade.
+// freqCommandTrade is the freqtrade subcommand BuildPod always runs -
+// TradeBot has been trade-only since v1beta1 (P6-4); Backtest's own,
+// unrelated pod builder lives in controllers/backtest/resources.
+const freqCommandTrade = "trade"
+
+// BuildPod constructs the PodSpec for a TradeBot's long-running trading
+// StatefulSet pod.
 // - tradeBot: source CR used for overrides (App.PodSpec) and namespacing
 // - image: the freqtrade image reference to run (normally digest-pinned;
 // see Reconciler.DefaultImage) - the caller resolves this once so
@@ -19,8 +24,8 @@ import (
 // - strategyName: the Python strategy name (from Strategy.Spec.Name)
 // - configSecretName: Secret name for config.json
 // - strategyConfigMapName: ConfigMap name for strategy script
-// - pvcName: user-data PVC name; if empty, user-data is an emptyDir (used by Jobs)
-// - freqCommand: "trade" for StatefulSet, anything else for Job
+// - pvcName: user-data PVC name, always set - a TradeBot's PVC is created
+// unconditionally (see resources.BuildPersistentVolumeClaim)
 // - freqArgs: additional CLI arguments appended after the subcommand
 func BuildPod(
 	tradeBot freqtradev1alpha1.TradeBot,
@@ -29,30 +34,15 @@ func BuildPod(
 	configSecretName string,
 	strategyConfigMapName string,
 	pvcName string,
-	freqCommand string,
 	freqArgs []string,
 ) corev1.PodSpec {
-	if strings.TrimSpace(freqCommand) == "" {
-		freqCommand = "trade"
-	}
-	isTrade := freqCommand == "trade"
-	hasCache := !isTrade && tradeBot.Spec.Data != nil && strings.TrimSpace(tradeBot.Spec.Data.PVCName) != ""
-
-	// Common args
 	args := []string{
-		freqCommand,
+		freqCommandTrade,
 		"--config", "/config/config.json",
 		"--strategy-path", "/strategy",
 		"--strategy", strategyName,
 		"--db-url", "sqlite:////freqtrade/user_data/tradesv3.sqlite",
 		"--logfile", "/freqtrade/user_data/logs/freqtrade.log",
-	}
-	// For jobs, explicitly set userdir, and if cache is present, bind datadir
-	if !isTrade {
-		args = append(args, "--userdir", "/freqtrade/user_data")
-		if hasCache {
-			args = append(args, "--datadir", "/cache")
-		}
 	}
 	if len(freqArgs) > 0 {
 		args = append(args, freqArgs...)
@@ -63,7 +53,6 @@ func BuildPod(
 	runAsGroup := int64(1000)
 	fsGroup := int64(1000)
 
-	// Base volumes
 	volumes := []corev1.Volume{
 		{
 			Name: "config",
@@ -79,65 +68,33 @@ func BuildPod(
 				},
 			},
 		},
-	}
-	// user-data: PVC in trade mode (or when provided), else emptyDir (for jobs)
-	userDataVol := corev1.Volume{Name: "user-data"}
-	if pvcName != "" {
-		userDataVol.VolumeSource = corev1.VolumeSource{
-			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
-		}
-	} else {
-		userDataVol.VolumeSource = corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}
-	}
-	volumes = append(volumes, userDataVol)
-
-	// Cache volume for jobs (shared RWX PVC)
-	if hasCache {
-		volumes = append(volumes, corev1.Volume{
-			Name: "cache",
+		{
+			Name: "user-data",
 			VolumeSource: corev1.VolumeSource{
-				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-					ClaimName: tradeBot.Spec.Data.PVCName,
-				},
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
 			},
-		})
+		},
 	}
 
-	// Base mounts for main container
 	mainMounts := []corev1.VolumeMount{
 		{Name: "config", MountPath: "/config", ReadOnly: true},
 		{Name: "strategy", MountPath: "/strategy", ReadOnly: true},
 		{Name: "user-data", MountPath: "/freqtrade/user_data"},
 	}
-	if hasCache {
-		// ReadOnly for main workload
-		mainMounts = append(mainMounts, corev1.VolumeMount{Name: "cache", MountPath: "/cache", ReadOnly: true})
-	}
 
-	// Init mounts for init containers
 	initUserDataMounts := []corev1.VolumeMount{
 		{Name: "user-data", MountPath: "/freqtrade/user_data"},
-	}
-	// For download-data, we need full set plus write access to /cache
-	initDownloadMounts := []corev1.VolumeMount{
-		{Name: "config", MountPath: "/config", ReadOnly: true},
-		{Name: "strategy", MountPath: "/strategy", ReadOnly: true},
-		{Name: "user-data", MountPath: "/freqtrade/user_data"},
-	}
-	if hasCache {
-		initDownloadMounts = append(initDownloadMounts,
-			corev1.VolumeMount{Name: "cache", MountPath: "/cache", ReadOnly: false})
 	}
 
 	fixVolumePermissions := tradeBot.Spec.App != nil && tradeBot.Spec.App.PVCSpec != nil &&
 		tradeBot.Spec.App.PVCSpec.FixVolumePermissions != nil && *tradeBot.Spec.App.PVCSpec.FixVolumePermissions
 
-	// Init containers. init-user-data only creates directories: fsGroup
-	// (set on the pod's own SecurityContext below) already makes the volume
-	// group-writable on most CSI drivers, so - unlike before P3-3 - it runs
-	// as the same non-root user as everything else and never chmod/chowns
-	// anything. FixVolumePermissions (an opt-in, not the default) restores
-	// the old root-chown behavior for drivers where that's not true.
+	// init-user-data only creates directories: fsGroup (set on the pod's own
+	// SecurityContext below) already makes the volume group-writable on most
+	// CSI drivers, so - unlike before P3-3 - it runs as the same non-root
+	// user as everything else and never chmod/chowns anything.
+	// FixVolumePermissions (an opt-in, not the default) restores the old
+	// root-chown behavior for drivers where that's not true.
 	var initUserData corev1.Container
 	if fixVolumePermissions {
 		runAsRoot := int64(0)
@@ -164,51 +121,6 @@ func BuildPod(
 			VolumeMounts:    initUserDataMounts,
 		}
 	}
-	initContainers := []corev1.Container{initUserData}
-
-	// Append download-data init for jobs with cache
-	if hasCache {
-		dlArgs := []string{
-			"download-data",
-			"--userdir", "/freqtrade/user_data",
-			"--datadir", "/cache",
-		}
-		if tradeBot.Spec.Data != nil && len(tradeBot.Spec.Data.DownloadArgs) > 0 {
-			dlArgs = append(dlArgs, tradeBot.Spec.Data.DownloadArgs...)
-		}
-		policy := strings.ToLower(strings.TrimSpace(tradeBot.Spec.Data.DownloadPolicy))
-		if policy == "" {
-			policy = "always"
-		}
-		switch policy {
-		case "never":
-			// No init container: use whatever is already on the cache PVC.
-		case "ifmissing":
-			// Only download when the cache looks empty. dlArgs are passed as
-			// positional parameters ("$@") after "--", not interpolated into
-			// the script text, so nothing here can inject shell commands.
-			script := `if [ -z "$(ls -A /cache 2>/dev/null)" ]; then exec freqtrade "$@"; fi`
-			initContainers = append(initContainers, corev1.Container{
-				Name:            "init-download-data",
-				Image:           image,
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				SecurityContext: shared.RestrictedSecurityContext(),
-				Command:         []string{"sh", "-c", script, "init-download-data"},
-				Args:            dlArgs,
-				VolumeMounts:    initDownloadMounts,
-			})
-		default: // "always"
-			initContainers = append(initContainers, corev1.Container{
-				Name:            "init-download-data",
-				Image:           image,
-				ImagePullPolicy: corev1.PullIfNotPresent,
-				SecurityContext: shared.RestrictedSecurityContext(),
-				Command:         []string{"freqtrade"},
-				Args:            dlArgs,
-				VolumeMounts:    initDownloadMounts,
-			})
-		}
-	}
 
 	// Main container
 	mainContainer := corev1.Container{
@@ -226,14 +138,10 @@ func BuildPod(
 		VolumeMounts:    mainMounts,
 		SecurityContext: shared.RestrictedSecurityContext(),
 		Resources:       shared.DefaultContainerResources(),
-	}
-
-	// Probes and ports: only for trade
-	if isTrade {
-		mainContainer.Ports = []corev1.ContainerPort{
+		Ports: []corev1.ContainerPort{
 			{ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
-		}
-		mainContainer.LivenessProbe = &corev1.Probe{
+		},
+		LivenessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
 					Path:   "/api/v1/ping",
@@ -245,8 +153,8 @@ func BuildPod(
 			PeriodSeconds:       60,
 			TimeoutSeconds:      5,
 			FailureThreshold:    3,
-		}
-		mainContainer.ReadinessProbe = &corev1.Probe{
+		},
+		ReadinessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
 					Path:   "/api/v1/ping",
@@ -258,7 +166,7 @@ func BuildPod(
 			PeriodSeconds:       30,
 			TimeoutSeconds:      5,
 			FailureThreshold:    3,
-		}
+		},
 	}
 
 	podSpec := corev1.PodSpec{
@@ -267,14 +175,9 @@ func BuildPod(
 			RunAsGroup: &runAsGroup,
 			FSGroup:    &fsGroup,
 		},
-		InitContainers: initContainers,
+		InitContainers: []corev1.Container{initUserData},
 		Containers:     []corev1.Container{mainContainer},
 		Volumes:        volumes,
-	}
-
-	// Jobs: set RestartPolicy to OnFailure if not provided
-	if !isTrade && podSpec.RestartPolicy == "" {
-		podSpec.RestartPolicy = corev1.RestartPolicyOnFailure
 	}
 
 	// Apply optional App.PodSpec overrides
