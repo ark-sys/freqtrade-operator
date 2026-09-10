@@ -216,9 +216,11 @@ replacements:
 #         index: 1
 #         create: true
 #
-# ConversionWebhook (P6-5): TradeBot is the only CRD with a conversion
-# webhook so far - see config/crd/patches/cainjection_in_tradebots.yaml,
-# the annotation these two replacements fill in.
+# ConversionWebhook (P6-5/B2/B3): all four v1beta1-graduated CRDs (TradeBot,
+# TradeBotConfig, Strategy, FreqUI) carry a conversion webhook - see each
+# one's own config/crd/patches/cainjection_in_*.yaml, the annotation these
+# two replacements fill in. Backtest has no v1alpha1 (B4) and needs no
+# entry here.
 - source:
     kind: Certificate
     group: cert-manager.io
@@ -229,6 +231,33 @@ replacements:
     - select:
         kind: CustomResourceDefinition
         name: tradebots.freqtrade.io
+      fieldPaths:
+        - .metadata.annotations.[cert-manager.io/inject-ca-from]
+      options:
+        delimiter: '/'
+        index: 0
+        create: true
+    - select:
+        kind: CustomResourceDefinition
+        name: tradebotconfigs.freqtrade.io
+      fieldPaths:
+        - .metadata.annotations.[cert-manager.io/inject-ca-from]
+      options:
+        delimiter: '/'
+        index: 0
+        create: true
+    - select:
+        kind: CustomResourceDefinition
+        name: strategies.freqtrade.io
+      fieldPaths:
+        - .metadata.annotations.[cert-manager.io/inject-ca-from]
+      options:
+        delimiter: '/'
+        index: 0
+        create: true
+    - select:
+        kind: CustomResourceDefinition
+        name: frequis.freqtrade.io
       fieldPaths:
         - .metadata.annotations.[cert-manager.io/inject-ca-from]
       options:
@@ -246,6 +275,33 @@ replacements:
     - select:
         kind: CustomResourceDefinition
         name: tradebots.freqtrade.io
+      fieldPaths:
+        - .metadata.annotations.[cert-manager.io/inject-ca-from]
+      options:
+        delimiter: '/'
+        index: 1
+        create: true
+    - select:
+        kind: CustomResourceDefinition
+        name: tradebotconfigs.freqtrade.io
+      fieldPaths:
+        - .metadata.annotations.[cert-manager.io/inject-ca-from]
+      options:
+        delimiter: '/'
+        index: 1
+        create: true
+    - select:
+        kind: CustomResourceDefinition
+        name: strategies.freqtrade.io
+      fieldPaths:
+        - .metadata.annotations.[cert-manager.io/inject-ca-from]
+      options:
+        delimiter: '/'
+        index: 1
+        create: true
+    - select:
+        kind: CustomResourceDefinition
+        name: frequis.freqtrade.io
       fieldPaths:
         - .metadata.annotations.[cert-manager.io/inject-ca-from]
       options:
