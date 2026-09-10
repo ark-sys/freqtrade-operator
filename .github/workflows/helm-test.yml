@@ -3,13 +3,12 @@ name: Helm Chart Tests
 on:
   push:
     branches:
-      - staging
+      - main
     paths:
       - 'helm/**'
       - '.github/workflows/helm-test.yml'
   pull_request:
     branches:
-      - staging
       - main
     paths:
       - 'helm/**'
@@ -33,6 +32,13 @@ jobs:
         uses: azure/setup-kubectl@v4
         with:
           version: 'v1.28.0'
+
+      - name: Create kind cluster
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          kind create cluster
 
       - name: Lint Helm Chart
         run: |
@@ -77,11 +83,12 @@ jobs:
           echo "CRD files found:"
           find helm/crds/ -name "*.yaml" -exec basename {} \;
           
-          # Count CRDs
+          # Count CRDs - one per kind (TradeBot, Backtest, TradeBotConfig,
+          # Strategy, FreqUI).
           CRD_COUNT=$(find helm/crds/ -name "*.yaml" | wc -l)
           echo "Total CRDs: $CRD_COUNT"
-          if [ "$CRD_COUNT" -lt 11 ]; then
-            echo "Error: Expected at least 11 CRDs, found $CRD_COUNT"
+          if [ "$CRD_COUNT" -lt 5 ]; then
+            echo "Error: Expected at least 5 CRDs, found $CRD_COUNT"
             exit 1
           fi
 
