@@ -60,7 +60,7 @@ func BuildTradeBotConfig(
 			cfg["export"] = bot.Export
 		}
 		if bot.DisableParamExport != nil {
-			cfg["disable_param_export"] = *bot.DisableParamExport
+			cfg["disableparamexport"] = *bot.DisableParamExport
 		}
 		if bot.DisableDataframeChecks != nil {
 			cfg["disable_dataframe_checks"] = *bot.DisableDataframeChecks
@@ -115,7 +115,7 @@ func BuildTradeBotConfig(
 			aiConfig["wait_for_training_iteration_on_reload"] = *ai.WaitForTrainingIterationOnReload
 		}
 		if ai.ContinueLearning != nil {
-			aiConfig["continue_learning"] = *ai.ContinueLearning
+			aiConfig["continual_learning"] = *ai.ContinueLearning
 		}
 		if ai.Keras != nil {
 			aiConfig["keras"] = *ai.Keras
@@ -138,7 +138,7 @@ func BuildTradeBotConfig(
 				fpConfig["include_shifted_candles"] = *fp.IncludeShiftedCandles
 			}
 			if fp.DIThreshold != nil {
-				fpConfig["di_threshold"] = *fp.DIThreshold
+				fpConfig["DI_threshold"] = *fp.DIThreshold
 			}
 			if fp.WeightFactor != nil {
 				fpConfig["weight_factor"] = *fp.WeightFactor
@@ -150,7 +150,7 @@ func BuildTradeBotConfig(
 				fpConfig["indicator_periods_candles"] = fp.IndicatorPeriodsCandles
 			}
 			if fp.UseSVMToRemoveOutliers != nil {
-				fpConfig["use_svm_to_remove_outliers"] = *fp.UseSVMToRemoveOutliers
+				fpConfig["use_SVM_to_remove_outliers"] = *fp.UseSVMToRemoveOutliers
 			}
 			if fp.PlotFeatureImportances != nil {
 				fpConfig["plot_feature_importances"] = *fp.PlotFeatureImportances
@@ -264,7 +264,7 @@ func BuildTradeBotConfig(
 			cfg["position_adjustment"] = data.PositionAdjustment
 		}
 		if data.NewPairsDaysAgo != nil {
-			cfg["new_pairs_days_ago"] = *data.NewPairsDaysAgo
+			cfg["new_pairs_days"] = *data.NewPairsDaysAgo
 		}
 		if data.DownloadTrades != nil {
 			cfg["download_trades"] = *data.DownloadTrades
@@ -421,9 +421,12 @@ func BuildTradeBotConfig(
 		cfg["api_server"] = apiServer
 	}
 
-	// ExperimentalConfig
+	// ExperimentalConfig - freqtrade nests this under "experimental", not a
+	// top-level key (schema.json: properties.experimental.properties.block_bad_exchanges).
 	if tradeBotConfig.Spec.Experimental != nil && tradeBotConfig.Spec.Experimental.BlockBadExchanges != nil {
-		cfg["block_bad_exchanges"] = *tradeBotConfig.Spec.Experimental.BlockBadExchanges
+		cfg["experimental"] = map[string]interface{}{
+			"block_bad_exchanges": *tradeBotConfig.Spec.Experimental.BlockBadExchanges,
+		}
 	}
 
 	// LoggingConfig

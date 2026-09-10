@@ -87,7 +87,7 @@ func BuildExchangeConfig(
 		cfg["outdated_offset"] = *exchange.OutdatedOffset
 	}
 	if exchange.MarketRefreshInterval != nil {
-		cfg["market_refresh_interval"] = *exchange.MarketRefreshInterval
+		cfg["markets_refresh_interval"] = *exchange.MarketRefreshInterval
 	}
 
 	// Handle CCXT config

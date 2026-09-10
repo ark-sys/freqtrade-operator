@@ -20,7 +20,6 @@
     "day",
     "week"
   ],
-  "block_bad_exchanges": true,
   "bot_name": "my-bot",
   "cancel_open_orders_on_exit": true,
   "custom_price_max_distance_ratio": 0.02,
@@ -28,7 +27,7 @@
   "dataformat_trades": "jsongz",
   "db_url": "sqlite:////freqtrade/user_data/tradesv3.sqlite",
   "disable_dataframe_checks": false,
-  "disable_param_export": false,
+  "disableparamexport": false,
   "discord": {
     "enabled": true,
     "entry_fill": [
@@ -63,7 +62,7 @@
     "enable_ws": true,
     "key": "test-api-key",
     "log_responses": false,
-    "market_refresh_interval": 60,
+    "markets_refresh_interval": 60,
     "name": "binance",
     "outdated_offset": 5,
     "pair_blacklist": [
@@ -74,7 +73,7 @@
       "ETH/USDT"
     ],
     "secret": "test-api-secret",
-    "unkown_fee_rate": false
+    "unknown_fee_rate": false
   },
   "exit_pricing": {
     "order_book_top": 1,
@@ -83,6 +82,9 @@
   },
   "exit_profit_offset": 0.01,
   "exit_profit_only": true,
+  "experimental": {
+    "block_bad_exchanges": true
+  },
   "export": "trades",
   "fee": 0.001,
   "fiat_display_currency": "USD",
@@ -90,7 +92,7 @@
   "freqai": {
     "activate_tensorboard": false,
     "backtest_period_days": 7,
-    "continue_learning": false,
+    "continual_learning": false,
     "conv_width": 2,
     "data_kitchen_thread_count": 4,
     "data_split_parameters": {
@@ -101,8 +103,8 @@
     "enabled": true,
     "expiration_hours": 1,
     "feature_parameters": {
+      "DI_threshold": 0.5,
       "buffer_train_data_candles": 5,
-      "di_threshold": 0.5,
       "include_corr_pairlist": [
         "BTC/USDT",
         "ETH/USDT"
@@ -124,7 +126,7 @@
         "nu": 0.1,
         "shuffle": true
       },
-      "use_svm_to_remove_outliers": true,
+      "use_SVM_to_remove_outliers": true,
       "weight_factor": 0.9
     },
     "fit_live_predictions_candles": 100,
@@ -171,7 +173,7 @@
   "logging": {
     "version": 1
   },
-  "lookahead_analysis_export_filename": "lookahead.txt",
+  "lookahead_analysis_exportfilename": "lookahead.txt",
   "margin_mode": "isolated",
   "max_entry_position_adjustment": 1,
   "max_open_trades": 5,
@@ -179,7 +181,7 @@
     "0": 0.1
   },
   "minimum_trade_amount": 10,
-  "new_pairs_days_ago": 60,
+  "new_pairs_days": 60,
   "order_time_in_force": {
     "entry": "GTC",
     "exit": "GTC"
@@ -238,8 +240,7 @@
     "balance_dust_level": 0.01,
     "chat_id": "test-chat-id",
     "enabled": true,
-    "reload": true,
-    "settings": {
+    "notification_settings": {
       "entry": "on",
       "entry_cancel": "on",
       "entry_fill": "on",
@@ -252,6 +253,7 @@
       "status": "on",
       "warning": "on"
     },
+    "reload": true,
     "token": "test-telegram-token",
     "topic_id": "42"
   },

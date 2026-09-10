@@ -95,7 +95,7 @@ func BuildNotificationConfig(
 			if notification.Telegram.Settings.ProtectionTriggerGlobal != "" {
 				settings["protection_trigger_global"] = notification.Telegram.Settings.ProtectionTriggerGlobal
 			}
-			telegram["settings"] = settings
+			telegram["notification_settings"] = settings
 		}
 
 		if notification.Telegram.TopicID != "" {
@@ -141,7 +141,7 @@ func BuildNotificationConfig(
 			if notification.Telegram.Settings.ProtectionTriggerGlobal != "" {
 				settings["protection_trigger_global"] = notification.Telegram.Settings.ProtectionTriggerGlobal
 			}
-			telegram["settings"] = settings
+			telegram["notification_settings"] = settings
 		}
 
 		cfg["telegram"] = telegram

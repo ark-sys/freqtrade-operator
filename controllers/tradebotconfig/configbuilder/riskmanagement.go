@@ -69,7 +69,7 @@ func BuildRiskManagementConfig(riskManagement *v1alpha1.RiskManagementSpec) map[
 	}
 
 	if riskManagement.LookaheadAnalysisExportFilename != "" {
-		cfg["lookahead_analysis_export_filename"] = riskManagement.LookaheadAnalysisExportFilename
+		cfg["lookahead_analysis_exportfilename"] = riskManagement.LookaheadAnalysisExportFilename
 	}
 
 	if riskManagement.StartupCandle != nil {
