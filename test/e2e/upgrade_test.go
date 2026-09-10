@@ -27,6 +27,8 @@ import (
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/test/utils"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -43,6 +45,7 @@ func upgradeContext() {
 			strategy   = "e2e-upgrade-strategy"
 			config     = "e2e-upgrade-config"
 			exchangeSA = "e2e-upgrade-exchange-creds"
+			frequi     = "e2e-upgrade-frequi"
 		)
 		ctx := context.Background()
 		var podUID string
@@ -64,6 +67,9 @@ func upgradeContext() {
 			Expect(k8sClient.Create(ctx, newStrategy(strategy))).To(Succeed())
 			Expect(k8sClient.Create(ctx, newDryRunTradeBotConfig(config, exchangeSA))).To(Succeed())
 			Expect(k8sClient.Create(ctx, newTradeBot(botName, tradingNamespace, config, strategy))).To(Succeed())
+
+			By("creating a v1alpha1 FreqUI referencing that TradeBot (B3: typed TradeBotRefs in v1beta1)")
+			Expect(k8sClient.Create(ctx, newFreqUI(frequi, tradingNamespace, []string{botName}))).To(Succeed())
 
 			By("waiting for its pod to reach Ready before redeploying the operator")
 			verifyPodReady := func(g Gomega) {
@@ -103,6 +109,9 @@ func upgradeContext() {
 		})
 
 		It("still reads back as both v1alpha1 and v1beta1 after the redeploy", func() {
+			// Covers B2/B3's TradeBotConfig/Strategy/FreqUI conversions the same way the
+			// TradeBot check below already covers B2's predecessor (P6-5) - reading each as
+			// both versions forces the apiserver through the same conversion webhook.
 			// v1beta1 is the storage version (P6-5), so reading this back as v1alpha1 needs the
 			// apiserver to call the conversion webhook - a genuinely different readiness signal
 			// than the previous It's plain `kubectl get pod` UID check, which never touches any
@@ -113,16 +122,77 @@ func upgradeContext() {
 			// webhook (test/utils/utils.go). Verified directly: a first pass with a bare (not
 			// Eventually-wrapped) Get here failed with "dial tcp ... connect: connection
 			// refused" against the webhook Service right after a real rollout completed.
+			nn := func(name string) types.NamespacedName {
+				return types.NamespacedName{Name: name, Namespace: tradingNamespace}
+			}
 			verifyReadableAsBothVersions := func(g Gomega) {
 				var alpha freqtradev1alpha1.TradeBot
-				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: botName, Namespace: tradingNamespace}, &alpha)).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, nn(botName), &alpha)).To(Succeed())
 				g.Expect(alpha.Spec.Config).To(Equal(config))
 
 				var beta freqtradev1beta1.TradeBot
-				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: botName, Namespace: tradingNamespace}, &beta)).To(Succeed())
+				g.Expect(k8sClient.Get(ctx, nn(botName), &beta)).To(Succeed())
 				g.Expect(beta.Spec.ConfigRef.Name).To(Equal(config))
+
+				var cfgAlpha freqtradev1alpha1.TradeBotConfig
+				g.Expect(k8sClient.Get(ctx, nn(config), &cfgAlpha)).To(Succeed())
+				g.Expect(cfgAlpha.Spec.Exchange.SecretRef).To(Equal(exchangeSA))
+
+				var cfgBeta freqtradev1beta1.TradeBotConfig
+				g.Expect(k8sClient.Get(ctx, nn(config), &cfgBeta)).To(Succeed())
+				g.Expect(cfgBeta.Spec.Exchange.SecretRef.Name).To(Equal(exchangeSA))
+
+				var stratAlpha freqtradev1alpha1.Strategy
+				g.Expect(k8sClient.Get(ctx, nn(strategy), &stratAlpha)).To(Succeed())
+				g.Expect(stratAlpha.Spec.Name).To(Equal(sampleStrategyClassName))
+
+				var stratBeta freqtradev1beta1.Strategy
+				g.Expect(k8sClient.Get(ctx, nn(strategy), &stratBeta)).To(Succeed())
+				g.Expect(stratBeta.Spec.Name).To(Equal(sampleStrategyClassName))
+
+				// FreqUI is the one conversion (B3) that reshapes a field rather than just
+				// relabeling the apiVersion: v1alpha1's []string TradeBotRefs becomes
+				// v1beta1's []corev1.LocalObjectReference - assert the actual reshape, not
+				// just that the object round-trips.
+				var frequiAlpha freqtradev1alpha1.FreqUI
+				g.Expect(k8sClient.Get(ctx, nn(frequi), &frequiAlpha)).To(Succeed())
+				g.Expect(frequiAlpha.Spec.TradeBotRefs).To(ConsistOf(botName))
+
+				var frequiBeta freqtradev1beta1.FreqUI
+				g.Expect(k8sClient.Get(ctx, nn(frequi), &frequiBeta)).To(Succeed())
+				g.Expect(frequiBeta.Spec.TradeBotRefs).To(ConsistOf(corev1.LocalObjectReference{Name: botName}))
 			}
 			Eventually(verifyReadableAsBothVersions, "1m").Should(Succeed())
+		})
+	})
+
+	// Unlike webhookRejectionContext's "no opt-out annotation" case (test/e2e/webhook_test.go),
+	// this sets the annotation and still expects rejection - proving B2's actual guarantee (see
+	// api/v1alpha1/tradebotconfig_conversion.go's ConvertTo doc comment): the annotation only
+	// bypasses v1alpha1's own admission check, never the conversion that every write (create,
+	// update, and the status patch a reconcile would otherwise issue) has to round-trip through,
+	// because v1beta1 - the storage version - has no field a plaintext credential could land in
+	// at all. Not Ordered and independent of the redeploy above: this only needs the real,
+	// cert-manager-issued webhook server, not any particular operator generation.
+	Context("A plaintext-credential TradeBotConfig cannot be persisted, even with the opt-out annotation", func() {
+		It("is still rejected at conversion, since v1beta1 has no field for it at all", func() {
+			ctx := context.Background()
+			cfg := &freqtradev1alpha1.TradeBotConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "e2e-plaintext-still-rejected-at-conversion",
+					Namespace:   tradingNamespace,
+					Annotations: map[string]string{"freqtrade.io/allow-plaintext-credentials": "true"},
+				},
+				Spec: freqtradev1alpha1.TradeBotConfigSpec{
+					Exchange: &freqtradev1alpha1.ExchangeSpec{
+						Name: "binance",
+						Key:  "plaintext-key-should-still-be-rejected",
+					},
+				},
+			}
+			err := k8sClient.Create(ctx, cfg)
+			Expect(err).To(HaveOccurred(), "expected conversion to reject a plaintext credential regardless of the annotation")
+			Expect(err.Error()).To(ContainSubstring("has no field for these at all"))
 		})
 	})
 }

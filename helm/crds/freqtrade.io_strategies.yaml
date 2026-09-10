@@ -26,6 +26,9 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    deprecated: true
+    deprecationWarning: freqtrade.io/v1alpha1 Strategy is deprecated; use freqtrade.io/v1beta1.
+      See https://github.com/ark-sys/freqtrade-operator#upgrading-to-v1beta1
     name: v1alpha1
     schema:
       openAPIV3Schema:

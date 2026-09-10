@@ -243,6 +243,31 @@ reconciler itself issues to report that rejection, hits the same conversion erro
 TradeBot doesn't fail cleanly with a friendly `ReasonJobModeRemoved` message, it gets stuck retrying a conversion
 error every few seconds instead. Migrating first avoids this path entirely.
 
+**`TradeBotConfig`, `Strategy`, and `FreqUI` also gain a `v1beta1` in this release.** Same deal as `TradeBot`
+above - `v1alpha1` is still served and converts transparently, so nothing you already have needs to change to
+keep working. Two things are worth knowing regardless:
+
+- **Plaintext exchange/notification credentials cannot reach `v1beta1` storage at all.** If any `TradeBotConfig`
+  still sets `spec.exchange.{key,secret,password,uid,wallet_address,private_key}`,
+  `spec.apiServer.{password,jwtSecretKey}`, or `spec.notification.telegram.token` directly instead of via
+  `secretRef`, move the value into a Secret and point `secretRef` at it *before* upgrading:
+
+  ```bash
+  kubectl create secret generic <name> -n <namespace> --from-literal=api-key=... --from-literal=secret=...
+  ```
+
+  Then set `spec.exchange.secretRef: <name>` (and the equivalent for `apiServer`/`notification.telegram`) and
+  remove the plaintext field. This isn't optional, and no annotation changes it:
+  `freqtrade.io/allow-plaintext-credentials` only ever bypasses `v1alpha1`'s own admission check, and `v1beta1` -
+  the storage version once you upgrade - has no field a plaintext credential could occupy. A `TradeBotConfig` left
+  with a plaintext field set fails on the very next write (including the reconciler's own status patch) with a
+  conversion error, not a clean one-time rejection at `kubectl apply`.
+- **`FreqUI.spec.tradeBotRefs` is typed in `v1beta1`.** `v1alpha1` still accepts the plain string list you already
+  have (`tradeBotRefs: [my-bot]`); nothing to change unless you write `v1beta1` objects directly, in which case
+  it's `tradeBotRefs: [{name: my-bot}]` instead.
+
+`Strategy`'s `v1beta1` is a straight mirror of `v1alpha1` - no field changes, no action needed either way.
+
 **Upgrading the CRDs themselves, via Helm:** `helm upgrade` never touches the contents of a chart's `crds/`
 directory - that's a deliberate Helm limitation (CRDs are treated as install-once, cluster-scoped, too risky to
 prune automatically), not specific to this chart. Apply the new CRDs yourself before or as part of every upgrade:
@@ -255,6 +280,24 @@ helm upgrade freqtrade-operator oci://ghcr.io/ark-sys/freqtrade-operator --versi
 (fetch and extract the tarball first - `kubectl apply -f <url>` doesn't unpack `.tar.gz` on its own). The
 `install.yaml` path (`kubectl apply -f .../install.yaml`) already includes the CRDs on every apply, so a plain
 re-apply is sufficient there.
+
+**Rewriting existing objects into `v1beta1` storage.** Every object above keeps reading back fine as `v1alpha1`
+for as long as this operator serves it. But an object created before this upgrade is still stored as
+`v1alpha1`'s bytes until something writes to it again - which will matter if a future release ever drops
+`v1alpha1` entirely (not planned yet; marking it deprecated now is what makes that possible later). Force the
+rewrite yourself, once you've migrated any plaintext credentials above:
+
+```bash
+kubectl get tradebots -A -o yaml | kubectl replace -f -
+kubectl get tradebotconfigs -A -o yaml | kubectl replace -f -
+kubectl get strategies -A -o yaml | kubectl replace -f -
+kubectl get frequis -A -o yaml | kubectl replace -f -
+```
+
+This operator does not ship an automated storage-version migrator - four kinds and no existing installs to
+migrate makes a `kubectl replace` loop the right amount of tooling. If that stops being true,
+[`storage-version-migrator`](https://github.com/kubernetes-sigs/kube-storage-version-migrator) is the upstream
+tool built for exactly this.
 
 ## Config changes and restarts
 

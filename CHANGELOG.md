@@ -30,7 +30,8 @@ aid, not a substitute for actually reading what changed.
   Kubernetes Events on every controller, and operator-level Prometheus metrics (`freqtrade_operator_tradebots`,
   `_config_drift`, `_reconcile_errors_total`, `_config_render_duration_seconds`).
 - Admission webhooks (validation and defaults) for `TradeBot`, `TradeBotConfig`, `Strategy`, and `Backtest`;
-  conversion webhooks converting `TradeBot` transparently between `v1alpha1` and `v1beta1`.
+  conversion webhooks converting `TradeBot`, `TradeBotConfig`, `Strategy`, and `FreqUI` transparently between
+  `v1alpha1` and `v1beta1`.
 - LICENSE (Apache 2.0), SECURITY.md (vulnerability reporting + threat model), CONTRIBUTING.md, and a generated API
   reference (`docs/api-reference.md`, regenerated from the Go types via `make api-docs`).
 - Helm chart: `PodDisruptionBudget`, `priorityClassName`, `topologySpreadConstraints`, `values.schema.json`, and a
@@ -52,6 +53,19 @@ aid, not a substitute for actually reading what changed.
 - A `TradeBotConfig` edit now only restarts a running bot if `spec.updateStrategy: Auto` is set; the default
   (`Manual`) reports the drift via a `ConfigDrift` condition instead of restarting a bot that may be holding open
   positions out from under itself (D-config-drift).
+- **`TradeBotConfig`, `Strategy`, and `FreqUI` graduate to `v1beta1`** (B2/B3), the new storage version; `v1alpha1`
+  is still served and converts transparently, but is now marked deprecated (`kubectl` surfaces a deprecation
+  warning on every write) on all four graduated CRDs. Two of the three conversions reshape data rather than just
+  relabeling the `apiVersion`:
+  - `TradeBotConfig`'s plaintext credential fields (`spec.exchange.{key,secret,password,uid,wallet_address,`
+    `private_key}`, `spec.apiServer.{password,jwtSecretKey}`, `spec.notification.telegram.token`) have **no
+    representation in `v1beta1` at all** - `secretRef` is the only path. A `v1alpha1` write that sets one is
+    rejected at conversion unconditionally, including one admitted past `v1alpha1`'s own webhook via the
+    `freqtrade.io/allow-plaintext-credentials` annotation: that annotation only ever bypassed `v1alpha1`'s own
+    admission check, never the conversion every write round-trips through once `v1beta1` is the storage version
+    (see the README's Upgrading section for the migration steps).
+  - `FreqUI.spec.tradeBotRefs` becomes `[]corev1.LocalObjectReference` (was `[]string`) in `v1beta1`, matching the
+    typed-reference convention used elsewhere.
 
 ### Fixed
 - Several Phase-0 correctness bugs: nil-pointer dereferences in `configbuilder`, `panic(err)` in resource builders
@@ -68,8 +82,10 @@ aid, not a substitute for actually reading what changed.
   Helm chart example/doc file.
 
 ### Security
-- Plaintext credential fields (`TradeBotConfig` exchange/API-server/Telegram) are rejected by the admission webhook
-  unless explicitly opted into via an annotation; `secretRef` is the default, encouraged path.
+- Plaintext credential fields (`TradeBotConfig` exchange/API-server/Telegram) are rejected by `v1alpha1`'s
+  admission webhook unless explicitly opted into via an annotation, and - as of the `v1beta1` graduation above -
+  cannot be persisted at all, opt-out annotation or not: `v1beta1` has no field for them, so conversion into the
+  storage version rejects them unconditionally. `secretRef` is the only path.
 - The rendered `config.json` Secret is labeled for backup-tool exclusion and hardened; TradeBot pods run under a
   restricted Pod Security Standard (no root, no privilege escalation, read-only root filesystem, `RuntimeDefault`
   seccomp) end to end, including the Backtest results-collection sidecar.

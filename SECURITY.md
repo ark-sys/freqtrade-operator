@@ -35,16 +35,20 @@ Exchange API keys, Telegram bot tokens, and the freqtrade REST API's own Basic A
 pattern: a `secretRef` pointing at a Kubernetes `Secret` the operator reads and renders into the bot's `config.json`,
 itself stored in a Secret (labeled `freqtrade.io/contains-credentials: "true"` - see
 [Config Secret backups](README.md#config-secret-backups) for what that means for your backup tooling). Plaintext
-credential fields on `TradeBotConfig` still exist on `v1alpha1` for backward compatibility but are rejected by the
-admission webhook unless the object carries `freqtrade.io/allow-plaintext-credentials: "true"` - an explicit,
-visible opt-out of the safer path, not the default.
+credential fields on `TradeBotConfig` still exist on the served (but deprecated) `v1alpha1` and are rejected by its
+admission webhook unless the object carries `freqtrade.io/allow-plaintext-credentials: "true"` - but that
+annotation only bypasses `v1alpha1`'s own admission check. `v1beta1`, the storage version, has no field a plaintext
+credential could occupy at all: any write that round-trips through storage - including one admitted past
+`v1alpha1`'s webhook via the annotation - is rejected at conversion instead. There is no way to persist a plaintext
+credential, opt-out annotation or not (see the README's [Upgrading to v1beta1](README.md#upgrading-to-v1beta1) for
+migrating any that predate this).
 
 Anyone who can `get` a credential `Secret` in a trading namespace has the same access the bot itself has: the
 exchange account, at whatever permissions that API key was scoped to on the exchange side (**scope it to trading
 only, never withdrawal**, regardless of what this operator does or doesn't enforce - that's an exchange-side
 control this software cannot substitute for). Anyone who can only `get tradebotconfig` (without `get secret`) sees
-the exchange name, risk/pairlist parameters, and whether `dry_run` is set - not the credentials themselves, unless
-the object was created with the plaintext opt-out above.
+the exchange name, risk/pairlist parameters, and whether `dry_run` is set - never the credentials themselves, since
+(per above) a `TradeBotConfig` cannot hold a plaintext one at all.
 
 ### What P4-3 introspection changes
 

@@ -31,6 +31,7 @@ type StrategyStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="freqtrade.io/v1alpha1 Strategy is deprecated; use freqtrade.io/v1beta1. See https://github.com/ark-sys/freqtrade-operator#upgrading-to-v1beta1"
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Name",type=string,JSONPath=`.spec.name`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`

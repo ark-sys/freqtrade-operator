@@ -248,6 +248,7 @@ type BotStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="freqtrade.io/v1alpha1 TradeBot is deprecated; use freqtrade.io/v1beta1. See https://github.com/ark-sys/freqtrade-operator#upgrading-to-v1beta1"
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Command",type=string,JSONPath=`.spec.freqtrade_command`
 // +kubebuilder:printcolumn:name="Strategy",type=string,JSONPath=`.spec.strategy`

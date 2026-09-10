@@ -509,6 +509,7 @@ type TradeBotConfigStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:deprecatedversion:warning="freqtrade.io/v1alpha1 TradeBotConfig is deprecated; use freqtrade.io/v1beta1. Plaintext credential fields must move to a Secret + secretRef first - see https://github.com/ark-sys/freqtrade-operator#upgrading-to-v1beta1"
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Exchange",type=string,JSONPath=`.spec.exchange.name`
 // +kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.bot.dry_run`
