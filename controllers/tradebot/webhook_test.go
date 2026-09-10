@@ -175,10 +175,12 @@ var _ = Describe("TradeBot admission webhook (P1-4)", func() {
 		Expect(k8sClient.Create(context.Background(), tradeBot)).To(Succeed())
 
 		By("waiting for the reconciler to add its finalizer")
+		// Gomega's bare Eventually default (1s) is too tight under a loaded CI
+		// runner - this spec flaked there while passing locally every time.
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(context.Background(), client.ObjectKeyFromObject(tradeBot), tradeBot)).To(Succeed())
 			g.Expect(tradeBot.Finalizers).To(ContainElement(BotFinalizer))
-		}).Should(Succeed())
+		}).WithTimeout(5 * time.Second).WithPolling(50 * time.Millisecond).Should(Succeed())
 
 		By("deleting the referenced Strategy first")
 		Expect(k8sClient.Delete(context.Background(), strategy)).To(Succeed())
