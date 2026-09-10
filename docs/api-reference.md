@@ -143,7 +143,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `state` _string_ | State is freqtrade's own run state: running, stopped, or unknown<br />(the operator either hasn't polled successfully yet, or the bot's<br />api_server isn't reachable/configured - see BotReachable for why). |  | Enum: [running stopped unknown] <br /> |
+| `state` _string_ | State is freqtrade's own run state, from a successful poll's<br />show_config response: running or stopped. Stopped is a normal,<br />deliberate operational state (BotReachable stays True for it - see<br />pollWithClient) - not a failure, and not the same thing as<br />unreachable. unknown means the operator has never completed a poll<br />that reached show_config at all; check BotReachable for why. |  | Enum: [running stopped unknown] <br /> |
 | `version` _string_ |  |  |  |
 | `dryRun` _boolean_ |  |  |  |
 | `openTrades` _integer_ |  |  |  |
@@ -151,7 +151,7 @@ _Appears in:_
 | `totalProfitAbs` _string_ | TotalProfitAbs/TotalProfitPct are strings, not floats - API types<br />don't carry floats (see api/v1alpha1's own conventions elsewhere),<br />and a value straight from freqtrade's own JSON response is passed<br />through as text rather than round-tripped through float64. |  |  |
 | `totalProfitPct` _string_ |  |  |  |
 | `lastPollTime` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#time-v1-meta)_ | LastPollTime is when the poller last completed a poll attempt for<br />this bot, successful or not. |  |  |
-| `lastPollError` _string_ | LastPollError is the most recent poll failure's message, or empty<br />after a successful poll. |  |  |
+| `lastPollError` _string_ | LastPollError is either the most recent poll failure's message (the<br />whole poll failed - BotReachable is False and the rest of this<br />struct is stale, unchanged from before this attempt), or a note<br />about which best-effort fields (OpenTrades/MaxOpenTrades,<br />TotalProfitAbs/TotalProfitPct, the freqtrade_bot_balance metric)<br />could not be refreshed on an otherwise-successful poll (BotReachable<br />is True and everything else here is fresh) - e.g. a reachable bot<br />that isn't currently running. Empty after a poll that refreshed<br />everything. |  |  |
 
 
 #### DataCacheSpec
