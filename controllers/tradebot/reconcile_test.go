@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +49,11 @@ func TestReconcile_MissingReference(t *testing.T) {
 				},
 				Spec: freqtradev1alpha1.TradeBotSpec{Strategy: tt.strategy, Config: tt.config},
 			}
-			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tradeBot).WithStatusSubresource(tradeBot).Build()
+			tradeBotBeta := betaMirrorOf(tradeBot)
+			c := fake.NewClientBuilder().WithScheme(scheme).
+				WithObjects(tradeBot, tradeBotBeta).
+				WithStatusSubresource(tradeBot, tradeBotBeta).
+				Build()
 			r := &Reconciler{Client: c, Scheme: scheme}
 
 			req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "my-bot", Namespace: "trading"}}
@@ -57,7 +62,10 @@ func TestReconcile_MissingReference(t *testing.T) {
 			// over - that's expected, not a failure of this test.
 			_, _ = r.Reconcile(context.Background(), req)
 
-			var got freqtradev1alpha1.TradeBot
+			// patchTradeBotStatus (P4-4) persists through v1beta1 - see
+			// betaMirrorOf's doc comment - so that's the version to
+			// re-fetch to observe the write.
+			var got freqtradev1beta1.TradeBot
 			if err := c.Get(context.Background(), req.NamespacedName, &got); err != nil {
 				t.Fatalf("failed to get TradeBot: %v", err)
 			}
@@ -93,7 +101,11 @@ func TestReconcile_RejectsJobMode(t *testing.T) {
 			FreqtradeCommand: "backtesting", Strategy: "some-strategy", Config: "some-config",
 		},
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tradeBot).WithStatusSubresource(tradeBot).Build()
+	tradeBotBeta := betaMirrorOf(tradeBot)
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(tradeBot, tradeBotBeta).
+		WithStatusSubresource(tradeBot, tradeBotBeta).
+		Build()
 	r := &Reconciler{Client: c, Scheme: scheme}
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: "my-bot", Namespace: "trading"}}
@@ -101,7 +113,10 @@ func TestReconcile_RejectsJobMode(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var got freqtradev1alpha1.TradeBot
+	// patchTradeBotStatus (P4-4) persists through v1beta1 - see
+	// betaMirrorOf's doc comment - so that's the version to re-fetch to
+	// observe the write.
+	var got freqtradev1beta1.TradeBot
 	if err := c.Get(context.Background(), req.NamespacedName, &got); err != nil {
 		t.Fatalf("failed to get TradeBot: %v", err)
 	}

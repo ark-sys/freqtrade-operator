@@ -93,6 +93,16 @@ linters:
           - misspell
         path: controllers/tradebotconfig/configbuilder/exchange_test.go
         text: "`unkown` is a misspelling of `unknown`"
+      # copyTradeBotStatusFromBeta/copyTradeBotStatusToBeta (P4-4) are a
+      # deliberate mirror-image pair, copying the same field list between
+      # two structurally-identical but distinctly-named per-version types
+      # (see status.go's own doc comment on why they're distinct types, not
+      # aliases). There's nothing to extract without reflection or a
+      # generics/interface layer heavier than the six-field copy it would
+      # replace.
+      - linters:
+          - dupl
+        path: controllers/tradebot/status.go
     paths:
       - third_party$
       - builtin$

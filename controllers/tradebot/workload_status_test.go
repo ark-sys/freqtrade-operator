@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -29,6 +30,11 @@ func newWorkloadStatusScheme(t *testing.T) *runtime.Scheme {
 	}
 	if err := freqtradev1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("failed to add v1alpha1 to scheme: %v", err)
+	}
+	// patchTradeBotStatus (P4-4) always writes TradeBot status through
+	// v1beta1, regardless of which version's type the caller itself uses.
+	if err := freqtradev1beta1.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add v1beta1 to scheme: %v", err)
 	}
 	return scheme
 }

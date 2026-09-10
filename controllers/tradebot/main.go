@@ -396,7 +396,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	hadWorkloadBefore := tradeBot.Status.ResolvedImage != ""
 	oldConfigHash := tradeBot.Status.AppliedConfigHash
 
-	if err := shared.PatchStatus(ctx, r.Client, &tradeBot, func() {
+	if err := patchTradeBotStatus(ctx, r.Client, &tradeBot, func() {
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type:    freqtradev1alpha1.ConditionConfigResolved,
 			Status:  metav1.ConditionTrue,
@@ -494,7 +494,7 @@ func (r *Reconciler) reconcileState(
 		// Never retry-storm an unreachable bot (P4-4): rely entirely on
 		// the poller's own backoff to eventually flip BotReachable, rather
 		// than probing the bot a second way on top of it.
-		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+		return 0, patchTradeBotStatus(ctx, r.Client, tradeBot, func() {
 			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
 				Reason:  freqtradev1alpha1.ReasonBotUnreachable,
@@ -509,7 +509,7 @@ func (r *Reconciler) reconcileState(
 	}
 	if (desired == freqtradev1beta1.TradeBotStateRunning && observed == "running") ||
 		(desired == freqtradev1beta1.TradeBotStateStopped && observed == "stopped") {
-		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+		return 0, patchTradeBotStatus(ctx, r.Client, tradeBot, func() {
 			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionTrue,
 				Reason: freqtradev1alpha1.ReasonAsExpected,
@@ -520,7 +520,7 @@ func (r *Reconciler) reconcileState(
 	username, password, _, err := resolveCredentials(ctx, r.Client, tradeBot)
 	if err != nil {
 		log.FromContext(ctx).Error(err, "Failed to resolve credentials for state reconciliation")
-		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+		return 0, patchTradeBotStatus(ctx, r.Client, tradeBot, func() {
 			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
 				Reason: freqtradev1alpha1.ReasonStateChangeFailed, Message: err.Error(),
@@ -562,7 +562,7 @@ func (r *Reconciler) reconcileStateChange(
 			r.Recorder.Event(tradeBot, corev1.EventTypeWarning, "BotStateChangeFailed",
 				fmt.Sprintf("Failed to %s bot: %v", action, callErr))
 		}
-		return 0, shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+		return 0, patchTradeBotStatus(ctx, r.Client, tradeBot, func() {
 			meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 				Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
 				Reason: freqtradev1alpha1.ReasonStateChangeFailed, Message: callErr.Error(),
@@ -574,7 +574,7 @@ func (r *Reconciler) reconcileStateChange(
 		r.Recorder.Event(tradeBot, corev1.EventTypeNormal, eventReason,
 			fmt.Sprintf("Issued %s to align with spec.state=%s", action, desired))
 	}
-	patchErr := shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+	patchErr := patchTradeBotStatus(ctx, r.Client, tradeBot, func() {
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type: freqtradev1alpha1.ConditionStateReconciled, Status: metav1.ConditionFalse,
 			Reason:  freqtradev1alpha1.ReasonStateChangePending,
@@ -697,7 +697,7 @@ func (r *Reconciler) failReconcile(
 	conditionType, reason, message string, err error,
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	if patchErr := shared.PatchStatus(ctx, r.Client, tradeBot, func() {
+	if patchErr := patchTradeBotStatus(ctx, r.Client, tradeBot, func() {
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type: conditionType, Status: metav1.ConditionFalse, Reason: reason, Message: message,
 		})

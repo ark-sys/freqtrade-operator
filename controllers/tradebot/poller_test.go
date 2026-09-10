@@ -12,6 +12,7 @@ import (
 	"github.com/go-logr/logr"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/controllers/tradebot/botclient"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -481,6 +482,11 @@ func newPollerTestScheme(t *testing.T) *runtime.Scheme {
 	if err := freqtradev1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("failed to add v1alpha1 to scheme: %v", err)
 	}
+	// patchTradeBotStatus (P4-4) always writes status through v1beta1,
+	// regardless of which version's type the caller itself uses.
+	if err := freqtradev1beta1.AddToScheme(scheme); err != nil {
+		t.Fatalf("failed to add v1beta1 to scheme: %v", err)
+	}
 	return scheme
 }
 
@@ -577,14 +583,20 @@ func TestScheduleDue_SetsIntrospectionDisabledCondition(t *testing.T) {
 		Spec: freqtradev1alpha1.TradeBotSpec{
 			Introspection: &freqtradev1alpha1.IntrospectionSpec{Enabled: ptr.To(false)},
 		},
-		// A stale True condition from before introspection was turned off -
-		// this is exactly the case the new logic must not leave lingering.
-		Status: freqtradev1alpha1.TradeBotStatus{Conditions: []metav1.Condition{{
-			Type: freqtradev1alpha1.ConditionBotReachable, Status: metav1.ConditionTrue,
-			Reason: freqtradev1alpha1.ReasonAsExpected, LastTransitionTime: metav1.Now(),
-		}}},
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tradeBot).WithStatusSubresource(tradeBot).Build()
+	// patchTradeBotStatus (P4-4) always reads/writes status through
+	// v1beta1 (see betaMirrorOf) - so the stale True condition this test
+	// means to prove gets overwritten, not just set on a blank slate, has
+	// to be seeded on the v1beta1 mirror, not the v1alpha1 fixture above.
+	tradeBotBeta := betaMirrorOf(tradeBot)
+	tradeBotBeta.Status.Conditions = []metav1.Condition{{
+		Type: freqtradev1alpha1.ConditionBotReachable, Status: metav1.ConditionTrue,
+		Reason: freqtradev1alpha1.ReasonAsExpected, LastTransitionTime: metav1.Now(),
+	}}
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(tradeBot, tradeBotBeta).
+		WithStatusSubresource(tradeBot, tradeBotBeta).
+		Build()
 	p := &BotPoller{Client: c, state: map[types.NamespacedName]*pollState{}}
 
 	queue := make(chan types.NamespacedName, 10)
@@ -600,7 +612,12 @@ func TestScheduleDue_SetsIntrospectionDisabledCondition(t *testing.T) {
 		t.Error("expected a bot with introspection disabled never to be tracked in poll state")
 	}
 
-	var got freqtradev1alpha1.TradeBot
+	// patchTradeBotStatus persists through v1beta1 - re-fetch that version
+	// to observe the write. A v1alpha1 Get here would show the object as
+	// originally seeded, unconverted: only a real apiserver's CRD
+	// conversion unifies the two versions' storage, which the fake client
+	// (unlike envtest) doesn't model.
+	var got freqtradev1beta1.TradeBot
 	if err := c.Get(context.Background(), key, &got); err != nil {
 		t.Fatalf("Get: %v", err)
 	}

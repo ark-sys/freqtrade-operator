@@ -234,7 +234,7 @@ func hasIntrospectionDisabledCondition(tradeBot *freqtradev1alpha1.TradeBot) boo
 func (p *BotPoller) setIntrospectionDisabledCondition(
 	ctx context.Context, logger logr.Logger, tradeBot *freqtradev1alpha1.TradeBot,
 ) {
-	err := shared.PatchStatus(ctx, p.Client, tradeBot, func() {
+	err := patchTradeBotStatus(ctx, p.Client, tradeBot, func() {
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, metav1.Condition{
 			Type:               freqtradev1alpha1.ConditionBotReachable,
 			Status:             metav1.ConditionUnknown,
@@ -303,7 +303,7 @@ func (p *BotPoller) pollOne(ctx context.Context, logger logr.Logger, key types.N
 	p.recordMetrics(key, &tradeBot, freshStatus, reachable, exchange, balance)
 	p.updateBackoff(key, &tradeBot, reachable)
 
-	if err := shared.PatchStatus(ctx, p.Client, &tradeBot, func() {
+	if err := patchTradeBotStatus(ctx, p.Client, &tradeBot, func() {
 		tradeBot.Status.Bot = mergeBotStatus(tradeBot.Status.Bot, freshStatus, reachable, metav1.Now())
 		meta.SetStatusCondition(&tradeBot.Status.Conditions, reachable)
 	}); err != nil {

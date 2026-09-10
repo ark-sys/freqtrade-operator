@@ -104,8 +104,13 @@ aid, not a substitute for actually reading what changed.
   server-side when not supplied and validated for minimum length; CORS origins are derived from referencing
   `FreqUI` resources instead of left wide open.
 - The operator can now halt trading (`spec.state`, above) - a new capability, documented in SECURITY.md's threat
-  model. `spec.state` has no `v1alpha1` representation, so a `v1alpha1` write to a `TradeBot` that has ever had it
-  set to `Stopped` is rejected outright, rather than silently resetting it back to `Running`.
+  model. `spec.state` has no `v1alpha1` representation, and *any* write through that version - not just a spec
+  change, a status-only update too, which is what the reconciler and poller issue on every single pass - silently
+  resets it back to `Running` once conversion round-trips the object through the storage version. Both TradeBot
+  controllers now write status through `v1beta1` exclusively so their own routine reconciliation can never do this
+  to itself, and `v1alpha1`'s admission webhook rejects any write to a `TradeBot` that has ever had `spec.state`
+  set to `Stopped`, closing the same hole for a third-party `v1alpha1` writer (an old GitOps pipeline, a stray
+  `kubectl edit`) the reconciler-side fix can't reach.
 - Release images are signed with cosign (keyless, via GitHub Actions OIDC) and ship an SPDX SBOM; the manager runs
   as a distroless, non-root image.
 
