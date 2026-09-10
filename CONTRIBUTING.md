@@ -98,7 +98,7 @@ Tags matching `v*` (e.g. `v0.2.0`) trigger `release.yml`/`helm-release.yml` - se
 1. Update [CHANGELOG.md](CHANGELOG.md): move `[Unreleased]` into a new `## [x.y.z] - YYYY-MM-DD` section.
    `make changelog-draft` prints a rough starting point grouped from commits since the last tag - it has no
    conventional-commit prefixes to key off, so treat its output as a first pass to edit, not a final result.
-2. Optionally, `make bundle IMG=arksys/freqtrade-operator:vX.Y.Z VERSION=X.Y.Z` and commit the refreshed
+2. Optionally, `make bundle IMG=ghcr.io/ark-sys/freqtrade-operator:vX.Y.Z VERSION=X.Y.Z` and commit the refreshed
    `bundle/`/`config/manifests/` - keeps the committed OLM bundle reasonably current for anyone browsing the repo
    or preparing an OperatorHub submission. Not required to actually release: `release.yml` regenerates and
    pushes a correctly-versioned bundle image itself on every tag push (see below), from source, independent of
@@ -107,7 +107,7 @@ Tags matching `v*` (e.g. `v0.2.0`) trigger `release.yml`/`helm-release.yml` - se
    `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
 Pushing the tag triggers `release.yml` (multi-arch image, signed and SBOM'd; `install.yaml` and a CRD tarball as
-release assets; an OLM bundle image pushed to `arksys/freqtrade-operator-bundle`) and `helm-release.yml` (chart
+release assets; an OLM bundle image pushed to `ghcr.io/ark-sys/freqtrade-operator-bundle`) and `helm-release.yml` (chart
 packaged, pushed to `ghcr.io/ark-sys` as an OCI artifact, and published to GitHub Pages if enabled).
 
 ## Design decisions

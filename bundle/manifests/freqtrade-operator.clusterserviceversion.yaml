@@ -254,7 +254,7 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.name
-                image: arksys/freqtrade-operator:latest
+                image: ghcr.io/ark-sys/freqtrade-operator:latest
                 livenessProbe:
                   httpGet:
                     path: /healthz

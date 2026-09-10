@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write   # softprops/action-gh-release creates/updates the GitHub Release
   id-token: write   # sigstore/cosign-installer's keyless signing needs an OIDC token
+  packages: write   # pushes the image to ghcr.io under this repo
 
 jobs:
   build:
@@ -29,11 +30,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # latest only ever points at an actual tagged release - a push straight
       # to main (untagged) still gets its own versioned tag below, but never
@@ -42,12 +44,13 @@ jobs:
       - name: Get version and tags
         id: get_version
         run: |
+          IMG_BASE="ghcr.io/${{ github.repository_owner }}/freqtrade-operator"
           if [[ $GITHUB_REF == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
-            TAGS="arksys/freqtrade-operator:${VERSION}"$'\n'"arksys/freqtrade-operator:latest"
+            TAGS="${IMG_BASE}:${VERSION}"$'\n'"${IMG_BASE}:latest"
           else
             VERSION="v$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
-            TAGS="arksys/freqtrade-operator:${VERSION}"
+            TAGS="${IMG_BASE}:${VERSION}"
           fi
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
           {
@@ -81,12 +84,12 @@ jobs:
       # is mutable, the digest docker/build-push-action just pushed is what
       # was actually built.
       - name: Sign the image
-        run: cosign sign --yes "arksys/freqtrade-operator@${{ steps.build.outputs.digest }}"
+        run: cosign sign --yes "ghcr.io/${{ github.repository_owner }}/freqtrade-operator@${{ steps.build.outputs.digest }}"
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: arksys/freqtrade-operator@${{ steps.build.outputs.digest }}
+          image: ghcr.io/${{ github.repository_owner }}/freqtrade-operator@${{ steps.build.outputs.digest }}
           format: spdx-json
           output-file: freqtrade-operator-sbom.spdx.json
           upload-artifact: true
@@ -101,7 +104,7 @@ jobs:
           # install instructions promise (P7-3) - CRDs, RBAC, webhooks and
           # the Deployment in one file, built from the exact image this same
           # job just pushed and signed, not a placeholder.
-          make build-installer IMG="arksys/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}"
+          make build-installer IMG="ghcr.io/${{ github.repository_owner }}/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}"
 
       # OLM bundle image, toward an eventual OperatorHub listing (P7-3) - tag-only, like the GitHub Release
       # below: an OLM bundle is meant to represent one real, addable-to-a-catalog version, not every dev build
@@ -112,7 +115,7 @@ jobs:
         run: |
           BARE_VERSION="${{ steps.get_version.outputs.VERSION }}"
           BARE_VERSION="${BARE_VERSION#v}"
-          make bundle IMG="arksys/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}" VERSION="${BARE_VERSION}"
+          make bundle IMG="ghcr.io/${{ github.repository_owner }}/freqtrade-operator:${{ steps.get_version.outputs.VERSION }}" VERSION="${BARE_VERSION}"
           make bundle-build bundle-push VERSION="${BARE_VERSION}"
 
       - name: Create GitHub Release

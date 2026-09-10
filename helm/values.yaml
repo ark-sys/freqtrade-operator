@@ -13,7 +13,7 @@ controllerManager:
   
   # Container image settings
   image:
-    repository: arksys/freqtrade-operator
+    repository: ghcr.io/ark-sys/freqtrade-operator
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     tag: ""

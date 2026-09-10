@@ -96,7 +96,7 @@ Every image the release workflow pushes is signed with [cosign](https://docs.sig
 own OIDC identity - no key to fetch or trust out of band) and ships an SPDX SBOM as a release asset. Verify an image with:
 
 ```bash
-cosign verify arksys/freqtrade-operator:<tag> \
+cosign verify ghcr.io/ark-sys/freqtrade-operator:<tag> \
   --certificate-identity-regexp 'https://github.com/ark-sys/freqtrade-operator/.github/workflows/release.yml@.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -132,7 +132,7 @@ helm install freqtrade-operator oci://ghcr.io/ark-sys/freqtrade-operator --versi
 ### Using OLM
 
 Every tagged release also publishes an [OLM](https://olm.operatorframework.io/) bundle image
-(`arksys/freqtrade-operator-bundle`), installable via `operator-sdk run bundle` against a cluster that already has
+(`ghcr.io/ark-sys/freqtrade-operator-bundle`), installable via `operator-sdk run bundle` against a cluster that already has
 OLM installed, or addable to your own catalog via `make catalog-build` (see `make help`).
 
 ## Usage

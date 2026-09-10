@@ -18,7 +18,7 @@ spec:
       # Custom values for the deployment
       values: |
         controllerManager:
-          # Use specific image tag - repository defaults to arksys/freqtrade-operator already
+          # Use specific image tag - repository defaults to ghcr.io/ark-sys/freqtrade-operator already
           image:
             tag: "latest"
 

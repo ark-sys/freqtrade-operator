@@ -55,7 +55,7 @@ The following table lists the configurable parameters of the chart and their def
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `controllerManager.replicas` | Number of controller manager replicas | `1` |
-| `controllerManager.image.repository` | Controller manager image repository | `arksys/freqtrade-operator` |
+| `controllerManager.image.repository` | Controller manager image repository | `ghcr.io/ark-sys/freqtrade-operator` |
 | `controllerManager.image.tag` | Controller manager image tag | `""` (uses appVersion) |
 | `controllerManager.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `controllerManager.logLevel` | Log level (debug, info, warn, error) | `info` |
