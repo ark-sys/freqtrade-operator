@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,39 +48,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// TradeBotConfig has no external references and no owned workload, so
-	// validation is a pure, synchronous function of its own spec: Ready is
-	// the only condition it ever sets.
-	validateErr := r.validateTradeBotConfig(ctx, &tradebotconfig)
-
+	// there is nothing left to validate here: the validating webhook
+	// (api/v1alpha1/tradebotconfig_webhook.go) already rejected anything
+	// invalid at admission time, and the object could not have been
+	// persisted otherwise. Ready is the only condition this reconciler
+	// sets, and it is unconditionally true.
 	if err := shared.PatchStatus(ctx, r.Client, &tradebotconfig, func() {
-		condition := metav1.Condition{
+		meta.SetStatusCondition(&tradebotconfig.Status.Conditions, metav1.Condition{
 			Type:    freqtradev1alpha1.ConditionReady,
 			Status:  metav1.ConditionTrue,
 			Reason:  freqtradev1alpha1.ReasonAsExpected,
 			Message: "TradeBotConfig configuration is valid",
-		}
-		if validateErr != nil {
-			condition.Status = metav1.ConditionFalse
-			condition.Reason = freqtradev1alpha1.ReasonConfigInvalid
-			condition.Message = validateErr.Error()
-		}
-		meta.SetStatusCondition(&tradebotconfig.Status.Conditions, condition)
+		})
 		tradebotconfig.Status.Phase = deriveTradeBotConfigPhase(tradebotconfig.Status.Conditions)
 	}); err != nil {
 		logger.Error(err, "Failed to update TradeBotConfig status")
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
-	}
-
-	if validateErr != nil {
-		logger.V(1).Error(validateErr, "TradeBotConfig validation failed")
-		if r.Recorder != nil {
-			r.Recorder.Event(&tradebotconfig, corev1.EventTypeWarning, "ValidationFailed", validateErr.Error())
-		}
-		shared.ReconcileErrorsTotal.WithLabelValues("tradebotconfig", "ValidationFailed").Inc()
-		// Nothing to retry: re-validating an unchanged spec always
-		// produces the same result. The next reconcile the user's own edit
-		// triggers is what can change the outcome.
-		return ctrl.Result{}, nil
 	}
 
 	logger.V(1).Info("Tradebotconfig reconciliation completed successfully", "name", tradebotconfig.Name)
@@ -99,19 +81,4 @@ func deriveTradeBotConfigPhase(conditions []metav1.Condition) string {
 		return "Valid"
 	}
 	return "Invalid"
-}
-
-// validateTradebotconfig performs validation of Tradebotconfig configuration
-func (r *Reconciler) validateTradeBotConfig(ctx context.Context, tradebotconfig *freqtradev1alpha1.TradeBotConfig) error {
-	logger := log.FromContext(ctx)
-
-	//// Validate required fields
-	//if tradebotconfig.Spec.Bot.BotName == "" {
-	//	return fmt.Errorf("tradebotconfig name is required")
-	//}
-
-	// TODO Check other required fields
-
-	logger.V(2).Info("Tradebotconfig validation passed", "name", tradebotconfig.Name)
-	return nil
 }
