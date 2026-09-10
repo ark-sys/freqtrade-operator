@@ -79,7 +79,7 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 	tls := spec.TLS
 	if len(tls) == 0 {
 		// If not set, build TLS for all hosts (optional)
-		var tlsHosts []string
+		tlsHosts := make([]string, 0, 1+len(tradeBotAPIRoutes))
 		tlsHosts = append(tlsHosts, mainHost)
 		for _, apiRoute := range tradeBotAPIRoutes {
 			apiHost := apiRoute.Name + "." + mainHost

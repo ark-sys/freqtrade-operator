@@ -11,7 +11,7 @@ import (
 func BuildFreqUIService(frequi freqtradev1alpha1.FreqUI) corev1.Service {
 	// Build default service spec
 	baseServiceSpec := corev1.ServiceSpec{
-		Selector: map[string]string{"app": frequi.Name},
+		Selector: map[string]string{appLabelKey: frequi.Name},
 		Type:     corev1.ServiceTypeClusterIP, // Default service type
 		Ports: []corev1.ServicePort{
 			{

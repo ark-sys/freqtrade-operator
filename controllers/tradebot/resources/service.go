@@ -32,7 +32,7 @@ func mergeServiceSpecOverrides(
 func BuildService(tradeBot freqtradev1alpha1.TradeBot) corev1.Service {
 	// Build default service spec
 	baseServiceSpec := corev1.ServiceSpec{
-		Selector: map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
+		Selector: map[string]string{nameLabelKey: tradeBot.Name, appLabelKey: freqtradeAppName},
 		Type:     corev1.ServiceTypeClusterIP, // Default service type
 		Ports: []corev1.ServicePort{
 			{

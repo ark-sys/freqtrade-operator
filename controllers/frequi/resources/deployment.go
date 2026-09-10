@@ -21,6 +21,10 @@ import (
 // unwritable by UID 101, which nginx needs for its temp/cache/pid files.
 const frequiUID = 101
 
+// appLabelKey is the "app" label this FreqUI's Deployment and Service both
+// select on, so they always agree on the same key.
+const appLabelKey = "app"
+
 // frequiSecurityContext extends the shared RestrictedSecurityContext with the explicit RunAsUser
 // this image needs (see frequiUID's doc comment) - TradeBot/Backtest use the shared one unmodified
 // since their image already defaults to non-root.
@@ -49,11 +53,11 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 	baseDeploymentSpec := appsv1.DeploymentSpec{
 		Replicas: &replicas,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: map[string]string{"app": frequi.Name},
+			MatchLabels: map[string]string{appLabelKey: frequi.Name},
 		},
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels: map[string]string{"app": frequi.Name},
+				Labels: map[string]string{appLabelKey: frequi.Name},
 			},
 			Spec: corev1.PodSpec{
 				RestartPolicy:                 corev1.RestartPolicyAlways,

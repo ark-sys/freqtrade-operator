@@ -49,7 +49,7 @@ func BuildNetworkPolicy(
 		// FreqUI only ever references TradeBots in its own namespace (see
 		// main.go's Reconcile, which lists FreqUI with client.InNamespace).
 		peers = append(peers, networkingv1.NetworkPolicyPeer{
-			PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": name}},
+			PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: name}},
 		})
 	}
 
@@ -69,11 +69,11 @@ func BuildNetworkPolicy(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      tradeBot.Name,
 			Namespace: tradeBot.Namespace,
-			Labels:    map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
+			Labels:    map[string]string{nameLabelKey: tradeBot.Name, appLabelKey: freqtradeAppName},
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
+				MatchLabels: map[string]string{nameLabelKey: tradeBot.Name, appLabelKey: freqtradeAppName},
 			},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 			Ingress:     ingress,

@@ -24,13 +24,15 @@ BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
 endif
 BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
+# IMAGE_TAG_BASE defines the ghcr.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# arksys/freqtrade-operator-bundle:$VERSION and arksys/freqtrade-operator-catalog:$VERSION - same registry and
-# org as the manager image itself (freqtrade.io is this project's CRD API group, not a real registry).
-IMAGE_TAG_BASE ?= arksys/freqtrade-operator
+# ghcr.io/ark-sys/freqtrade-operator-bundle:$VERSION and ghcr.io/ark-sys/freqtrade-operator-catalog:$VERSION -
+# same registry and org as the manager image itself (freqtrade.io is this project's CRD API group, not a
+# real registry). GHCR over Docker Hub: the release workflow authenticates with the ambient GITHUB_TOKEN,
+# so there are no separate registry credentials to provision or rotate.
+IMAGE_TAG_BASE ?= ghcr.io/ark-sys/freqtrade-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -278,8 +280,8 @@ CONTROLLER_TOOLS_VERSION ?= v0.18.0
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
-GOLANGCI_LINT_VERSION ?= v2.1.0
-CRD_REF_DOCS_VERSION ?= v0.1.0
+GOLANGCI_LINT_VERSION ?= v2.13.2
+CRD_REF_DOCS_VERSION ?= v0.3.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.

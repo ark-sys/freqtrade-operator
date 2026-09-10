@@ -35,10 +35,17 @@ var ConfigRenderDuration = prometheus.NewHistogram(
 	},
 )
 
+// labelNamespace and labelTradebot are Prometheus label names shared across
+// every metric below that carries one.
+const (
+	labelNamespace = "namespace"
+	labelTradebot  = "tradebot"
+)
+
 // botMetricLabels is the label set every freqtrade_bot_* gauge below
 // shares (P4-3) - kept as one slice so BotMetricLabelValues and
 // DeleteBotMetrics can't drift out of sync with the Vecs' own declarations.
-var botMetricLabels = []string{"namespace", "tradebot", "strategy", "exchange", "dry_run"}
+var botMetricLabels = []string{labelNamespace, labelTradebot, "strategy", "exchange", "dry_run"}
 
 // BotUp, BotState, BotOpenTrades, BotMaxOpenTrades, BotProfitAbs,
 // BotProfitRatio, BotBalance, and BotLastPollTimestampSeconds are pushed by
@@ -99,7 +106,7 @@ var (
 // a TradeBot it was tracking is gone.
 func DeleteBotMetrics(namespace, tradeBot, strategy, exchange, dryRun string) {
 	labels := prometheus.Labels{
-		"namespace": namespace, "tradebot": tradeBot,
+		labelNamespace: namespace, labelTradebot: tradeBot,
 		"strategy": strategy, "exchange": exchange, "dry_run": dryRun,
 	}
 	BotUp.Delete(labels)
@@ -151,7 +158,7 @@ func NewTradeBotCollector(reader client.Reader) prometheus.Collector {
 		configDriftDesc: prometheus.NewDesc(
 			"freqtrade_operator_config_drift",
 			"1 if the rendered config hasn't rolled out to the workload yet, else 0.",
-			[]string{"namespace", "tradebot"}, nil,
+			[]string{labelNamespace, labelTradebot}, nil,
 		),
 	}
 }

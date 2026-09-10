@@ -93,6 +93,14 @@ linters:
           - misspell
         path: controllers/tradebotconfig/configbuilder/exchange_test.go
         text: "`unkown` is a misspelling of `unknown`"
+      # Table-driven/Ginkgo test fixtures legitimately repeat the same short
+      # literal (exchange names, credential keys, namespaces) across many
+      # small, independent test cases - extracting each into a shared
+      # constant would couple otherwise-unrelated tests to each other for no
+      # real benefit. Production code still gets goconst's full scrutiny.
+      - linters:
+          - goconst
+        path: _test\.go
       # copyTradeBotStatusFromBeta/copyTradeBotStatusToBeta (P4-4) are a
       # deliberate mirror-image pair, copying the same field list between
       # two structurally-identical but distinctly-named per-version types

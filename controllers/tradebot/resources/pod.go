@@ -15,6 +15,10 @@ import (
 // unrelated pod builder lives in controllers/backtest/resources.
 const freqCommandTrade = "trade"
 
+// userDataVolumeName is the shared volume the main container and
+// init-user-data both mount at /freqtrade/user_data.
+const userDataVolumeName = "user-data"
+
 // BuildPod constructs the PodSpec for a TradeBot's long-running trading
 // StatefulSet pod.
 // - tradeBot: source CR used for overrides (App.PodSpec) and namespacing
@@ -69,7 +73,7 @@ func BuildPod(
 			},
 		},
 		{
-			Name: "user-data",
+			Name: userDataVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: pvcName},
 			},
@@ -79,11 +83,11 @@ func BuildPod(
 	mainMounts := []corev1.VolumeMount{
 		{Name: "config", MountPath: "/config", ReadOnly: true},
 		{Name: "strategy", MountPath: "/strategy", ReadOnly: true},
-		{Name: "user-data", MountPath: "/freqtrade/user_data"},
+		{Name: userDataVolumeName, MountPath: "/freqtrade/user_data"},
 	}
 
 	initUserDataMounts := []corev1.VolumeMount{
-		{Name: "user-data", MountPath: "/freqtrade/user_data"},
+		{Name: userDataVolumeName, MountPath: "/freqtrade/user_data"},
 	}
 
 	fixVolumePermissions := tradeBot.Spec.App != nil && tradeBot.Spec.App.PVCSpec != nil &&
@@ -124,7 +128,7 @@ func BuildPod(
 
 	// Main container
 	mainContainer := corev1.Container{
-		Name: "freqtrade",
+		Name: freqtradeAppName,
 		// A floating tag on a fixed policy (the old ImagePullPolicy: PullAlways)
 		// meant a routine pod restart could silently pick up a new freqtrade
 		// version mid-trading. image is normally digest-pinned (see
@@ -133,7 +137,7 @@ func BuildPod(
 		// re-pull on every restart.
 		Image:           image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"freqtrade"},
+		Command:         []string{freqtradeAppName},
 		Args:            args,
 		VolumeMounts:    mainMounts,
 		SecurityContext: shared.RestrictedSecurityContext(),

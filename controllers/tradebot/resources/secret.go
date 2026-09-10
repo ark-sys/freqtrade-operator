@@ -15,6 +15,15 @@ const ContainsCredentialsLabel = "freqtrade.io/contains-credentials"
 // for a boolean flag - labels and annotations are always strings.
 const labelValueTrue = "true"
 
+// appLabelKey and freqtradeAppName are the "app" label every TradeBot-owned
+// resource in this package carries, so selectors (Service, NetworkPolicy)
+// and the resources they select always agree on the same key/value pair.
+const (
+	appLabelKey      = "app"
+	freqtradeAppName = "freqtrade"
+	nameLabelKey     = "name"
+)
+
 // BuildSecret creates a Secret for the bot's config.json
 func BuildSecret(tradeBot freqtradev1alpha1.TradeBot, secretData map[string]string) corev1.Secret {
 	return corev1.Secret{
@@ -22,8 +31,8 @@ func BuildSecret(tradeBot freqtradev1alpha1.TradeBot, secretData map[string]stri
 			Name:      tradeBot.Name + "-config",
 			Namespace: tradeBot.Namespace,
 			Labels: map[string]string{
-				"app":                    "freqtrade",
-				"name":                   tradeBot.Name,
+				appLabelKey:              freqtradeAppName,
+				nameLabelKey:             tradeBot.Name,
 				ContainsCredentialsLabel: labelValueTrue,
 			},
 		},

@@ -355,7 +355,7 @@ _Appears in:_
 | `selector` _object (keys:string, values:string)_ | Selector defines the labels to select the pods for this service |  |  |
 | `annotations` _object (keys:string, values:string)_ | Annotations defines additional annotations for the service |  |  |
 | `loadBalancerSourceRanges` _string array_ | LoadBalancerSourceRanges defines source ranges for load balancer |  |  |
-| `externalTrafficPolicy` _[ServiceExternalTrafficPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicy-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
+| `externalTrafficPolicy` _[ServiceExternalTrafficPolicyType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicytype-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
 | `sessionAffinity` _[ServiceAffinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceaffinity-v1-core)_ | SessionAffinity defines session affinity |  |  |
 
 
@@ -423,8 +423,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `FreqUI` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[FreqUISpec](#frequispec)_ |  |  |  |
 | `status` _[FreqUIStatus](#frequistatus)_ |  |  |  |
@@ -444,8 +444,8 @@ FreqUIList contains a list of FreqUI
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `FreqUIList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[FreqUI](#frequi) array_ |  |  |  |
 
@@ -486,7 +486,7 @@ _Appears in:_
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ | Message is a human-readable message indicating details about the current phase |  |  |
 | `url` _string_ | URL is the URL where FreqUI is accessible |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
@@ -701,9 +701,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `types` _[Types](#types)_ | Types contains configuration for different order types |  |  |
-| `time_in_force` _[TimeInForce](#timeinforce)_ | TimeInForce contains configuration for order time in force options |  |  |
-| `flow` _[Flow](#flow)_ | Flow contains configuration for order flow processing |  |  |
+| `types` _[Types](#types)_ | Types contains configuration for different order types |  | Optional: \{\} <br /> |
+| `time_in_force` _[TimeInForce](#timeinforce)_ | TimeInForce contains configuration for order time in force options |  | Optional: \{\} <br /> |
+| `flow` _[Flow](#flow)_ | Flow contains configuration for order flow processing |  | Optional: \{\} <br /> |
 
 
 #### PVCSpec
@@ -725,7 +725,7 @@ _Appears in:_
 | `volumeName` _string_ | VolumeName defines the name of the volume to bind to |  |  |
 | `annotations` _object (keys:string, values:string)_ | Annotations defines additional annotations for the PVC |  |  |
 | `labels` _object (keys:string, values:string)_ | Labels defines additional labels for the PVC |  |  |
-| `fixVolumePermissions` _boolean_ | FixVolumePermissions restores the pre-P3-3 behavior of running the<br />init-user-data init container as root to chmod/chown this PVC before<br />the main container starts. Off by default: spec.securityContext.fsGroup<br />(already set on every pod this operator builds) already makes the<br />volume group-writable on most CSI drivers, and running as root here is<br />a real, if narrow, privilege escalation on an otherwise fully<br />non-root pod. Turn this on only if pods are actually crash-looping on<br />a permission-denied error under /freqtrade/user_data and changing<br />storage class isn't an option. |  |  |
+| `fixVolumePermissions` _boolean_ | FixVolumePermissions restores the pre-P3-3 behavior of running the<br />init-user-data init container as root to chmod/chown this PVC before<br />the main container starts. Off by default: spec.securityContext.fsGroup<br />(already set on every pod this operator builds) already makes the<br />volume group-writable on most CSI drivers, and running as root here is<br />a real, if narrow, privilege escalation on an otherwise fully<br />non-root pod. Turn this on only if pods are actually crash-looping on<br />a permission-denied error under /freqtrade/user_data and changing<br />storage class isn't an option. |  | Optional: \{\} <br /> |
 
 
 #### PairListSpec
@@ -1021,8 +1021,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `Strategy` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[StrategySpec](#strategyspec)_ |  |  |  |
 | `status` _[StrategyStatus](#strategystatus)_ |  |  |  |
@@ -1044,8 +1044,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `StrategyList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[Strategy](#strategy) array_ |  |  |  |
 
@@ -1082,7 +1082,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
@@ -1136,8 +1136,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `TradeBot` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[TradeBotSpec](#tradebotspec)_ |  |  |  |
 | `status` _[TradeBotStatus](#tradebotstatus)_ |  |  |  |
@@ -1158,8 +1158,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `TradeBotConfig` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[TradeBotConfigSpec](#tradebotconfigspec)_ |  |  |  |
 | `status` _[TradeBotConfigStatus](#tradebotconfigstatus)_ |  |  |  |
@@ -1181,8 +1181,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `TradeBotConfigList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[TradeBotConfig](#tradebotconfig) array_ |  |  |  |
 
@@ -1234,7 +1234,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
@@ -1254,8 +1254,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1alpha1` | | |
 | `kind` _string_ | `TradeBotList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[TradeBot](#tradebot) array_ |  |  |  |
 
@@ -1298,11 +1298,11 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from, so a client can tell whether it reflects the spec<br />it just applied. |  |  |
 | `appliedConfigHash` _string_ | AppliedConfigHash is sha256(config.json bytes + strategy script<br />bytes), truncated to 16 hex characters: the hash of the config<br />currently rendered into this TradeBot's Secret, regardless of<br />whether it has been rolled out to the running StatefulSet pods yet<br />(see the ConfigDrift condition). |  |  |
 | `resolvedImage` _string_ | ResolvedImage is the exact freqtrade image reference (normally<br />digest-pinned) the running workload was built with - the manager's<br />--default-freqtrade-image flag unless spec.app.pod.image overrides it<br />(P3-3). A floating tag would let a routine pod restart silently pick<br />up a new freqtrade version mid-trading; this makes what's actually<br />running visible regardless of which source set it. |  |  |
-| `bot` _[BotStatus](#botstatus)_ | Bot is this bot's own live trading state, as last observed by the<br />operator's poller (P4-3) - never written by the TradeBot reconciler<br />itself, and can lag behind spec.introspection.interval seconds.<br />LastPollTime/LastPollError say how current (or not) the rest of it<br />is; the BotReachable condition is the authoritative "can we trust<br />this at all right now" signal. |  |  |
+| `bot` _[BotStatus](#botstatus)_ | Bot is this bot's own live trading state, as last observed by the<br />operator's poller (P4-3) - never written by the TradeBot reconciler<br />itself, and can lag behind spec.introspection.interval seconds.<br />LastPollTime/LastPollError say how current (or not) the rest of it<br />is; the BotReachable condition is the authoritative "can we trust<br />this at all right now" signal. |  | Optional: \{\} <br /> |
 
 
 #### Types
@@ -1461,8 +1461,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `Backtest` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[BacktestSpec](#backtestspec)_ |  |  |  |
 | `status` _[BacktestStatus](#backteststatus)_ |  |  |  |
@@ -1484,8 +1484,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `BacktestList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[Backtest](#backtest) array_ |  |  |  |
 
@@ -1570,7 +1570,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 | `jobName` _string_ |  |  |  |
 | `resultsPVCName` _string_ |  |  |  |
@@ -1837,7 +1837,7 @@ _Appears in:_
 | `selector` _object (keys:string, values:string)_ | Selector defines the labels to select the pods for this service |  |  |
 | `annotations` _object (keys:string, values:string)_ | Annotations defines additional annotations for the service |  |  |
 | `loadBalancerSourceRanges` _string array_ | LoadBalancerSourceRanges defines source ranges for load balancer |  |  |
-| `externalTrafficPolicy` _[ServiceExternalTrafficPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicy-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
+| `externalTrafficPolicy` _[ServiceExternalTrafficPolicyType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicytype-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
 | `sessionAffinity` _[ServiceAffinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceaffinity-v1-core)_ | SessionAffinity defines session affinity |  |  |
 
 
@@ -1905,8 +1905,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `FreqUI` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[FreqUISpec](#frequispec)_ |  |  |  |
 | `status` _[FreqUIStatus](#frequistatus)_ |  |  |  |
@@ -1926,8 +1926,8 @@ FreqUIList contains a list of FreqUI
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `FreqUIList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[FreqUI](#frequi) array_ |  |  |  |
 
@@ -1953,7 +1953,7 @@ _Appears in:_
 | `tls` _[IngressTLS](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#ingresstls-v1-networking) array_ | TLS configuration for the FreqUI ingress |  |  |
 | `ingressAnnotations` _object (keys:string, values:string)_ | IngressAnnotations are additional annotations for the FreqUI ingress |  |  |
 | `app` _[FUAppConfig](#fuappconfig)_ | App is the configuration for the FreqUI application |  |  |
-| `tradeBotRefs` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#localobjectreference-v1-core) array_ | TradeBotRefs is a list of TradeBot references this FreqUI should<br />manage, resolved in this FreqUI's own namespace only (D3) -<br />same-namespace-only is a deliberate, documented constraint, not a<br />TODO. A name that doesn't resolve is surfaced via the<br />TradeBotRefsResolved condition rather than silently yielding no CORS<br />entry for that bot. |  |  |
+| `tradeBotRefs` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#localobjectreference-v1-core) array_ | TradeBotRefs is a list of TradeBot references this FreqUI should<br />manage, resolved in this FreqUI's own namespace only (D3) -<br />same-namespace-only is a deliberate, documented constraint, not a<br />TradeBotRefsResolved condition rather than silently yielding no CORS<br />entry for that bot. |  |  |
 
 
 #### FreqUIStatus
@@ -1973,7 +1973,7 @@ _Appears in:_
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ | Message is a human-readable message indicating details about the current phase |  |  |
 | `url` _string_ | URL is the URL where FreqUI is accessible |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
@@ -2554,8 +2554,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `Strategy` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[StrategySpec](#strategyspec)_ |  |  |  |
 | `status` _[StrategyStatus](#strategystatus)_ |  |  |  |
@@ -2575,8 +2575,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `StrategyList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[Strategy](#strategy) array_ |  |  |  |
 
@@ -2619,7 +2619,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
@@ -2640,7 +2640,6 @@ functions use a JSON-roundtrip helper for exactly these types
 (api/v1alpha1/tradebot_conversion.go), which is what the round-trip
 fuzz tests are for: a tag mismatch between the two copies would fail a
 fuzz round-trip immediately, not sit undetected.
-
 
 PodSpec here is TradeBotPodSpec, not PodSpec - api/v1beta1/backtest_types.go
 (P6-1) already uses the bare name for Backtest's own, differently-shaped
@@ -2690,8 +2689,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `TradeBot` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[TradeBotSpec](#tradebotspec)_ |  |  |  |
 | `status` _[TradeBotStatus](#tradebotstatus)_ |  |  |  |
@@ -2712,8 +2711,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `TradeBotConfig` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[TradeBotConfigSpec](#tradebotconfigspec)_ |  |  |  |
 | `status` _[TradeBotConfigStatus](#tradebotconfigstatus)_ |  |  |  |
@@ -2735,8 +2734,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `TradeBotConfigList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[TradeBotConfig](#tradebotconfig) array_ |  |  |  |
 
@@ -2794,7 +2793,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
@@ -2812,8 +2811,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
 | `kind` _string_ | `TradeBotList` | | |
-| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
-| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  | Optional: \{\} <br /> |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  | Optional: \{\} <br /> |
 | `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `items` _[TradeBot](#tradebot) array_ |  |  |  |
 
@@ -2890,11 +2889,11 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
 | `message` _string_ |  |  |  |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 | `appliedConfigHash` _string_ | AppliedConfigHash is sha256(config.json bytes + strategy script<br />bytes), truncated to 16 hex characters - see v1alpha1.TradeBotStatus's<br />identical field. |  |  |
 | `resolvedImage` _string_ | ResolvedImage is the exact freqtrade image reference the running<br />workload was built with (P3-3). |  |  |
-| `bot` _[BotStatus](#botstatus)_ | Bot is this bot's own live trading state, as last observed by the<br />operator's poller (P4-3). |  |  |
+| `bot` _[BotStatus](#botstatus)_ | Bot is this bot's own live trading state, as last observed by the<br />operator's poller (P4-3). |  | Optional: \{\} <br /> |
 
 
 #### Types

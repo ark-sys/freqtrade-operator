@@ -12,6 +12,14 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+const (
+	userDataVolumeName     = "user-data"
+	userDataMountPath      = "/freqtrade/user_data"
+	cacheVolumeName        = "cache"
+	cacheMountPath         = "/cache"
+	freqtradeContainerName = "freqtrade"
+)
+
 // buildArgs translates BacktestSpec's typed fields into freqtrade's own CLI
 // flags (D5: typed fields replace free-form arguments) - the one place this
 // mapping lives, so BuildPod itself stays a pure assembly function.
@@ -23,11 +31,11 @@ func buildArgs(spec freqtradev1beta1.BacktestSpec, strategyName string, hasCache
 		"--config", "/config/config.json",
 		"--strategy-path", "/strategy",
 		"--strategy", strategyName,
-		"--userdir", "/freqtrade/user_data",
+		"--userdir", userDataMountPath,
 		"--logfile", "/freqtrade/user_data/logs/freqtrade.log",
 	}
 	if hasCache {
-		args = append(args, "--datadir", "/cache")
+		args = append(args, "--datadir", cacheMountPath)
 	}
 	if spec.Timerange != "" {
 		args = append(args, "--timerange", spec.Timerange)
@@ -103,7 +111,7 @@ func BuildPod(
 				},
 			},
 		},
-		{Name: "user-data", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		{Name: userDataVolumeName, VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		{
 			Name: "results",
 			VolumeSource: corev1.VolumeSource{
@@ -113,7 +121,7 @@ func BuildPod(
 	}
 	if hasCache {
 		volumes = append(volumes, corev1.Volume{
-			Name: "cache",
+			Name: cacheVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: spec.Data.PVCName},
 			},
@@ -123,12 +131,12 @@ func BuildPod(
 	mainMounts := []corev1.VolumeMount{
 		{Name: "config", MountPath: "/config", ReadOnly: true},
 		{Name: "strategy", MountPath: "/strategy", ReadOnly: true},
-		{Name: "user-data", MountPath: "/freqtrade/user_data"},
+		{Name: userDataVolumeName, MountPath: userDataMountPath},
 	}
 	initMounts := append([]corev1.VolumeMount{}, mainMounts...)
 	if hasCache {
-		mainMounts = append(mainMounts, corev1.VolumeMount{Name: "cache", MountPath: "/cache", ReadOnly: true})
-		initMounts = append(initMounts, corev1.VolumeMount{Name: "cache", MountPath: "/cache", ReadOnly: false})
+		mainMounts = append(mainMounts, corev1.VolumeMount{Name: cacheVolumeName, MountPath: cacheMountPath, ReadOnly: true})
+		initMounts = append(initMounts, corev1.VolumeMount{Name: cacheVolumeName, MountPath: cacheMountPath, ReadOnly: false})
 	}
 
 	initContainers := []corev1.Container{{
@@ -138,7 +146,7 @@ func BuildPod(
 		SecurityContext: shared.RestrictedSecurityContext(),
 		Command:         []string{"sh", "-c"},
 		Args:            []string{"mkdir -p /freqtrade/user_data/logs /freqtrade/user_data/data"},
-		VolumeMounts:    []corev1.VolumeMount{{Name: "user-data", MountPath: "/freqtrade/user_data"}},
+		VolumeMounts:    []corev1.VolumeMount{{Name: userDataVolumeName, MountPath: userDataMountPath}},
 	}}
 	if hasCache {
 		initContainers = append(initContainers, buildDownloadDataInitContainer(spec, image, initMounts))
@@ -149,10 +157,10 @@ func BuildPod(
 	extraArgs := spec.ExtraArgs
 
 	mainContainer := corev1.Container{
-		Name:            "freqtrade",
+		Name:            freqtradeContainerName,
 		Image:           image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command:         []string{"freqtrade"},
+		Command:         []string{freqtradeContainerName},
 		Args:            buildArgs(spec, strategyName, hasCache, extraArgs),
 		VolumeMounts:    mainMounts,
 		SecurityContext: shared.RestrictedSecurityContext(),
@@ -187,7 +195,7 @@ func buildDownloadDataInitContainer(
 ) corev1.Container {
 	dlArgs := []string{
 		"download-data", "--config", "/config/config.json",
-		"--userdir", "/freqtrade/user_data", "--datadir", "/cache",
+		"--userdir", userDataMountPath, "--datadir", cacheMountPath,
 	}
 	// Mirrors buildArgs' own handling of these three fields: download-data has to fetch the
 	// same (timerange, timeframe, pairs) the run itself will ask backtesting for, or the cache
@@ -240,7 +248,7 @@ func buildDownloadDataInitContainer(
 		base.Args = dlArgs
 		return base
 	default: // "always"
-		base.Command = []string{"freqtrade"}
+		base.Command = []string{freqtradeContainerName}
 		base.Args = dlArgs
 		return base
 	}
@@ -335,7 +343,7 @@ func buildSidecarContainer(operatorImage, backtestName, strategyName string) cor
 			}},
 		},
 		VolumeMounts: []corev1.VolumeMount{
-			{Name: "user-data", MountPath: "/freqtrade/user_data", ReadOnly: true},
+			{Name: userDataVolumeName, MountPath: userDataMountPath, ReadOnly: true},
 			{Name: "sidecar-token", MountPath: sidecarTokenServiceAccountMountPath, ReadOnly: true},
 			{Name: "results", MountPath: ResultsPVCMountPath},
 		},

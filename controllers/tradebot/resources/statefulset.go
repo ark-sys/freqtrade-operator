@@ -49,12 +49,12 @@ func BuildStatefulSet(
 	baseStatefulSetSpec := appsv1.StatefulSetSpec{
 		Replicas: &replicas,
 		Selector: &metav1.LabelSelector{
-			MatchLabels: map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
+			MatchLabels: map[string]string{nameLabelKey: tradeBot.Name, appLabelKey: freqtradeAppName},
 		},
 		ServiceName: tradeBot.Name,
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
-				Labels:      map[string]string{"name": tradeBot.Name, "app": "freqtrade"},
+				Labels:      map[string]string{nameLabelKey: tradeBot.Name, appLabelKey: freqtradeAppName},
 				Annotations: templateAnnotations,
 			},
 			Spec: podSpec,
