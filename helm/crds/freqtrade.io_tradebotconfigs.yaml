@@ -815,6 +815,816 @@ spec:
             type: object
         type: object
     served: true
+    storage: false
+    subresources:
+      status: {}
+  - additionalPrinterColumns:
+    - jsonPath: .spec.exchange.name
+      name: Exchange
+      type: string
+    - jsonPath: .spec.bot.dry_run
+      name: DryRun
+      type: boolean
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              TradeBotConfigSpec defines the desired state of TradeBotConfig. B2
+              (REMAINING-WORK.md): every plaintext credential field v1alpha1 carried
+              behind the freqtrade.io/allow-plaintext-credentials gate is gone here -
+              secretRef (now a typed, same-namespace-only corev1.LocalObjectReference
+              rather than a bare string) is the only path. Everything else is
+              field-for-field identical to v1alpha1.TradeBotConfigSpec.
+            properties:
+              advanced:
+                properties:
+                  cancel_open_orders_on_exit:
+                    type: boolean
+                  force_entry_enable:
+                    type: boolean
+                  initial_state:
+                    type: string
+                  margin_mode:
+                    type: string
+                  tradable_balance_ratio:
+                    type: number
+                type: object
+              ai:
+                properties:
+                  activate_tensorboard:
+                    type: boolean
+                  backtest_period_days:
+                    type: integer
+                  continue_learning:
+                    type: boolean
+                  conv_width:
+                    type: integer
+                  data_kitchen_thread_count:
+                    type: integer
+                  data_split_parameters:
+                    properties:
+                      random_state:
+                        type: integer
+                      shuffle:
+                        type: boolean
+                      test_size:
+                        type: number
+                    type: object
+                  enabled:
+                    type: boolean
+                  expiration_hours:
+                    type: integer
+                  feature_parameters:
+                    properties:
+                      buffer_train_data_candles:
+                        type: integer
+                      di_threshold:
+                        type: number
+                      include_corr_pairlist:
+                        items:
+                          type: string
+                        type: array
+                      include_shifted_candles:
+                        type: integer
+                      include_timeframes:
+                        items:
+                          type: string
+                        type: array
+                      indicator_periods_candles:
+                        items:
+                          type: integer
+                        type: array
+                      label_period_candles:
+                        type: integer
+                      plot_feature_importances:
+                        type: integer
+                      principal_component_analysis:
+                        type: boolean
+                      shuffle_after_split:
+                        type: boolean
+                      svm_params:
+                        properties:
+                          nu:
+                            type: number
+                          shuffle:
+                            type: boolean
+                        type: object
+                      use_svm_to_remove_outliers:
+                        type: boolean
+                      weight_factor:
+                        type: number
+                    type: object
+                  fit_live_predictions_candles:
+                    type: integer
+                  identifier:
+                    type: string
+                  keras:
+                    type: boolean
+                  live_retrain_hours:
+                    type: integer
+                  model_training_parameters:
+                    type: object
+                  purge_old_models:
+                    type: integer
+                  rl_config:
+                    properties:
+                      add_state_info:
+                        type: boolean
+                      cpu_count:
+                        type: integer
+                      drop_ohlc_from_features:
+                        type: boolean
+                      max_trade_duration_candles:
+                        type: integer
+                      max_training_drawdown_pct:
+                        type: number
+                      model_reward_parameters:
+                        properties:
+                          profit_aim:
+                            type: number
+                          rr:
+                            type: number
+                        type: object
+                      model_type:
+                        type: string
+                      net_arch:
+                        items:
+                          type: integer
+                        type: array
+                      policy_type:
+                        type: string
+                      progress_bar:
+                        type: boolean
+                      randomize_starting_position:
+                        type: boolean
+                      train_cycles:
+                        type: integer
+                    type: object
+                  save_backtest_models:
+                    type: boolean
+                  train_period_days:
+                    type: integer
+                  wait_for_training_iteration_on_reload:
+                    type: boolean
+                  write_metrics_to_disk:
+                    type: boolean
+                type: object
+              apiServer:
+                description: |-
+                  APIServerConfig: Password/JWTSecretKey are gone - see ExchangeSpec's own
+                  doc comment, same B2 reasoning. SecretRef is the only path.
+                properties:
+                  cors_origins:
+                    items:
+                      type: string
+                    type: array
+                  enable_openapi:
+                    type: boolean
+                  enabled:
+                    type: boolean
+                  listen_ip_address:
+                    type: string
+                  listen_port:
+                    maximum: 65535
+                    minimum: 1
+                    type: integer
+                  secretRef:
+                    description: |-
+                      SecretRef references a Secret in this TradeBotConfig's own namespace
+                      only (D3).
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  username:
+                    type: string
+                  verbosity:
+                    type: string
+                type: object
+              bot:
+                properties:
+                  bot_name:
+                    type: string
+                  db_url:
+                    type: string
+                  disable_dataframe_checks:
+                    type: boolean
+                  disable_param_export:
+                    type: boolean
+                  dry_run:
+                    type: boolean
+                  dry_run_wallet:
+                    minimum: 0
+                    type: number
+                  export:
+                    type: string
+                  fiat_display_currency:
+                    type: string
+                  max_open_trades:
+                    minimum: -1
+                    type: integer
+                  stake_amount:
+                    type: string
+                  stake_currency:
+                    type: string
+                  trading_mode:
+                    enum:
+                    - spot
+                    - margin
+                    - futures
+                    type: string
+                type: object
+              data:
+                properties:
+                  amend_last_stake_amount:
+                    type: boolean
+                  amount_reserve_percent:
+                    type: number
+                  available_capital:
+                    type: number
+                  custom_price_max_distance_ratio:
+                    type: number
+                  dataformat_ohlcv:
+                    type: string
+                  dataformat_trades:
+                    type: string
+                  download_trades:
+                    type: boolean
+                  last_stake_amount_min_ratio:
+                    type: number
+                  max_entry_position_adjustment:
+                    type: number
+                  new_pairs_days_ago:
+                    type: integer
+                  position_adjustment:
+                    type: string
+                  process_only_new_candles:
+                    type: boolean
+                  reduce_df_footprint:
+                    type: boolean
+                type: object
+              entry_pricing:
+                description: PricingSpec defines the desired state of Pricing
+                properties:
+                  check_depth_of_market:
+                    description: PricingCheckDepthOfMarket defines the check_depth_of_market
+                      settings
+                    properties:
+                      bids_to_ask_delta:
+                        type: number
+                      enabled:
+                        type: boolean
+                    type: object
+                  order_book_top:
+                    type: integer
+                  price_last_balance:
+                    type: number
+                  price_side:
+                    type: string
+                  use_order_book:
+                    type: boolean
+                type: object
+              exchange:
+                description: |-
+                  ExchangeSpec is B2's primary target: every plaintext credential field
+                  (Key/Secret/Password/UID/WalletAddress/PrivateKey) v1alpha1 carried
+                  behind the allow-plaintext-credentials gate is gone - secretRef is the
+                  only path. AccountID stays: it's an identifier, not a secret, and was
+                  never gated (see configbuilder/exchange.go).
+                properties:
+                  account_id:
+                    type: string
+                  blacklist:
+                    description: PairListSpec defines the desired state of PairList
+                    properties:
+                      pairs:
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  ccxt_async_config:
+                    x-kubernetes-preserve-unknown-fields: true
+                  ccxt_config:
+                    x-kubernetes-preserve-unknown-fields: true
+                  ccxt_sync_config:
+                    x-kubernetes-preserve-unknown-fields: true
+                  enable_ws:
+                    type: boolean
+                  log_responses:
+                    type: boolean
+                  market_refresh_interval:
+                    type: integer
+                  name:
+                    type: string
+                  outdated_offset:
+                    type: integer
+                  secretRef:
+                    description: |-
+                      SecretRef references a Secret in this TradeBotConfig's own namespace
+                      only (D3) - cross-namespace references are a deliberate, documented
+                      constraint, not a TODO.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  unknown_fee_rate:
+                    description: |-
+                      UnknownFeeRate closes A1's bug at the API level: v1alpha1 keeps its
+                      original spelling (a served field can't be renamed without a
+                      breaking change - see B2), but this fresh v1beta1 field gets the
+                      correct name and JSON tag from the start.
+                    type: boolean
+                  whitelist:
+                    description: PairListSpec defines the desired state of PairList
+                    properties:
+                      pairs:
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                required:
+                - name
+                type: object
+              exit_pricing:
+                description: PricingSpec defines the desired state of Pricing
+                properties:
+                  check_depth_of_market:
+                    description: PricingCheckDepthOfMarket defines the check_depth_of_market
+                      settings
+                    properties:
+                      bids_to_ask_delta:
+                        type: number
+                      enabled:
+                        type: boolean
+                    type: object
+                  order_book_top:
+                    type: integer
+                  price_last_balance:
+                    type: number
+                  price_side:
+                    type: string
+                  use_order_book:
+                    type: boolean
+                type: object
+              experimental:
+                properties:
+                  block_bad_exchanges:
+                    type: boolean
+                type: object
+              internals:
+                description: InternalsConfig defines internal processing configuration
+                properties:
+                  interval:
+                    type: integer
+                  process_throttle_secs:
+                    type: integer
+                  sd_notify:
+                    type: boolean
+                type: object
+              logging:
+                properties:
+                  version:
+                    type: integer
+                type: object
+              notification:
+                properties:
+                  discord:
+                    properties:
+                      enabled:
+                        type: boolean
+                      entry_fill:
+                        items:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        type: array
+                      exit_fill:
+                        items:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        type: array
+                      webhook_url:
+                        type: string
+                    type: object
+                  telegram:
+                    description: |-
+                      NotificationTelegram: Token is gone - see ExchangeSpec's own doc comment,
+                      same B2 reasoning. SecretRef is the only path. ChatID/TopicID stay
+                      plain strings: identifiers, not secrets, same as ExchangeSpec.AccountID.
+                    properties:
+                      allow_custom_messages:
+                        type: boolean
+                      authorized_users:
+                        items:
+                          type: string
+                        type: array
+                      balance_dust_level:
+                        type: number
+                      chat_id:
+                        type: string
+                      enabled:
+                        type: boolean
+                      reload:
+                        type: boolean
+                      secretRef:
+                        description: |-
+                          SecretRef references a Secret in this TradeBotConfig's own namespace
+                          only (D3).
+                        properties:
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      settings:
+                        properties:
+                          entry:
+                            type: string
+                          entry_cancel:
+                            type: string
+                          entry_fill:
+                            type: string
+                          exit:
+                            type: string
+                          exit_cancel:
+                            type: string
+                          exit_fill:
+                            type: string
+                          protection_trigger:
+                            type: string
+                          protection_trigger_global:
+                            type: string
+                          startup:
+                            type: string
+                          status:
+                            type: string
+                          warning:
+                            type: string
+                        type: object
+                      topic_id:
+                        type: string
+                    type: object
+                  webhook:
+                    properties:
+                      allow_custom_messages:
+                        description: |-
+                          Deprecated: not a real Freqtrade webhook option - see
+                          v1alpha1.NotificationWebhook.AllowCustomMessages. Carried over
+                          unchanged rather than dropped - B2's scope is credential fields and
+                          typed references, not a general API cleanup.
+                        type: boolean
+                      enabled:
+                        type: boolean
+                      entry:
+                        type: string
+                      entry_cancel:
+                        type: string
+                      entry_fill:
+                        type: string
+                      exit:
+                        type: string
+                      exit_cancel:
+                        type: string
+                      exit_fill:
+                        type: string
+                      status:
+                        type: string
+                      url:
+                        type: string
+                    type: object
+                type: object
+              order:
+                properties:
+                  flow:
+                    properties:
+                      cache_size:
+                        type: integer
+                      imbalance_ratio:
+                        type: number
+                      imbalance_volume:
+                        type: integer
+                      max_candles:
+                        type: integer
+                      scale:
+                        type: number
+                      stacked_imbalance_range:
+                        type: integer
+                    type: object
+                  time_in_force:
+                    description: TimeInForce defines options for order time in force
+                    properties:
+                      entry:
+                        type: string
+                      exit:
+                        type: string
+                    type: object
+                  types:
+                    description: Types defines various order type configurations
+                    properties:
+                      emergency_exit:
+                        type: string
+                      entry:
+                        type: string
+                      exit:
+                        type: string
+                      force_entry:
+                        type: string
+                      force_exit:
+                        type: string
+                      stoploss:
+                        type: string
+                      stoploss_on_exchange:
+                        type: boolean
+                      stoploss_on_exchange_interval:
+                        type: integer
+                      stoploss_on_exchange_limit_ratio:
+                        type: number
+                    type: object
+                type: object
+              pairlist:
+                description: PairListSpec defines the desired state of PairList
+                properties:
+                  pairs:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              pairlist_method:
+                description: PairlistMethodsSpec defines the desired state of PairlistMethods
+                properties:
+                  methods:
+                    items:
+                      description: PairlistConfig represents the configuration for
+                        a pairlist method
+                      properties:
+                        allow_inactive:
+                          type: boolean
+                        bearer_token:
+                          type: string
+                        categories:
+                          items:
+                            type: string
+                          type: array
+                        keep_pairlist_on_failure:
+                          type: boolean
+                        lookback_days:
+                          type: integer
+                        lookback_days_range:
+                          type: integer
+                        lookback_days_volatility:
+                          type: integer
+                        lookback_period:
+                          type: integer
+                        lookback_timeframe:
+                          type: string
+                        max_days_listed:
+                          type: integer
+                        max_price:
+                          type: number
+                        max_rank:
+                          type: integer
+                        max_rate_of_change:
+                          type: number
+                        max_spread_ratio:
+                          type: number
+                        max_volatility:
+                          type: number
+                        method:
+                          description: PairlistMethod represents the method used for
+                            pair selection
+                          type: string
+                        min_change_rate:
+                          type: number
+                        min_days_listed:
+                          type: integer
+                        min_price:
+                          type: number
+                        min_rate_of_change:
+                          type: number
+                        min_volatility:
+                          type: number
+                        mode:
+                          type: string
+                        number_assets:
+                          type: integer
+                        offset:
+                          type: integer
+                        pairlist_url:
+                          type: string
+                        processing_mode:
+                          type: string
+                        producer_name:
+                          type: string
+                        read_timeout:
+                          type: integer
+                        refresh_period:
+                          format: int64
+                          type: integer
+                        save_to_file:
+                          type: string
+                        sort_key:
+                          type: string
+                      required:
+                      - method
+                      type: object
+                    type: array
+                required:
+                - methods
+                type: object
+              risk_management:
+                description: RiskManagementSpec defines the desired state of RiskManagement
+                properties:
+                  backtest_breakdown:
+                    items:
+                      type: string
+                    type: array
+                  exit_profit_offset:
+                    type: number
+                  exit_profit_only:
+                    type: boolean
+                  fee:
+                    type: number
+                  ignore_buying_expired_candle_after:
+                    type: integer
+                  ignore_roi_if_entry_signal:
+                    type: boolean
+                  liquidation_buffer:
+                    type: number
+                  lookahead_analysis_export_filename:
+                    type: string
+                  minimal_roi:
+                    additionalProperties:
+                      type: number
+                    type: object
+                  minimum_trade_amount:
+                    type: integer
+                  startup_candle:
+                    items:
+                      type: integer
+                    type: array
+                  stoploss:
+                    type: number
+                  targeted_trade_amount:
+                    type: integer
+                  trailing_only_offset_is_reached:
+                    type: boolean
+                  trailing_stop:
+                    type: boolean
+                  trailing_stop_positive:
+                    type: number
+                  trailing_stop_positive_offset:
+                    type: number
+                  use_exit_signal:
+                    type: boolean
+                type: object
+                x-kubernetes-validations:
+                - message: trailing_stop_positive_offset must be greater than trailing_stop_positive
+                  rule: '!has(self.trailing_stop_positive_offset) || !has(self.trailing_stop_positive)
+                    || self.trailing_stop_positive_offset > self.trailing_stop_positive'
+              timeout:
+                description: UnfilledTimeoutConfig defines timeout settings for unfilled
+                  orders
+                properties:
+                  entry:
+                    type: integer
+                  exit:
+                    type: integer
+                  exit_timeout_count:
+                    type: integer
+                  unit:
+                    type: string
+                type: object
+            required:
+            - bot
+            type: object
+          status:
+            description: |-
+              TradeBotConfigStatus defines the observed state of TradeBotConfig -
+              identical to v1alpha1's.
+            properties:
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              message:
+                type: string
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the most recent metadata.generation this status
+                  was computed from.
+                format: int64
+                type: integer
+              phase:
+                description: |-
+                  Phase is a derived, human-facing summary for the printer column only -
+                  it is never the source of truth. Conditions are.
+                type: string
+            type: object
+        type: object
+    served: true
     storage: true
     subresources:
       status: {}

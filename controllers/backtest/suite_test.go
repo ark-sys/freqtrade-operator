@@ -49,6 +49,20 @@ var _ = BeforeSuite(func() {
 
 	testCtx, testCancel = context.WithCancel(context.Background())
 
+	// Registered before testEnv.Start(), not after: envtest's own
+	// CRDInstallOptions auto-detects conversion.Convertible types (P6-5,
+	// B2) by inspecting the scheme it defaults to (client-go's global
+	// scheme.Scheme, same singleton as below) at CRD-install time, which
+	// happens inside Start() itself - registering these afterward would
+	// leave the conversion webhook unwired for this suite's own tests
+	// with no error, just silently not applied. See
+	// controllers/tradebot/suite_test.go's identical comment - this
+	// suite's own fixtures create TradeBotConfig objects (B2 made it a
+	// second multi-version kind alongside TradeBot), so it needs the same
+	// ordering.
+	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(freqtradev1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+
 	By("bootstrapping the envtest environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
@@ -62,9 +76,6 @@ var _ = BeforeSuite(func() {
 	testCfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(testCfg).NotTo(BeNil())
-
-	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
-	Expect(freqtradev1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	k8sClient, err = client.New(testCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
@@ -96,9 +107,15 @@ var _ = BeforeSuite(func() {
 	// envtest-installed webhook config (shared config/webhook, covering
 	// every CRD this operator has) expects a live handler for each one's
 	// path regardless of which controller reconciles it - see
-	// controllers/tradebot/suite_test.go's identical comment.
+	// controllers/tradebot/suite_test.go's identical comment. Both of
+	// TradeBotConfig's webhooks (v1alpha1's credential gate, v1beta1's
+	// structural checks - B2) are needed: an admission webhook registered
+	// with the default Equivalent matchPolicy applies to a request
+	// regardless of which version the client used, so even a v1alpha1
+	// write can reach v1beta1's handler.
 	Expect((&freqtradev1alpha1.Strategy{}).SetupWebhookWithManager(mgr)).To(Succeed())
 	Expect((&freqtradev1alpha1.TradeBotConfig{}).SetupWebhookWithManager(mgr)).To(Succeed())
+	Expect((&freqtradev1beta1.TradeBotConfig{}).SetupWebhookWithManager(mgr)).To(Succeed())
 	Expect((&freqtradev1beta1.Backtest{}).SetupWebhookWithManager(mgr)).To(Succeed())
 
 	go func() {

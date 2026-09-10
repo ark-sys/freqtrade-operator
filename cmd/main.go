@@ -330,7 +330,14 @@ func runManager() {
 		os.Exit(1)
 	}
 	if err = (&freqtradev1alpha1.TradeBotConfig{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "TradeBotConfig")
+		setupLog.Error(err, "unable to create webhook", "webhook", "TradeBotConfig (v1alpha1)")
+		os.Exit(1)
+	}
+	// B2: v1beta1 carries the structural validation the v1alpha1 webhook
+	// used to own (see api/v1beta1/tradebotconfig_webhook.go's own doc
+	// comment) - both are registered, since both versions are still served.
+	if err = (&freqtradev1beta1.TradeBotConfig{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "TradeBotConfig (v1beta1)")
 		os.Exit(1)
 	}
 	if err = (&freqtradev1alpha1.Strategy{}).SetupWebhookWithManager(mgr); err != nil {

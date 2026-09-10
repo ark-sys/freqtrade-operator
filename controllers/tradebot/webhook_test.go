@@ -236,7 +236,19 @@ var _ = Describe("TradeBotConfig admission webhook (P1-4)", func() {
 		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
 	})
 
-	It("rejects a deprecated plaintext exchange.key without the allow-plaintext-credentials annotation", func() {
+	// B2 made TradeBotConfig multi-version with v1beta1 as storage, and
+	// v1beta1 has no field for any plaintext credential at all - every
+	// create/update of an object with one set gets converted to v1beta1
+	// before it can be persisted (regardless of which version submitted
+	// it, or which admission webhook runs), and api/v1alpha1/
+	// tradebotconfig_conversion.go's ConvertTo rejects that unconditionally.
+	// A validating webhook registered for v1beta1 uses the default
+	// Equivalent matchPolicy, so it applies to this v1alpha1 write too -
+	// converting this object to check it is what actually fails here, with
+	// ConvertTo's own message, before v1alpha1's own admission-level
+	// plaintext-credential check (below) even gets a chance to produce its
+	// annotation-aware one.
+	It("rejects a deprecated plaintext exchange.key (via conversion, since v1beta1 has no field for it)", func() {
 		cfg := &freqtradev1alpha1.TradeBotConfig{
 			ObjectMeta: metav1.ObjectMeta{Name: "wh-tbc-plaintext-key", Namespace: testNamespace},
 			Spec: freqtradev1alpha1.TradeBotConfigSpec{
@@ -245,6 +257,28 @@ var _ = Describe("TradeBotConfig admission webhook (P1-4)", func() {
 			},
 		}
 		err := k8sClient.Create(context.Background(), cfg)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.exchange.key"))
+		Expect(err.Error()).To(ContainSubstring("secretRef"))
+	})
+
+	// v1alpha1's own admission-level gate (api/v1alpha1/tradebotconfig_webhook.go)
+	// still runs and still rejects a plaintext credential with no
+	// allow-plaintext-credentials annotation - this covers that path
+	// specifically, in isolation from the conversion-level rejection the
+	// test above actually hits first for a plain k8sClient.Create. A direct
+	// ValidateCreate call is the only way to observe v1alpha1's own message
+	// now, since any real write also has to survive conversion.
+	It("v1alpha1's own admission webhook independently rejects the same plaintext field", func() {
+		cfg := &freqtradev1alpha1.TradeBotConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "wh-tbc-plaintext-key-direct", Namespace: testNamespace},
+			Spec: freqtradev1alpha1.TradeBotConfigSpec{
+				Bot:      &freqtradev1alpha1.BotConfig{DryRun: ptr.To(true)},
+				Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance", Key: "plaintext-api-key"},
+			},
+		}
+		validator := &freqtradev1alpha1.TradeBotConfigCustomValidator{}
+		_, err := validator.ValidateCreate(context.Background(), cfg)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("spec.exchange.key"))
 		Expect(err.Error()).To(ContainSubstring("freqtrade.io/allow-plaintext-credentials"))
@@ -264,10 +298,40 @@ var _ = Describe("TradeBotConfig admission webhook (P1-4)", func() {
 		Expect(err.Error()).To(ContainSubstring("spec.apiServer.password"))
 	})
 
-	It("accepts a deprecated plaintext credential field when allow-plaintext-credentials is set", func() {
+	// Before B2, allow-plaintext-credentials let this create fully succeed
+	// (v1alpha1 was storage - nothing else needed to represent the value).
+	// Now it only gets the object past v1alpha1's own admission check -
+	// see the "rejects a deprecated plaintext exchange.key" test above's
+	// doc comment for why this still can't ever be persisted. The
+	// annotation is not a dead letter, though: it changes *which* rejection
+	// the caller sees (conversion's, either way - v1alpha1's own check no
+	// longer fires at all once it's satisfied) and it still triggers
+	// warnPlaintextCredentialsUsed's audit Event before conversion fails.
+	It("still fails to create with allow-plaintext-credentials set - v1beta1 storage can't represent it either way",
+		func() {
+			cfg := &freqtradev1alpha1.TradeBotConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "wh-tbc-plaintext-allowed",
+					Namespace:   testNamespace,
+					Annotations: map[string]string{"freqtrade.io/allow-plaintext-credentials": "true"},
+				},
+				Spec: freqtradev1alpha1.TradeBotConfigSpec{
+					Bot:      &freqtradev1alpha1.BotConfig{DryRun: ptr.To(true)},
+					Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance", Key: "plaintext-api-key"},
+				},
+			}
+			err := k8sClient.Create(context.Background(), cfg)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.exchange.key"))
+		})
+
+	// The annotation's continued, real effect: v1alpha1's own admission
+	// webhook (in isolation - see the test above for why a real Create
+	// can't observe this directly anymore) no longer rejects when it's set.
+	It("lets v1alpha1's own admission webhook admit a plaintext field when allow-plaintext-credentials is set", func() {
 		cfg := &freqtradev1alpha1.TradeBotConfig{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        "wh-tbc-plaintext-allowed",
+				Name:        "wh-tbc-plaintext-allowed-direct",
 				Namespace:   testNamespace,
 				Annotations: map[string]string{"freqtrade.io/allow-plaintext-credentials": "true"},
 			},
@@ -276,7 +340,9 @@ var _ = Describe("TradeBotConfig admission webhook (P1-4)", func() {
 				Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance", Key: "plaintext-api-key"},
 			},
 		}
-		Expect(k8sClient.Create(context.Background(), cfg)).To(Succeed())
+		validator := &freqtradev1alpha1.TradeBotConfigCustomValidator{}
+		_, err := validator.ValidateCreate(context.Background(), cfg)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("does not reject account_id, which isn't a credential", func() {

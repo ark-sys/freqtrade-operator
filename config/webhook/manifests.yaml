@@ -30,6 +30,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-freqtrade-io-v1beta1-tradebotconfig
+  failurePolicy: Fail
+  name: vtradebotconfigv1beta1.kb.io
+  rules:
+  - apiGroups:
+    - freqtrade.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - tradebotconfigs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-freqtrade-io-v1alpha1-strategy
   failurePolicy: Fail
   name: vstrategy.kb.io

@@ -109,9 +109,14 @@ var _ = BeforeSuite(func() {
 	// only TradeBot does - but admission webhooks are independent of which
 	// controller reconciles their type, so registering all three here lets
 	// webhook_test.go cover all of P1-4 without paying for a second envtest
-	// apiserver.
+	// apiserver. Both of TradeBotConfig's webhooks (v1alpha1's credential
+	// gate, v1beta1's structural checks - B2) are needed: an admission
+	// webhook registered with the default Equivalent matchPolicy applies
+	// to a request regardless of which version the client used, so even a
+	// v1alpha1 write can reach v1beta1's handler.
 	Expect((&freqtradev1alpha1.TradeBot{}).SetupWebhookWithManager(mgr)).To(Succeed())
 	Expect((&freqtradev1alpha1.TradeBotConfig{}).SetupWebhookWithManager(mgr)).To(Succeed())
+	Expect((&freqtradev1beta1.TradeBotConfig{}).SetupWebhookWithManager(mgr)).To(Succeed())
 	Expect((&freqtradev1alpha1.Strategy{}).SetupWebhookWithManager(mgr)).To(Succeed())
 
 	go func() {

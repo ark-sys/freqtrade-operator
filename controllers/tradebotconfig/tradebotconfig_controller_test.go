@@ -17,6 +17,8 @@ const testNamespace = "default"
 const eventuallyTimeout = "15s"
 const eventuallyPoll = "250ms"
 
+func ptrBool(b bool) *bool { return &b }
+
 // A5 (REMAINING-WORK.md): SetupWithManager's For() predicate used to be a
 // hand-written predicate.Funcs doing reflect.DeepEqual on Spec, replaced
 // here with predicate.GenerationChangedPredicate{}. This proves a spec
@@ -31,7 +33,8 @@ var _ = Describe("TradeBotConfig controller", func() {
 		tradeBotConfig := &freqtradev1alpha1.TradeBotConfig{
 			ObjectMeta: metav1.ObjectMeta{Name: "predicate-check", Namespace: testNamespace},
 			Spec: freqtradev1alpha1.TradeBotConfigSpec{
-				Bot: &freqtradev1alpha1.BotConfig{BotName: "predicate-check"},
+				Bot:      &freqtradev1alpha1.BotConfig{BotName: "predicate-check", DryRun: ptrBool(true)},
+				Exchange: &freqtradev1alpha1.ExchangeSpec{Name: "binance"},
 			},
 		}
 		Expect(k8sClient.Create(ctx, tradeBotConfig)).To(Succeed())

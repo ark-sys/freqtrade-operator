@@ -1353,8 +1353,89 @@ Package v1beta1 contains API Schema definitions for the freqtrade v1beta1 API gr
 - [Backtest](#backtest)
 - [BacktestList](#backtestlist)
 - [TradeBot](#tradebot)
+- [TradeBotConfig](#tradebotconfig)
+- [TradeBotConfigList](#tradebotconfiglist)
 - [TradeBotList](#tradebotlist)
 
+
+
+#### AIConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `identifier` _string_ |  |  |  |
+| `write_metrics_to_disk` _boolean_ |  |  |  |
+| `purge_old_models` _integer_ |  |  |  |
+| `conv_width` _integer_ |  |  |  |
+| `train_period_days` _integer_ |  |  |  |
+| `backtest_period_days` _integer_ |  |  |  |
+| `live_retrain_hours` _integer_ |  |  |  |
+| `expiration_hours` _integer_ |  |  |  |
+| `save_backtest_models` _boolean_ |  |  |  |
+| `fit_live_predictions_candles` _integer_ |  |  |  |
+| `data_kitchen_thread_count` _integer_ |  |  |  |
+| `activate_tensorboard` _boolean_ |  |  |  |
+| `wait_for_training_iteration_on_reload` _boolean_ |  |  |  |
+| `continue_learning` _boolean_ |  |  |  |
+| `keras` _boolean_ |  |  |  |
+| `feature_parameters` _[FeatureParameters](#featureparameters)_ |  |  |  |
+| `data_split_parameters` _[DataSplitParameters](#datasplitparameters)_ |  |  |  |
+| `model_training_parameters` _[ModelTrainingParameters](#modeltrainingparameters)_ |  |  |  |
+| `rl_config` _[RLConfig](#rlconfig)_ |  |  |  |
+
+
+#### APIServerConfig
+
+
+
+APIServerConfig: Password/JWTSecretKey are gone - see ExchangeSpec's own
+doc comment, same B2 reasoning. SecretRef is the only path.
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `listen_ip_address` _string_ |  |  |  |
+| `listen_port` _integer_ |  |  | Maximum: 65535 <br />Minimum: 1 <br /> |
+| `verbosity` _string_ |  |  |  |
+| `enable_openapi` _boolean_ |  |  |  |
+| `username` _string_ |  |  |  |
+| `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#localobjectreference-v1-core)_ | SecretRef references a Secret in this TradeBotConfig's own namespace<br />only (D3). |  |  |
+| `cors_origins` _string array_ |  |  |  |
+
+
+#### AdvancedConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `tradable_balance_ratio` _float_ |  |  |  |
+| `cancel_open_orders_on_exit` _boolean_ |  |  |  |
+| `margin_mode` _string_ |  |  |  |
+| `initial_state` _string_ |  |  |  |
+| `force_entry_enable` _boolean_ |  |  |  |
 
 
 #### Backtest
@@ -1490,6 +1571,33 @@ _Appears in:_
 | `results` _[BacktestResults](#backtestresults)_ | Results is filled in once the run's sidecar has extracted them (P6-2)<br />- nil until then, and left as the last successful run's data if a<br />later parse ever fails (see ConditionResultsAvailable). |  |  |
 
 
+#### BotConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `bot_name` _string_ |  |  |  |
+| `trading_mode` _string_ |  |  | Enum: [spot margin futures] <br /> |
+| `dry_run` _boolean_ |  |  |  |
+| `dry_run_wallet` _float_ |  |  | Minimum: 0 <br /> |
+| `stake_currency` _string_ |  |  |  |
+| `stake_amount` _string_ |  |  |  |
+| `max_open_trades` _integer_ |  |  | Minimum: -1 <br /> |
+| `fiat_display_currency` _string_ |  |  |  |
+| `db_url` _string_ |  |  |  |
+| `export` _string_ |  |  |  |
+| `disable_param_export` _boolean_ |  |  |  |
+| `disable_dataframe_checks` _boolean_ |  |  |  |
+
+
 #### BotStatus
 
 
@@ -1515,6 +1623,34 @@ _Appears in:_
 | `lastPollError` _string_ |  |  |  |
 
 
+#### DataConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `dataformat_ohlcv` _string_ |  |  |  |
+| `dataformat_trades` _string_ |  |  |  |
+| `position_adjustment` _string_ |  |  |  |
+| `new_pairs_days_ago` _integer_ |  |  |  |
+| `download_trades` _boolean_ |  |  |  |
+| `max_entry_position_adjustment` _float_ |  |  |  |
+| `available_capital` _float_ |  |  |  |
+| `amend_last_stake_amount` _boolean_ |  |  |  |
+| `last_stake_amount_min_ratio` _float_ |  |  |  |
+| `process_only_new_candles` _boolean_ |  |  |  |
+| `amount_reserve_percent` _float_ |  |  |  |
+| `reduce_df_footprint` _boolean_ |  |  |  |
+| `custom_price_max_distance_ratio` _float_ |  |  |  |
+
+
 #### DataSourceSpec
 
 
@@ -1536,6 +1672,139 @@ _Appears in:_
 | `downloadPolicy` _string_ | DownloadPolicy controls when the cache is refreshed before the run. | always | Enum: [always ifMissing never] <br /> |
 
 
+#### DataSplitParameters
+
+
+
+
+
+
+
+_Appears in:_
+- [AIConfig](#aiconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `test_size` _float_ |  |  |  |
+| `random_state` _integer_ |  |  |  |
+| `shuffle` _boolean_ |  |  |  |
+
+
+#### ExchangeSpec
+
+
+
+ExchangeSpec is B2's primary target: every plaintext credential field
+(Key/Secret/Password/UID/WalletAddress/PrivateKey) v1alpha1 carried
+behind the allow-plaintext-credentials gate is gone - secretRef is the
+only path. AccountID stays: it's an identifier, not a secret, and was
+never gated (see configbuilder/exchange.go).
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ |  |  |  |
+| `account_id` _string_ |  |  |  |
+| `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#localobjectreference-v1-core)_ | SecretRef references a Secret in this TradeBotConfig's own namespace<br />only (D3) - cross-namespace references are a deliberate, documented<br />constraint, not a TODO. |  |  |
+| `ccxt_config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#json-v1-apiextensions-k8s-io)_ |  |  |  |
+| `ccxt_async_config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#json-v1-apiextensions-k8s-io)_ |  |  |  |
+| `ccxt_sync_config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#json-v1-apiextensions-k8s-io)_ |  |  |  |
+| `whitelist` _[PairListSpec](#pairlistspec)_ |  |  |  |
+| `blacklist` _[PairListSpec](#pairlistspec)_ |  |  |  |
+| `log_responses` _boolean_ |  |  |  |
+| `enable_ws` _boolean_ |  |  |  |
+| `unknown_fee_rate` _boolean_ | UnknownFeeRate closes A1's bug at the API level: v1alpha1 keeps its<br />original spelling (a served field can't be renamed without a<br />breaking change - see B2), but this fresh v1beta1 field gets the<br />correct name and JSON tag from the start. |  |  |
+| `outdated_offset` _integer_ |  |  |  |
+| `market_refresh_interval` _integer_ |  |  |  |
+
+
+#### ExperimentalConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `block_bad_exchanges` _boolean_ |  |  |  |
+
+
+#### FeatureParameters
+
+
+
+
+
+
+
+_Appears in:_
+- [AIConfig](#aiconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `include_corr_pairlist` _string array_ |  |  |  |
+| `include_timeframes` _string array_ |  |  |  |
+| `label_period_candles` _integer_ |  |  |  |
+| `include_shifted_candles` _integer_ |  |  |  |
+| `di_threshold` _float_ |  |  |  |
+| `weight_factor` _float_ |  |  |  |
+| `principal_component_analysis` _boolean_ |  |  |  |
+| `indicator_periods_candles` _integer array_ |  |  |  |
+| `use_svm_to_remove_outliers` _boolean_ |  |  |  |
+| `plot_feature_importances` _integer_ |  |  |  |
+| `svm_params` _[SVMParams](#svmparams)_ |  |  |  |
+| `shuffle_after_split` _boolean_ |  |  |  |
+| `buffer_train_data_candles` _integer_ |  |  |  |
+
+
+#### Flow
+
+
+
+
+
+
+
+_Appears in:_
+- [OrderSpec](#orderspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `cache_size` _integer_ |  |  |  |
+| `max_candles` _integer_ |  |  |  |
+| `scale` _float_ |  |  |  |
+| `stacked_imbalance_range` _integer_ |  |  |  |
+| `imbalance_volume` _integer_ |  |  |  |
+| `imbalance_ratio` _float_ |  |  |  |
+
+
+#### InternalsConfig
+
+
+
+InternalsConfig defines internal processing configuration
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `process_throttle_secs` _integer_ |  |  |  |
+| `interval` _integer_ |  |  |  |
+| `sd_notify` _boolean_ |  |  |  |
+
+
 #### IntrospectionSpec
 
 
@@ -1552,6 +1821,184 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `enabled` _boolean_ |  | true |  |
 | `interval` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#duration-v1-meta)_ |  | 60s |  |
+
+
+#### LoggingConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `version` _integer_ |  |  |  |
+
+
+#### ModelRewardParameters
+
+
+
+
+
+
+
+_Appears in:_
+- [RLConfig](#rlconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `rr` _float_ |  |  |  |
+| `profit_aim` _float_ |  |  |  |
+
+
+#### ModelTrainingParameters
+
+
+
+
+
+
+
+_Appears in:_
+- [AIConfig](#aiconfig)
+
+
+
+#### NotificationDiscord
+
+
+
+
+
+
+
+_Appears in:_
+- [NotificationSpec](#notificationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `webhook_url` _string_ |  |  |  |
+| `exit_fill` _object array_ |  |  |  |
+| `entry_fill` _object array_ |  |  |  |
+
+
+#### NotificationSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `telegram` _[NotificationTelegram](#notificationtelegram)_ |  |  |  |
+| `webhook` _[NotificationWebhook](#notificationwebhook)_ |  |  |  |
+| `discord` _[NotificationDiscord](#notificationdiscord)_ |  |  |  |
+
+
+#### NotificationTelegram
+
+
+
+NotificationTelegram: Token is gone - see ExchangeSpec's own doc comment,
+same B2 reasoning. SecretRef is the only path. ChatID/TopicID stay
+plain strings: identifiers, not secrets, same as ExchangeSpec.AccountID.
+
+
+
+_Appears in:_
+- [NotificationSpec](#notificationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `secretRef` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#localobjectreference-v1-core)_ | SecretRef references a Secret in this TradeBotConfig's own namespace<br />only (D3). |  |  |
+| `balance_dust_level` _float_ |  |  |  |
+| `reload` _boolean_ |  |  |  |
+| `allow_custom_messages` _boolean_ |  |  |  |
+| `chat_id` _string_ |  |  |  |
+| `topic_id` _string_ |  |  |  |
+| `authorized_users` _string array_ |  |  |  |
+| `settings` _[NotificationTelegramSettings](#notificationtelegramsettings)_ |  |  |  |
+
+
+#### NotificationTelegramSettings
+
+
+
+
+
+
+
+_Appears in:_
+- [NotificationTelegram](#notificationtelegram)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `status` _string_ |  |  |  |
+| `warning` _string_ |  |  |  |
+| `startup` _string_ |  |  |  |
+| `entry` _string_ |  |  |  |
+| `entry_fill` _string_ |  |  |  |
+| `entry_cancel` _string_ |  |  |  |
+| `exit` _string_ |  |  |  |
+| `exit_fill` _string_ |  |  |  |
+| `exit_cancel` _string_ |  |  |  |
+| `protection_trigger` _string_ |  |  |  |
+| `protection_trigger_global` _string_ |  |  |  |
+
+
+#### NotificationWebhook
+
+
+
+
+
+
+
+_Appears in:_
+- [NotificationSpec](#notificationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `url` _string_ |  |  |  |
+| `entry` _string_ |  |  |  |
+| `entry_cancel` _string_ |  |  |  |
+| `entry_fill` _string_ |  |  |  |
+| `exit` _string_ |  |  |  |
+| `exit_cancel` _string_ |  |  |  |
+| `exit_fill` _string_ |  |  |  |
+| `status` _string_ |  |  |  |
+| `allow_custom_messages` _boolean_ | Deprecated: not a real Freqtrade webhook option - see<br />v1alpha1.NotificationWebhook.AllowCustomMessages. Carried over<br />unchanged rather than dropped - B2's scope is credential fields and<br />typed references, not a general API cleanup. |  |  |
+
+
+#### OrderSpec
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `types` _[Types](#types)_ |  |  |  |
+| `time_in_force` _[TimeInForce](#timeinforce)_ |  |  |  |
+| `flow` _[Flow](#flow)_ |  |  |  |
 
 
 #### PVCSpec
@@ -1574,6 +2021,116 @@ _Appears in:_
 | `annotations` _object (keys:string, values:string)_ |  |  |  |
 | `labels` _object (keys:string, values:string)_ |  |  |  |
 | `fixVolumePermissions` _boolean_ |  |  |  |
+
+
+#### PairListSpec
+
+
+
+PairListSpec defines the desired state of PairList
+
+
+
+_Appears in:_
+- [ExchangeSpec](#exchangespec)
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `pairs` _string array_ |  |  |  |
+
+
+#### PairlistConfig
+
+
+
+PairlistConfig represents the configuration for a pairlist method
+
+
+
+_Appears in:_
+- [PairlistMethodsSpec](#pairlistmethodsspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `method` _[PairlistMethod](#pairlistmethod)_ |  |  |  |
+| `number_assets` _integer_ |  |  |  |
+| `refresh_period` _integer_ |  |  |  |
+| `allow_inactive` _boolean_ |  |  |  |
+| `sort_key` _string_ |  |  |  |
+| `lookback_timeframe` _string_ |  |  |  |
+| `lookback_period` _integer_ |  |  |  |
+| `lookback_days` _integer_ |  |  |  |
+| `min_change_rate` _float_ |  |  |  |
+| `producer_name` _string_ |  |  |  |
+| `mode` _string_ |  |  |  |
+| `processing_mode` _string_ |  |  |  |
+| `pairlist_url` _string_ |  |  |  |
+| `keep_pairlist_on_failure` _boolean_ |  |  |  |
+| `read_timeout` _integer_ |  |  |  |
+| `bearer_token` _string_ |  |  |  |
+| `save_to_file` _string_ |  |  |  |
+| `max_rank` _integer_ |  |  |  |
+| `categories` _string array_ |  |  |  |
+| `min_days_listed` _integer_ |  |  |  |
+| `max_days_listed` _integer_ |  |  |  |
+| `min_price` _float_ |  |  |  |
+| `max_price` _float_ |  |  |  |
+| `max_spread_ratio` _float_ |  |  |  |
+| `lookback_days_range` _integer_ |  |  |  |
+| `min_rate_of_change` _float_ |  |  |  |
+| `max_rate_of_change` _float_ |  |  |  |
+| `lookback_days_volatility` _integer_ |  |  |  |
+| `min_volatility` _float_ |  |  |  |
+| `max_volatility` _float_ |  |  |  |
+| `offset` _integer_ |  |  |  |
+
+
+#### PairlistMethod
+
+_Underlying type:_ _string_
+
+PairlistMethod represents the method used for pair selection
+
+
+
+_Appears in:_
+- [PairlistConfig](#pairlistconfig)
+
+| Field | Description |
+| --- | --- |
+| `StaticPairList` |  |
+| `VolumePairList` |  |
+| `PercentChangePairList` |  |
+| `ProducerPairList` |  |
+| `RemotePairList` |  |
+| `MarketCapPairList` |  |
+| `AgeFilter` |  |
+| `FullTradesFilter` |  |
+| `OffsetFilter` |  |
+| `PerformanceFilter` |  |
+| `PrecisionFilter` |  |
+| `PriceFilter` |  |
+| `ShuffleFilter` |  |
+| `SpreadFilter` |  |
+| `RangeStabilityFilter` |  |
+| `VolatilityFilter` |  |
+
+
+#### PairlistMethodsSpec
+
+
+
+PairlistMethodsSpec defines the desired state of PairlistMethods
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `methods` _[PairlistConfig](#pairlistconfig) array_ |  |  |  |
 
 
 #### PodSpec
@@ -1606,6 +2163,70 @@ _Appears in:_
 | `topologySpreadConstraints` _[TopologySpreadConstraint](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#topologyspreadconstraint-v1-core) array_ |  |  |  |
 
 
+#### PricingCheckDepthOfMarket
+
+
+
+PricingCheckDepthOfMarket defines the check_depth_of_market settings
+
+
+
+_Appears in:_
+- [PricingSpec](#pricingspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `enabled` _boolean_ |  |  |  |
+| `bids_to_ask_delta` _float_ |  |  |  |
+
+
+#### PricingSpec
+
+
+
+PricingSpec defines the desired state of Pricing
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `price_side` _string_ |  |  |  |
+| `price_last_balance` _float_ |  |  |  |
+| `use_order_book` _boolean_ |  |  |  |
+| `order_book_top` _integer_ |  |  |  |
+| `check_depth_of_market` _[PricingCheckDepthOfMarket](#pricingcheckdepthofmarket)_ |  |  |  |
+
+
+#### RLConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [AIConfig](#aiconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `drop_ohlc_from_features` _boolean_ |  |  |  |
+| `train_cycles` _integer_ |  |  |  |
+| `max_trade_duration_candles` _integer_ |  |  |  |
+| `add_state_info` _boolean_ |  |  |  |
+| `max_training_drawdown_pct` _float_ |  |  |  |
+| `cpu_count` _integer_ |  |  |  |
+| `model_type` _string_ |  |  |  |
+| `policy_type` _string_ |  |  |  |
+| `net_arch` _integer array_ |  |  |  |
+| `randomize_starting_position` _boolean_ |  |  |  |
+| `progress_bar` _boolean_ |  |  |  |
+| `model_reward_parameters` _[ModelRewardParameters](#modelrewardparameters)_ |  |  |  |
+
+
 #### ResultsSpec
 
 
@@ -1623,6 +2244,39 @@ _Appears in:_
 | `size` _[Quantity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#quantity-resource-api)_ |  | 1Gi |  |
 | `storageClassName` _string_ | StorageClassName defaults to the cluster's default storage class when unset. |  |  |
 | `retentionPolicy` _string_ | RetentionPolicy decided once, at creation, like every other field<br />(the whole spec is immutable) - Delete GCs the results PVC when this<br />CR is deleted (the working manual reaper D10 documents); Retain<br />strips the owner reference instead, the same pattern<br />TradeBot.finalizers.go uses for freqtrade.io/preserve-data. | Delete | Enum: [Delete Retain] <br /> |
+
+
+#### RiskManagementSpec
+
+
+
+RiskManagementSpec defines the desired state of RiskManagement
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `minimal_roi` _object (keys:string, values:float)_ |  |  |  |
+| `stoploss` _float_ |  |  |  |
+| `trailing_stop` _boolean_ |  |  |  |
+| `trailing_stop_positive` _float_ |  |  |  |
+| `trailing_stop_positive_offset` _float_ |  |  |  |
+| `trailing_only_offset_is_reached` _boolean_ |  |  |  |
+| `use_exit_signal` _boolean_ |  |  |  |
+| `exit_profit_only` _boolean_ |  |  |  |
+| `exit_profit_offset` _float_ |  |  |  |
+| `fee` _float_ |  |  |  |
+| `ignore_roi_if_entry_signal` _boolean_ |  |  |  |
+| `ignore_buying_expired_candle_after` _integer_ |  |  |  |
+| `minimum_trade_amount` _integer_ |  |  |  |
+| `targeted_trade_amount` _integer_ |  |  |  |
+| `lookahead_analysis_export_filename` _string_ |  |  |  |
+| `startup_candle` _integer_ |  |  |  |
+| `liquidation_buffer` _float_ |  |  |  |
+| `backtest_breakdown` _string array_ |  |  |  |
 
 
 #### RunSpec
@@ -1653,6 +2307,23 @@ _Appears in:_
 | `pod` _[PodSpec](#podspec)_ | Pod carries resource requests/limits and scheduling overrides for the<br />run's pod. |  |  |
 | `ttlSecondsAfterFinished` _integer_ | TTLSecondsAfterFinished reaps the finished Job (not the results PVC -<br />see ResultsSpec.RetentionPolicy, and D10 on why nothing prunes results<br />automatically) this many seconds after it completes. | 86400 |  |
 | `extraArgs` _string array_ | ExtraArgs appends raw freqtrade CLI arguments (D8/D5): typed fields<br />above remain the documented surface for anything they cover. This is<br />a pressure valve for flags this API hasn't caught up to yet, not an<br />alternative to them - guarded by the freqtrade.io/allow-extra-args:<br />"true" annotation (rejected by the admission webhook without it) and<br />checked against a denylist of flags the operator itself controls<br />(--config, --strategy, --strategy-path, --db-url, --logfile,<br />--userdir, --datadir); the controller emits a warning Event whenever<br />it's used so its usage stays visible rather than quietly load-bearing. |  | MaxItems: 64 <br /> |
+
+
+#### SVMParams
+
+
+
+
+
+
+
+_Appears in:_
+- [FeatureParameters](#featureparameters)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `shuffle` _boolean_ |  |  |  |
+| `nu` _float_ |  |  |  |
 
 
 #### ServiceSpec
@@ -1709,6 +2380,23 @@ _Appears in:_
 | `pvc` _[PVCSpec](#pvcspec)_ |  |  |  |
 
 
+#### TimeInForce
+
+
+
+TimeInForce defines options for order time in force
+
+
+
+_Appears in:_
+- [OrderSpec](#orderspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `entry` _string_ |  |  |  |
+| `exit` _string_ |  |  |  |
+
+
 #### TradeBot
 
 
@@ -1729,6 +2417,107 @@ _Appears in:_
 | `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[TradeBotSpec](#tradebotspec)_ |  |  |  |
 | `status` _[TradeBotStatus](#tradebotstatus)_ |  |  |  |
+
+
+#### TradeBotConfig
+
+
+
+
+
+
+
+_Appears in:_
+- [TradeBotConfigList](#tradebotconfiglist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
+| `kind` _string_ | `TradeBotConfig` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[TradeBotConfigSpec](#tradebotconfigspec)_ |  |  |  |
+| `status` _[TradeBotConfigStatus](#tradebotconfigstatus)_ |  |  |  |
+
+
+
+
+#### TradeBotConfigList
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
+| `kind` _string_ | `TradeBotConfigList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[TradeBotConfig](#tradebotconfig) array_ |  |  |  |
+
+
+#### TradeBotConfigSpec
+
+
+
+TradeBotConfigSpec defines the desired state of TradeBotConfig. B2
+(REMAINING-WORK.md): every plaintext credential field v1alpha1 carried
+behind the freqtrade.io/allow-plaintext-credentials gate is gone here -
+secretRef (now a typed, same-namespace-only corev1.LocalObjectReference
+rather than a bare string) is the only path. Everything else is
+field-for-field identical to v1alpha1.TradeBotConfigSpec.
+
+
+
+_Appears in:_
+- [TradeBotConfig](#tradebotconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `bot` _[BotConfig](#botconfig)_ |  |  |  |
+| `ai` _[AIConfig](#aiconfig)_ |  |  |  |
+| `data` _[DataConfig](#dataconfig)_ |  |  |  |
+| `advanced` _[AdvancedConfig](#advancedconfig)_ |  |  |  |
+| `timeout` _[UnfilledTimeoutConfig](#unfilledtimeoutconfig)_ |  |  |  |
+| `internals` _[InternalsConfig](#internalsconfig)_ |  |  |  |
+| `exchange` _[ExchangeSpec](#exchangespec)_ |  |  |  |
+| `pairlist` _[PairListSpec](#pairlistspec)_ |  |  |  |
+| `pairlist_method` _[PairlistMethodsSpec](#pairlistmethodsspec)_ |  |  |  |
+| `entry_pricing` _[PricingSpec](#pricingspec)_ |  |  |  |
+| `exit_pricing` _[PricingSpec](#pricingspec)_ |  |  |  |
+| `order` _[OrderSpec](#orderspec)_ |  |  |  |
+| `risk_management` _[RiskManagementSpec](#riskmanagementspec)_ |  |  |  |
+| `notification` _[NotificationSpec](#notificationspec)_ |  |  |  |
+| `apiServer` _[APIServerConfig](#apiserverconfig)_ |  |  |  |
+| `experimental` _[ExperimentalConfig](#experimentalconfig)_ |  |  |  |
+| `logging` _[LoggingConfig](#loggingconfig)_ |  |  |  |
+
+
+#### TradeBotConfigStatus
+
+
+
+TradeBotConfigStatus defines the observed state of TradeBotConfig -
+identical to v1alpha1's.
+
+
+
+_Appears in:_
+- [TradeBotConfig](#tradebotconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
+| `message` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
 #### TradeBotList
@@ -1827,5 +2616,48 @@ _Appears in:_
 | `appliedConfigHash` _string_ | AppliedConfigHash is sha256(config.json bytes + strategy script<br />bytes), truncated to 16 hex characters - see v1alpha1.TradeBotStatus's<br />identical field. |  |  |
 | `resolvedImage` _string_ | ResolvedImage is the exact freqtrade image reference the running<br />workload was built with (P3-3). |  |  |
 | `bot` _[BotStatus](#botstatus)_ | Bot is this bot's own live trading state, as last observed by the<br />operator's poller (P4-3). |  |  |
+
+
+#### Types
+
+
+
+Types defines various order type configurations
+
+
+
+_Appears in:_
+- [OrderSpec](#orderspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `entry` _string_ |  |  |  |
+| `exit` _string_ |  |  |  |
+| `emergency_exit` _string_ |  |  |  |
+| `force_entry` _string_ |  |  |  |
+| `force_exit` _string_ |  |  |  |
+| `stoploss` _string_ |  |  |  |
+| `stoploss_on_exchange` _boolean_ |  |  |  |
+| `stoploss_on_exchange_interval` _integer_ |  |  |  |
+| `stoploss_on_exchange_limit_ratio` _float_ |  |  |  |
+
+
+#### UnfilledTimeoutConfig
+
+
+
+UnfilledTimeoutConfig defines timeout settings for unfilled orders
+
+
+
+_Appears in:_
+- [TradeBotConfigSpec](#tradebotconfigspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `entry` _integer_ |  |  |  |
+| `exit` _integer_ |  |  |  |
+| `exit_timeout_count` _integer_ |  |  |  |
+| `unit` _string_ |  |  |  |
 
 

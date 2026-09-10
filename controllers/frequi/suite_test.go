@@ -49,6 +49,17 @@ var _ = BeforeSuite(func() {
 
 	testCtx, testCancel = context.WithCancel(context.Background())
 
+	// v1beta1 is deliberately NOT registered in this suite's scheme: this
+	// package's fixtures only ever create/read v1alpha1.TradeBot and
+	// v1alpha1.FreqUI directly, and registering a Hub type without also
+	// standing up WebhookInstallOptions + a running webhook server (see
+	// controllers/tradebot/suite_test.go for what that takes) makes
+	// envtest try to wire a conversion webhook this suite has nowhere to
+	// serve - "connection refused" at CRD-install time, not a helpful
+	// error. See controllers/tradebot/suite_test.go's comment for the
+	// general rule this is the exception to.
+	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
+
 	By("bootstrapping the envtest environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
@@ -59,8 +70,6 @@ var _ = BeforeSuite(func() {
 	testCfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(testCfg).NotTo(BeNil())
-
-	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
 
 	k8sClient, err = client.New(testCfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
