@@ -74,6 +74,32 @@ func tradeBotDryRunContext() {
 		// tradingNamespace is cleaned up once, centrally, in the outer Describe's own AfterAll
 		// (e2e_test.go) - see its comment for why that's better than doing it here.
 
+		// e2e_test.go's own AfterEach already dumps the controller manager's pod/logs on any
+		// failure, but never the bot's own pod - the thing "brings the bot's pod up" actually
+		// tests. Without this, a stuck-at-not-Ready failure (as opposed to a rejected/errored
+		// TradeBot) has no diagnostic beyond "false != true": no image-pull state, no events, no
+		// probe failure reason.
+		AfterEach(func() {
+			if !CurrentSpecReport().Failed() {
+				return
+			}
+			By("Fetching the bot pod's own description (not just the controller manager's)")
+			cmd := exec.Command("kubectl", "describe", "pod", botName+"-0", "-n", tradingNamespace)
+			if out, err := utils.Run(cmd); err == nil {
+				_, _ = fmt.Fprintf(GinkgoWriter, "Bot pod description:\n%s", out)
+			} else {
+				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to describe bot pod: %s", err)
+			}
+
+			By("Fetching events in the trading namespace")
+			cmd = exec.Command("kubectl", "get", "events", "-n", tradingNamespace, "--sort-by=.lastTimestamp")
+			if out, err := utils.Run(cmd); err == nil {
+				_, _ = fmt.Fprintf(GinkgoWriter, "Trading namespace events:\n%s", out)
+			} else {
+				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to get trading namespace events: %s", err)
+			}
+		})
+
 		It("brings the bot's pod up under a restricted Pod Security Standard", func() {
 			By("waiting for the StatefulSet pod to reach Ready")
 			verifyPodReady := func(g Gomega) {
