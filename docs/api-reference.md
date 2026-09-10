@@ -789,6 +789,10 @@ _Appears in:_
 | `min_volatility` _float_ |  |  |  |
 | `max_volatility` _float_ |  |  |  |
 | `offset` _integer_ | OffsetFilter specific options |  |  |
+| `shuffle_frequency` _string_ | ShuffleFilter specific options |  |  |
+| `seed` _integer_ |  |  |  |
+| `minutes` _integer_ | PerformanceFilter specific options |  |  |
+| `min_profit` _float_ |  |  |  |
 
 
 #### PairlistMethod
@@ -2270,6 +2274,10 @@ _Appears in:_
 | `min_volatility` _float_ |  |  |  |
 | `max_volatility` _float_ |  |  |  |
 | `offset` _integer_ |  |  |  |
+| `shuffle_frequency` _string_ |  |  |  |
+| `seed` _integer_ |  |  |  |
+| `minutes` _integer_ |  |  |  |
+| `min_profit` _float_ |  |  |  |
 
 
 #### PairlistMethod

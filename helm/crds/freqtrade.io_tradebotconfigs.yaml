@@ -637,10 +637,15 @@ spec:
                         min_price:
                           description: PriceFilter specific options
                           type: number
+                        min_profit:
+                          type: number
                         min_rate_of_change:
                           type: number
                         min_volatility:
                           type: number
+                        minutes:
+                          description: PerformanceFilter specific options
+                          type: integer
                         mode:
                           description: RemotePairList specific options
                           type: string
@@ -663,6 +668,11 @@ spec:
                           format: int64
                           type: integer
                         save_to_file:
+                          type: string
+                        seed:
+                          type: integer
+                        shuffle_frequency:
+                          description: ShuffleFilter specific options
                           type: string
                         sort_key:
                           description: VolumePairList specific options
@@ -1450,10 +1460,14 @@ spec:
                           type: integer
                         min_price:
                           type: number
+                        min_profit:
+                          type: number
                         min_rate_of_change:
                           type: number
                         min_volatility:
                           type: number
+                        minutes:
+                          type: integer
                         mode:
                           type: string
                         number_assets:
@@ -1472,6 +1486,10 @@ spec:
                           format: int64
                           type: integer
                         save_to_file:
+                          type: string
+                        seed:
+                          type: integer
+                        shuffle_frequency:
                           type: string
                         sort_key:
                           type: string

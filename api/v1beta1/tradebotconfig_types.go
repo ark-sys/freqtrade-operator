@@ -240,6 +240,12 @@ type PairlistConfig struct {
 	MaxVolatility          *float64 `json:"max_volatility,omitempty"`
 
 	Offset *int `json:"offset,omitempty"`
+
+	ShuffleFrequency string `json:"shuffle_frequency,omitempty"`
+	Seed             *int   `json:"seed,omitempty"`
+
+	Minutes   *int     `json:"minutes,omitempty"`
+	MinProfit *float64 `json:"min_profit,omitempty"`
 }
 
 // PairlistMethodsSpec defines the desired state of PairlistMethods

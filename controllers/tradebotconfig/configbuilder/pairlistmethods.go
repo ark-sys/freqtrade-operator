@@ -98,8 +98,28 @@ func applyPairlistMethodSpecificConfig(methodMap map[string]interface{}, method 
 			methodMap["offset"] = *method.Offset
 		}
 
-	case v1alpha1.ShuffleFilter, v1alpha1.PrecisionFilter, v1alpha1.PerformanceFilter, v1alpha1.FullTradesFilter:
-		// TODO
+	case v1alpha1.ShuffleFilter:
+		if method.ShuffleFrequency != "" {
+			methodMap["shuffle_frequency"] = method.ShuffleFrequency
+		}
+		if method.Seed != nil {
+			methodMap["seed"] = *method.Seed
+		}
+
+	case v1alpha1.PerformanceFilter:
+		if method.Minutes != nil {
+			methodMap["minutes"] = *method.Minutes
+		}
+		if method.MinProfit != nil {
+			methodMap["min_profit"] = *method.MinProfit
+		}
+
+	case v1alpha1.PrecisionFilter, v1alpha1.FullTradesFilter:
+		// Neither takes any method-specific options in freqtrade -
+		// verified directly against its source: PrecisionFilter.py's
+		// __init__ never calls self._pairlistconfig.get (it reads the
+		// bot's own top-level stoploss instead, already rendered
+		// elsewhere); FullTradesFilter.py defines no __init__ at all.
 	}
 }
 

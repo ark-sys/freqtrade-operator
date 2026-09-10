@@ -272,6 +272,14 @@ type PairlistConfig struct {
 
 	// OffsetFilter specific options
 	Offset *int `json:"offset,omitempty"`
+
+	// ShuffleFilter specific options
+	ShuffleFrequency string `json:"shuffle_frequency,omitempty"` // "candle" or "iteration"; freqtrade defaults to "candle"
+	Seed             *int   `json:"seed,omitempty"`
+
+	// PerformanceFilter specific options
+	Minutes   *int     `json:"minutes,omitempty"`
+	MinProfit *float64 `json:"min_profit,omitempty"`
 }
 
 // PairlistMethodsSpec defines the desired state of PairlistMethods

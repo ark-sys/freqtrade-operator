@@ -48,9 +48,9 @@ func TestBuildPairlistMethodsConfig(t *testing.T) {
 				MaxVolatility:          ptrFloat64(0.5),
 			},
 			{Method: v1alpha1.OffsetFilter, Offset: ptrInt(5)},
-			{Method: v1alpha1.ShuffleFilter},
+			{Method: v1alpha1.ShuffleFilter, ShuffleFrequency: "iteration", Seed: ptrInt(42)},
 			{Method: v1alpha1.PrecisionFilter},
-			{Method: v1alpha1.PerformanceFilter},
+			{Method: v1alpha1.PerformanceFilter, Minutes: ptrInt(60), MinProfit: ptrFloat64(0.01)},
 			{Method: v1alpha1.FullTradesFilter},
 		},
 	}
@@ -73,5 +73,41 @@ func TestBuildPairlistMethodsConfig(t *testing.T) {
 	}
 	if remote["keep_pairlist_on_failure"] != true {
 		t.Errorf("expected keep_pairlist_on_failure true, got %v", remote["keep_pairlist_on_failure"])
+	}
+
+	// D1: ShuffleFilter/PerformanceFilter's options were previously
+	// dropped by a bare `// TODO` case; PrecisionFilter/FullTradesFilter
+	// (verified against freqtrade's own source) take none at all, so
+	// their only expectation is that they still render a method entry.
+	shuffle := pairlists[12]
+	if shuffle["method"] != string(v1alpha1.ShuffleFilter) {
+		t.Fatalf("expected pairlists[12] to be ShuffleFilter, got %v", shuffle["method"])
+	}
+	if shuffle["shuffle_frequency"] != "iteration" {
+		t.Errorf("expected shuffle_frequency to round-trip, got %v", shuffle["shuffle_frequency"])
+	}
+	if shuffle["seed"] != 42 {
+		t.Errorf("expected seed to round-trip, got %v", shuffle["seed"])
+	}
+
+	precision := pairlists[13]
+	if precision["method"] != string(v1alpha1.PrecisionFilter) {
+		t.Fatalf("expected pairlists[13] to be PrecisionFilter, got %v", precision["method"])
+	}
+
+	performance := pairlists[14]
+	if performance["method"] != string(v1alpha1.PerformanceFilter) {
+		t.Fatalf("expected pairlists[14] to be PerformanceFilter, got %v", performance["method"])
+	}
+	if performance["minutes"] != 60 {
+		t.Errorf("expected minutes to round-trip, got %v", performance["minutes"])
+	}
+	if performance["min_profit"] != 0.01 {
+		t.Errorf("expected min_profit to round-trip, got %v", performance["min_profit"])
+	}
+
+	fullTrades := pairlists[15]
+	if fullTrades["method"] != string(v1alpha1.FullTradesFilter) {
+		t.Fatalf("expected pairlists[15] to be FullTradesFilter, got %v", fullTrades["method"])
 	}
 }

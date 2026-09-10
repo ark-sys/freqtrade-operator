@@ -43,6 +43,12 @@ aid, not a substitute for actually reading what changed.
   `helm test` hook that actually exercises the CRDs and the authenticated metrics endpoint.
 - Multi-arch (`linux/amd64`+`linux/arm64`) release images, and an `install.yaml` release asset that actually
   matches what the README's install instructions promise.
+- `TradeBotConfig.spec.pairlist_method.methods[].shuffle_frequency`/`.seed` (`ShuffleFilter`) and
+  `.minutes`/`.min_profit` (`PerformanceFilter`) - D1: these four pairlist methods (`ShuffleFilter`,
+  `PrecisionFilter`, `PerformanceFilter`, `FullTradesFilter`) previously rendered with no method-specific options at
+  all, a bare `// TODO` in the config renderer silently dropping anything set for them, the same class of bug as the
+  `unknown_fee_rate` fix. Verified against freqtrade's own source that `PrecisionFilter`/`FullTradesFilter` genuinely
+  take none.
 
 ### Changed
 - **`TradeBot` is trade-only as of `v1beta1`** (D1): Job-mode (`backtesting`/`hyperopt`/`plot`) has no `v1beta1`
