@@ -10,11 +10,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Raise these as coverage actually improves - this is a floor, not a target. Currently: ~70%
-# overall, all four resources packages + configbuilder in the 88-99% range (see the commit that
-# introduced this script for the exact numbers on the day it was written).
-OVERALL_MIN=68
-PACKAGE_MIN=80
+# Raise these as coverage actually improves - this is a floor, not a target. Currently (D3,
+# re-baselined after A2's dead-code deletion, A4's builder refactor, and D1's new pairlist option
+# tests): ~73.5-73.8% overall (a few tenths of a point of natural run-to-run variance observed,
+# not a regression), all four resources packages + configbuilder in the 89.8-100% range - see the
+# commit that introduced this script for the original (68%/80%) numbers.
+OVERALL_MIN=70
+PACKAGE_MIN=85
 # Every package the plan's own Definition of done names an explicit ≥80% target for.
 declare -a GATED_PACKAGES=(
   "controllers/tradebot/resources"
