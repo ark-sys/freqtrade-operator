@@ -51,7 +51,7 @@ way? [docs/troubleshooting.md](docs/troubleshooting.md) covers the ones worth wr
 Every cross-resource reference this operator follows - `TradeBot.spec.strategyRef`/`.configRef`,
 `Backtest.spec.strategyRef`/`.configRef`, `FreqUI.spec.tradeBotRefs`, every `secretRef` - is **same-namespace-only**.
 A `TradeBot` cannot reference a `Strategy`, `TradeBotConfig`, or credential `Secret` in a different namespace than
-its own. This is a deliberate design decision (D3), not a current limitation waiting to be lifted: it keeps RBAC
+its own. This is a deliberate design decision, not a current limitation waiting to be lifted: it keeps RBAC
 boundaries meaningful (a `Role` scoped to one namespace is a real security boundary, not one an object's own spec
 can silently reach past) and keeps every reference resolvable with a plain namespaced `Get` - no cluster-scoped
 lookup, and no admission-time check that has to reason about a second namespace's RBAC to decide whether a
@@ -129,24 +129,11 @@ The Helm chart is published to GHCR as an OCI artifact on every release (`.githu
 helm install freqtrade-operator oci://ghcr.io/ark-sys/freqtrade-operator --version <chart-version>
 ```
 
-The same workflow also publishes a traditional chart repository via GitHub Pages, but that requires Pages to be
-enabled for this repository first (not yet done as of this writing - `https://ark-sys.github.io/freqtrade-operator/`
-currently 404s). Once it is:
-
-```bash
-helm repo add ark-sys https://ark-sys.github.io/freqtrade-operator/
-helm repo update
-helm install freqtrade-operator ark-sys/freqtrade-operator
-```
-
 ### Using OLM
 
 Every tagged release also publishes an [OLM](https://olm.operatorframework.io/) bundle image
 (`arksys/freqtrade-operator-bundle`), installable via `operator-sdk run bundle` against a cluster that already has
-OLM installed, or addable to your own catalog via `make catalog-build` (see `make help`). This project is not yet
-listed on [OperatorHub](https://operatorhub.io/) - that needs a one-time submission to the
-[community-operators](https://github.com/k8s-operatorhub/community-operators) repository, a manual step not yet
-taken.
+OLM installed, or addable to your own catalog via `make catalog-build` (see `make help`).
 
 ## Usage
 
@@ -183,7 +170,8 @@ the Secret's `data`/`stringData` provides - set only the ones your exchange need
 `spec.notification.telegram.token` are plaintext equivalents of the fields above. They're deprecated - stored unencrypted
 in etcd and readable by anyone who can `get` the `TradeBotConfig` - and the admission webhook rejects setting any of them
 unless the `TradeBotConfig` carries the annotation `freqtrade.io/allow-plaintext-credentials: "true"`. Use `secretRef`
-instead; the plaintext fields will be removed in `v1beta1`.
+instead; `TradeBotConfig`'s `v1beta1` has no plaintext-credential fields at all - see
+[Upgrading to v1beta1](#upgrading-to-v1beta1).
 
 If `spec.apiServer.enabled: true` and neither source above supplies `jwt_secret_key`, the operator generates a random one
 itself and keeps reusing that same value on every later reconcile - freqtrade needs *some* signing key to start its REST
@@ -200,12 +188,13 @@ edit before applying either for real.
 
 ## Deploying a TradeBot
 
-`TradeBot` is trade-only (`v1beta1`, P6-4): it always materializes as a StatefulSet running a live bot bound to its
+`TradeBot` is trade-only (`v1beta1`): it always materializes as a StatefulSet running a live bot bound to its
 referenced `TradeBotConfig` and `Strategy`. One-shot runs - what used to be `TradeBot`'s own `backtesting`/`hyperopt`/
 `plot` commands under `v1alpha1` - are [Backtest runs](#backtest-runs-v1beta1) now, a dedicated CRD instead of an
-overloaded field on a live bot's own spec; see D1 in the production plan for why. A `v1alpha1` TradeBot with
-`freqtrade_command` set to anything but `trade` has no `v1beta1` equivalent at all and can no longer be created
-(the conversion webhook rejects it, since `v1beta1` is the storage version) - recreate it as a `Backtest` instead.
+overloaded field on a live bot's own spec (see [docs/architecture.md](docs/architecture.md) for the reasoning). A
+`v1alpha1` TradeBot with `freqtrade_command` set to anything but `trade` has no `v1beta1` equivalent at all and can
+no longer be created (the conversion webhook rejects it, since `v1beta1` is the storage version) - recreate it as a
+`Backtest` instead.
 
 ### Deploying an AI bot
 
@@ -216,88 +205,10 @@ Also, this resource will look for annotation to determine if a GPU is to be used
 
 ## Upgrading to v1beta1
 
-This only matters if you have an existing install from before the `v1beta1` split (P6-4/P6-5) - if this is a fresh
-install, skip to [Installation](#installation).
-
-**Trade-mode TradeBots need no action.** `v1alpha1` is still served, and every existing trade-mode TradeBot
-(`spec.freqtrade_command` unset or `trade`) converts to and from `v1beta1` transparently. Upgrade the operator and
-they keep reconciling exactly as before.
-
-**Job-mode TradeBots (`backtesting`/`hyperopt`/`plot`) need migrating first.** Find them before you upgrade:
-
-```bash
-kubectl get tradebots -A -o json | \
-  jq -r '.items[] | select(.spec.freqtrade_command != null and .spec.freqtrade_command != "trade") | "\(.metadata.namespace)/\(.metadata.name): \(.spec.freqtrade_command)"'
-```
-
-For each one, recreate it as a [Backtest](#backtest-runs-v1beta1) (the same run, expressed as a dedicated one-shot
-resource instead of a mode on a live bot - see [Deploying a TradeBot](#deploying-a-tradebot) for why), then delete
-the old Job-mode TradeBot. Do this *before* upgrading, not after: once the operator's CRDs are updated,
-`v1beta1` becomes the storage version, and `v1beta1` has no representation for Job mode at all
-(`api/v1alpha1/tradebot_conversion.go`'s `ConvertTo` rejects it outright). A Job-mode object left in place still
-reads back fine immediately after the upgrade - the controller's own `Get` requests `v1alpha1` and needs no actual
-conversion for an object still stored as `v1alpha1` bytes - which is exactly why the reconciler carries a second,
-explicit rejection for it (see the `3.5` step in [controllers/tradebot/main.go](controllers/tradebot/main.go)).
-But any write that has to round-trip that object through `v1beta1` storage, including the status patch the
-reconciler itself issues to report that rejection, hits the same conversion error - so an un-migrated Job-mode
-TradeBot doesn't fail cleanly with a friendly `ReasonJobModeRemoved` message, it gets stuck retrying a conversion
-error every few seconds instead. Migrating first avoids this path entirely.
-
-**`TradeBotConfig`, `Strategy`, and `FreqUI` also gain a `v1beta1` in this release.** Same deal as `TradeBot`
-above - `v1alpha1` is still served and converts transparently, so nothing you already have needs to change to
-keep working. Two things are worth knowing regardless:
-
-- **Plaintext exchange/notification credentials cannot reach `v1beta1` storage at all.** If any `TradeBotConfig`
-  still sets `spec.exchange.{key,secret,password,uid,wallet_address,private_key}`,
-  `spec.apiServer.{password,jwtSecretKey}`, or `spec.notification.telegram.token` directly instead of via
-  `secretRef`, move the value into a Secret and point `secretRef` at it *before* upgrading:
-
-  ```bash
-  kubectl create secret generic <name> -n <namespace> --from-literal=api-key=... --from-literal=secret=...
-  ```
-
-  Then set `spec.exchange.secretRef: <name>` (and the equivalent for `apiServer`/`notification.telegram`) and
-  remove the plaintext field. This isn't optional, and no annotation changes it:
-  `freqtrade.io/allow-plaintext-credentials` only ever bypasses `v1alpha1`'s own admission check, and `v1beta1` -
-  the storage version once you upgrade - has no field a plaintext credential could occupy. A `TradeBotConfig` left
-  with a plaintext field set fails on the very next write (including the reconciler's own status patch) with a
-  conversion error, not a clean one-time rejection at `kubectl apply`.
-- **`FreqUI.spec.tradeBotRefs` is typed in `v1beta1`.** `v1alpha1` still accepts the plain string list you already
-  have (`tradeBotRefs: [my-bot]`); nothing to change unless you write `v1beta1` objects directly, in which case
-  it's `tradeBotRefs: [{name: my-bot}]` instead.
-
-`Strategy`'s `v1beta1` is a straight mirror of `v1alpha1` - no field changes, no action needed either way.
-
-**Upgrading the CRDs themselves, via Helm:** `helm upgrade` never touches the contents of a chart's `crds/`
-directory - that's a deliberate Helm limitation (CRDs are treated as install-once, cluster-scoped, too risky to
-prune automatically), not specific to this chart. Apply the new CRDs yourself before or as part of every upgrade:
-
-```bash
-kubectl apply -f https://github.com/ark-sys/freqtrade-operator/releases/latest/download/freqtrade-operator-crds.tar.gz
-helm upgrade freqtrade-operator oci://ghcr.io/ark-sys/freqtrade-operator --version <chart-version>
-```
-
-(fetch and extract the tarball first - `kubectl apply -f <url>` doesn't unpack `.tar.gz` on its own). The
-`install.yaml` path (`kubectl apply -f .../install.yaml`) already includes the CRDs on every apply, so a plain
-re-apply is sufficient there.
-
-**Rewriting existing objects into `v1beta1` storage.** Every object above keeps reading back fine as `v1alpha1`
-for as long as this operator serves it. But an object created before this upgrade is still stored as
-`v1alpha1`'s bytes until something writes to it again - which will matter if a future release ever drops
-`v1alpha1` entirely (not planned yet; marking it deprecated now is what makes that possible later). Force the
-rewrite yourself, once you've migrated any plaintext credentials above:
-
-```bash
-kubectl get tradebots -A -o yaml | kubectl replace -f -
-kubectl get tradebotconfigs -A -o yaml | kubectl replace -f -
-kubectl get strategies -A -o yaml | kubectl replace -f -
-kubectl get frequis -A -o yaml | kubectl replace -f -
-```
-
-This operator does not ship an automated storage-version migrator - four kinds and no existing installs to
-migrate makes a `kubectl replace` loop the right amount of tooling. If that stops being true,
-[`storage-version-migrator`](https://github.com/kubernetes-sigs/kube-storage-version-migrator) is the upstream
-tool built for exactly this.
+Only relevant if you have an existing install from before the `v1beta1` split - a fresh install needs none of
+this. Covers migrating Job-mode TradeBots to `Backtest` first, the plaintext-credential fields that can no longer
+be stored once `TradeBotConfig` moves to `v1beta1`, and rewriting existing objects into `v1beta1` storage. See
+[docs/upgrading.md](docs/upgrading.md).
 
 ## Config changes and restarts
 
@@ -359,8 +270,8 @@ Every trade-mode TradeBot gets a `NetworkPolicy` (named after the bot) that defa
 
 - Any FreqUI whose `spec.tradeBotRefs` includes the bot - re-evaluated on every reconcile, so referencing (or
   un-referencing) a bot from a FreqUI updates its `NetworkPolicy` automatically.
-- The operator's own pod, for its own future use polling each bot's API for live status - not implemented yet, but the
-  network access is opened now so that later work doesn't need a second security-relevant change to land it.
+- The operator's own pod, which polls each bot's own API for live status - see [Bot introspection](#bot-introspection)
+  and [Bot state control](#bot-state-control).
 
 Nothing else - other bots, arbitrary pods in the namespace, etc. - can reach port `8080`. If something else legitimately
 needs to (your own monitoring, a custom integration), it isn't currently configurable per-bot; open an issue or add your
@@ -611,13 +522,13 @@ selector is the mechanism for finding everything that belongs to one comparison 
 
 Each `Backtest` gets its own results PVC (`spec.results.size`, default namespace storage class unless overridden),
 which by default is deleted along with the `Backtest` (`spec.results.retentionPolicy: Delete`). Runs accumulate -
-there is currently no cluster-wide pruning of old `Backtest` objects or their PVCs (D10) - so clean up runs you no
+there is currently no cluster-wide pruning of old `Backtest` objects or their PVCs - so clean up runs you no
 longer need with `kubectl delete backtest -l ...` once you've captured what you wanted from `status.results`, rather
 than leaving a sweep's full history to grow unbounded.
 
 `Hyperopt` (parameter optimization, rather than a single fixed-parameter run) is not implemented yet - `Backtest`
-ships alone in the first `v1beta1` release by design (D7), with `Hyperopt` following as its own CRD in a later
-minor once `Backtest` has real operating experience behind it.
+ships alone in the first `v1beta1` release by design, with `Hyperopt` following as its own CRD in a later minor
+once `Backtest` has real operating experience behind it.
 
 ## Production checklist
 
@@ -646,44 +557,7 @@ sections above:
 
 ## Development
 
-### Prerequisites
-
-- Go 1.24+
-- Docker
-- Kubernetes cluster (or minikube/kind), 1.29+ - see [Prerequisites](#prerequisites) above
-- Operator SDK
-
-### Setup Development Environment
-
-1. Install the required tools:
-```bash
-# Install controller-gen
-make controller-gen
-
-# Install kustomize
-make kustomize
-```
-
-2. Generate manifests and code:
-```bash
-make manifests
-make generate
-```
-
-3. Run the operator locally:
-```bash
-make run
-```
-
-### Running Tests
-
-```bash
-# Run unit tests
-make test
-
-# Run e2e tests
-make test-e2e
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for building, running, and testing the operator locally.
 
 ## Changelog
 
