@@ -121,13 +121,14 @@ coverage-gate: ## Check coverage against the ratcheted floors in hack/coverage-g
 	./hack/coverage-gate.sh
 
 # -short skips the envtest-backed suites entirely (controllers/tradebot, controllers/backtest,
-# controllers/frequi - each package's TestControllers checks testing.Short() itself, see their
-# suite_test.go) - no envtest binaries needed, so this is the fast inner-loop target (P5-4).
+# controllers/frequi, controllers/strategy, controllers/tradebotconfig - each package's
+# TestControllers checks testing.Short() itself, see their suite_test.go) - no envtest binaries
+# needed, so this is the fast inner-loop target (P5-4).
 .PHONY: test-unit
 test-unit: manifests generate fmt vet ## Run only the fast, envtest-free unit tests.
 	go test -short $$(go list ./... | grep -v /e2e) -coverprofile cover-unit.out
 
-# Just the three envtest-backed packages - re-running every other package's already-covered fast
+# Just the five envtest-backed packages - re-running every other package's already-covered fast
 # tests here too would be redundant, not "more integration coverage".
 .PHONY: test-integration
 test-integration: manifests generate fmt vet setup-envtest ## Run only the envtest-backed controller suites.
