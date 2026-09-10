@@ -81,7 +81,7 @@ func BuildExchangeConfig(
 		cfg["enable_ws"] = *exchange.EnableWS
 	}
 	if exchange.UnkownFeeRate != nil {
-		cfg["unkown_fee_rate"] = *exchange.UnkownFeeRate
+		cfg["unknown_fee_rate"] = *exchange.UnkownFeeRate
 	}
 	if exchange.OutdatedOffset != nil {
 		cfg["outdated_offset"] = *exchange.OutdatedOffset

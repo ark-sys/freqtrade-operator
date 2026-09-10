@@ -68,6 +68,16 @@ linters:
           - unparam
         path: controllers/tradebot/botclient/client.go
         text: "always receives"
+      # UnkownFeeRate is a served v1alpha1 API field - renaming it is a
+      # breaking change for anyone with it set, so it stays misspelled here
+      # until v1beta1 (B2 in REMAINING-WORK.md) can rename it properly with
+      # conversion handling the old name. The rendered config.json key is
+      # already fixed (BuildExchangeConfig emits "unknown_fee_rate"); only
+      # the Go field/JSON tag lag behind, deliberately.
+      - linters:
+          - misspell
+        path: api/v1alpha1/tradebotconfig_types.go
+        text: "`unkown` is a misspelling of `unknown`"
     paths:
       - third_party$
       - builtin$

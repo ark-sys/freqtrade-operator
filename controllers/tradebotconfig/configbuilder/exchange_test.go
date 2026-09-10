@@ -39,6 +39,28 @@ func TestBuildExchangeConfig_SecretOverridesPlaintext(t *testing.T) {
 	}
 }
 
+// TestBuildExchangeConfig_UnknownFeeRateRendersTheKeyFreqtradeActuallyReads
+// covers the A1 fix: the Go field/JSON tag stay misspelled in v1alpha1
+// (UnkownFeeRate is a served API field - renaming it is a breaking change,
+// deferred to the v1beta1 graduation in B2), but the rendered config.json
+// key must be the real freqtrade key from schema.json, "unknown_fee_rate" -
+// not "unkown_fee_rate", which freqtrade's own config schema doesn't
+// recognize and silently ignores.
+func TestBuildExchangeConfig_UnknownFeeRateRendersTheKeyFreqtradeActuallyReads(t *testing.T) {
+	exchange := &v1alpha1.ExchangeSpec{Name: "binance", UnkownFeeRate: ptrBool(true)}
+
+	got, err := BuildExchangeConfig(exchange, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, present := got["unkown_fee_rate"]; present {
+		t.Errorf("expected no %q key in the rendered config - freqtrade doesn't recognize it", "unkown_fee_rate")
+	}
+	if v, ok := got["unknown_fee_rate"].(bool); !ok || v != true {
+		t.Errorf("expected unknown_fee_rate=true, got %v", got["unknown_fee_rate"])
+	}
+}
+
 func TestBuildExchangeConfig_CcxtAsyncAndSyncConfig(t *testing.T) {
 	exchange := &v1alpha1.ExchangeSpec{
 		Name:            "binance",
