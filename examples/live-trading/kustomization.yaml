@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: freqtrade-example
+resources:
+  - namespace.yaml
+  - binance-credentials.yaml
+  - telegram-credentials.yaml
+  - api-server-credentials.yaml
+  - strategy.yaml
+  - config.yaml
+  - tradebot.yaml
+  # frequi.yaml needs a real Ingress controller, DNS, and a cert-manager ClusterIssuer to
+  # actually be reachable - uncomment once you've adjusted its host/tls/ingressAnnotations for
+  # your own cluster, rather than applying it as-is and getting an Ingress that just sits there.
+  # - frequi.yaml

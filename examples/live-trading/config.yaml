@@ -105,15 +105,16 @@ spec:
       reload: true
       chat_id: "your-chat-id"
 
-  # API configuration
+  # API configuration. username/password fields exist on this CRD too, but the admission
+  # webhook rejects them unless the freqtrade.io/allow-plaintext-credentials annotation is set
+  # (they're stored in etcd unencrypted) - secretRef is the supported path, same as exchange
+  # and notification.telegram above.
   apiServer:
     enabled: true
     listen_ip_address: 0.0.0.0
     listen_port: 8080
     verbosity: "error"
-    #    secretRef: freqtrade-api-secret
-    username: admin
-    password: admin
+    secretRef: api-server-credentials
     cors_origins:
       - http://localhost:8000
       - http://localhost:8123

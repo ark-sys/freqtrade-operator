@@ -1,0 +1,36 @@
+apiVersion: freqtrade.io/v1alpha1
+kind: TradeBotConfig
+metadata:
+  name: btc-backtest-config
+  namespace: freqtrade-backtest-example
+spec:
+  # notification/apiServer are omitted entirely - a Backtest's Job never starts a REST API
+  # server and never sends a notification, so there's nothing here for either to do.
+  bot:
+    trading_mode: spot
+    dry_run: true
+    stake_currency: USDT
+    stake_amount: "100"
+    max_open_trades: 5
+
+  exchange:
+    name: binance
+    secretRef: exchange-credentials
+    whitelist:
+      pairs:
+        - BTC/USDT
+        - ETH/USDT
+
+  pairlist_method:
+    methods:
+      - method: StaticPairList
+
+  entry_pricing:
+    price_side: "same"
+    use_order_book: true
+    order_book_top: 1
+
+  exit_pricing:
+    price_side: "other"
+    use_order_book: true
+    order_book_top: 1

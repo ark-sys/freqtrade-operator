@@ -1,0 +1,60 @@
+apiVersion: freqtrade.io/v1alpha1
+kind: Strategy
+metadata:
+  name: default-strategy
+  namespace: freqtrade-backtest-example
+spec:
+  name: "SimpleMovingAverageStrategy"
+  script: |
+    from freqtrade.strategy import IStrategy, IntParameter
+    from pandas import DataFrame
+    import talib.abstract as ta
+
+    class SimpleMovingAverageStrategy(IStrategy):
+        """
+        Simple moving average crossover strategy.
+        Buy when short SMA crosses above long SMA.
+        Sell when short SMA crosses below long SMA.
+        """
+
+        INTERFACE_VERSION = 3
+
+        minimal_roi = {
+            "0": 0.05  # 5% profit is enough to sell
+        }
+
+        stoploss = -0.10  # 10% stop loss
+
+        timeframe = '1h'
+
+        process_only_new_candles = True
+
+        startup_candle_count: int = 30
+
+        short_window = IntParameter(3, 15, default=5, space="buy")
+        long_window = IntParameter(15, 30, default=20, space="buy")
+
+        def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+            dataframe['sma_short'] = ta.SMA(dataframe, timeperiod=self.short_window.value)
+            dataframe['sma_long'] = ta.SMA(dataframe, timeperiod=self.long_window.value)
+            return dataframe
+
+        def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+            dataframe.loc[
+                (
+                    (dataframe['sma_short'] > dataframe['sma_long']) &
+                    (dataframe['sma_short'].shift(1) <= dataframe['sma_long'].shift(1)) &
+                    (dataframe['volume'] > 0)
+                ),
+                'enter_long'] = 1
+            return dataframe
+
+        def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+            dataframe.loc[
+                (
+                    (dataframe['sma_short'] < dataframe['sma_long']) &
+                    (dataframe['sma_short'].shift(1) >= dataframe['sma_long'].shift(1)) &
+                    (dataframe['volume'] > 0)
+                ),
+                'exit_long'] = 1
+            return dataframe

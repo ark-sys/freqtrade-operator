@@ -1,0 +1,47 @@
+apiVersion: freqtrade.io/v1beta1
+kind: TradeBot
+metadata:
+  name: btc-trader
+  namespace: freqtrade-example
+  annotations:
+    # Keeps this TradeBot's trades-database PVC around (owner ref stripped) if this TradeBot is
+    # ever deleted, instead of letting the finalizer garbage-collect it - see the README's
+    # "Config Secret backups" section for the full story on what this does and doesn't protect.
+    freqtrade.io/preserve-data: "true"
+spec:
+  # TradeBotConfig/Strategy are v1alpha1-only CRDs (no v1beta1 equivalent exists) - configRef/
+  # strategyRef resolve by bare name in this TradeBot's own namespace regardless of the
+  # TradeBot's own apiVersion (D3: same-namespace-only, no cross-version typing).
+  configRef:
+    name: btc-trader-config
+  strategyRef:
+    name: default-strategy
+
+  # Auto restarts the bot's pod whenever a config or strategy change can't just be picked up
+  # live - Manual (the default) only reports ConfigDrift in status/conditions and leaves the
+  # running bot untouched, which is usually what you want for something already holding open
+  # positions. Auto is more convenient while iterating on a strategy that isn't live yet.
+  updateStrategy: Auto
+
+  # Polls this bot's own freqtrade REST API on this interval and reports what it finds under
+  # status.bot (state, open trades, profit, ...) plus a BotReachable condition - 60s is the
+  # default if this whole block is left out entirely; shown here to make it visible. The
+  # admission webhook enforces a 10s minimum (freqtrade's REST API isn't built for tight
+  # polling loops, and this operator is not a market-data source).
+  introspection:
+    interval: 60s
+
+  app:
+    pvc:
+      # storageClassName left unset uses your cluster's default StorageClass - set this
+      # explicitly if you need a specific one (e.g. "longhorn", "gp3").
+      storageSize: "1Gi"
+
+    pod:
+      resources:
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+        requests:
+          memory: "256Mi"
+          cpu: "100m"

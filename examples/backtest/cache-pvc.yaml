@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: btc-backtest-cache
+  namespace: freqtrade-backtest-example
+spec:
+  # ReadWriteOnce is enough for one Backtest at a time - within its own pod, only that pod's own
+  # init container (downloading) and main container (reading) ever mount it. Sharing one cache
+  # PVC across several *concurrent* Backtests (see the README's "Running many backtests" guide)
+  # needs a ReadWriteMany-capable storage class instead.
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

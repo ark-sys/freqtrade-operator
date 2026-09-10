@@ -1,0 +1,29 @@
+apiVersion: freqtrade.io/v1beta1
+kind: Backtest
+metadata:
+  name: btc-backtest-jan-2024
+  namespace: freqtrade-backtest-example
+spec:
+  configRef:
+    name: btc-backtest-config
+  strategyRef:
+    name: default-strategy
+
+  # Adjust to a real, recent range before applying - freqtrade needs actual historical candles
+  # to exist for whatever you ask for here.
+  timerange: "20240101-20240201"
+  timeframe: "1h"
+
+  # spec.data.pvcName is what makes this a self-downloading, runnable-as-is example rather than
+  # one that fails immediately with "No data found" - the operator never provisions this PVC
+  # itself (cache-pvc.yaml, applied alongside this), and downloadPolicy: always means the init
+  # container fetches exactly this timerange/timeframe/pairs before the run starts.
+  data:
+    pvcName: btc-backtest-cache
+    downloadPolicy: always
+
+  stakeAmount: "unlimited"
+
+  results:
+    size: 1Gi
+    retentionPolicy: Delete # default; Retain keeps the results PVC after this Backtest is deleted
