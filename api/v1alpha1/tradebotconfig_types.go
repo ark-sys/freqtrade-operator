@@ -466,16 +466,20 @@ type NotificationTelegramSettings struct {
 }
 
 type NotificationWebhook struct {
-	Enabled             *bool  `json:"enabled,omitempty"`
-	URL                 string `json:"url,omitempty"`
-	Entry               string `json:"entry,omitempty"`
-	EntryCancel         string `json:"entry_cancel,omitempty"`
-	EntryFill           string `json:"entry_fill,omitempty"`
-	Exit                string `json:"exit,omitempty"`
-	ExitCancel          string `json:"exit_cancel,omitempty"`
-	ExitFill            string `json:"exit_fill,omitempty"`
-	Status              string `json:"status,omitempty"`
-	AllowCustomMessages *bool  `json:"allow_custom_messages,omitempty"`
+	Enabled     *bool  `json:"enabled,omitempty"`
+	URL         string `json:"url,omitempty"`
+	Entry       string `json:"entry,omitempty"`
+	EntryCancel string `json:"entry_cancel,omitempty"`
+	EntryFill   string `json:"entry_fill,omitempty"`
+	Exit        string `json:"exit,omitempty"`
+	ExitCancel  string `json:"exit_cancel,omitempty"`
+	ExitFill    string `json:"exit_fill,omitempty"`
+	Status      string `json:"status,omitempty"`
+	// Deprecated: not a real Freqtrade webhook option - allow_custom_messages
+	// only exists under `telegram` (see NotificationTelegram.AllowCustomMessages).
+	// configbuilder no longer renders this field into config.json; it has no
+	// effect regardless of its value.
+	AllowCustomMessages *bool `json:"allow_custom_messages,omitempty"`
 }
 
 type NotificationDiscord struct {

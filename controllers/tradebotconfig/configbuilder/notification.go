@@ -160,10 +160,6 @@ func buildWebhookConfig(webhook *v1alpha1.NotificationWebhook) map[string]interf
 		cfg["webhookstatus"] = webhook.Status
 	}
 
-	if webhook.AllowCustomMessages != nil {
-		cfg["allow_custom_messages"] = *webhook.AllowCustomMessages
-	}
-
 	return cfg
 }
 

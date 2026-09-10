@@ -32,56 +32,92 @@ import (
 // ccxt_config/ccxt_async_config/ccxt_sync_config, which are deliberately
 // opaque user-supplied CCXT library config) is treated as opaque and not
 // recursed into, for the same reason: schema.json doesn't model its shape.
+
 // knownSchemaGaps are audit findings that are real but not safe to
 // autocorrect the way the A1-class rename fixes were, because the correct
 // fix needs either a Go API type change (a v1alpha1 breaking change, same
-// deferral as A1's UnkownFeeRate - see B2) or more certainty than
-// schema.json alone can offer. Each is a deliberate, tracked exception, not
-// a weakening of the audit - fixing configbuilder's OTHER key names must
-// not silently widen this list. Keyed by the same "path" the walk above
-// reports failures at.
+// deferral as A1's UnkownFeeRate - see B2) or new API surface this audit's
+// scope doesn't cover. Every entry below was checked against Freqtrade's
+// actual source (not just this vendored schema.json) to confirm what's
+// really going on before deciding whether/how to fix it - see the per-entry
+// comments, which cite the source file each finding was confirmed against.
+// Each is a deliberate, tracked exception, not a weakening of the audit -
+// fixing configbuilder's OTHER key names must not silently widen this list.
+// Keyed by the same "path" the walk above reports failures at.
 var knownSchemaGaps = map[string]map[string]bool{
 	// NotificationWebhook's Entry/EntryFill/.../Status fields are plain
-	// strings rendered as flat "webhookentry"/"webhookexit"/... keys - a
-	// convention from an older Freqtrade webhook format. Current
-	// schema.json types webhook.entry/exit/status/... (unprefixed) as
-	// "object", i.e. an arbitrary user-defined payload dict, not a string.
-	// Fixing this needs an API decision (does NotificationWebhook's Go
-	// shape change to map[string]string per field, and is that a v1beta1-only
-	// change like B2's credential fields?), not a rename.
+	// strings rendered as flat "webhookentry"/"webhookexit"/... keys.
+	// schema.json only types the unprefixed webhook.entry/exit/status/...
+	// keys (object - an arbitrary user-defined Jinja2-style payload dict) -
+	// it doesn't recognize the "webhookXXX" spelling at all. That does NOT
+	// mean these keys are dead, though: confirmed against upstream
+	// freqtrade/rpc/webhook.py (Webhook._get_value_dict) that it checks the
+	// new unprefixed key first ("entry" in whconfig, i.e. "explicit types
+	// should have priority" per its own comment), and only falls back to
+	// "webhookentry" et al. if that's absent - explicitly labeled
+	// "deprecated 2022.10" in that source but still present and functional
+	// on the current develop branch (and on the digest this operator pins,
+	// built 2026-08-31). So these fields work today via that deprecated
+	// fallback; schema.json just doesn't document a backward-compat path
+	// Freqtrade's own code still honors. Moving to the new object-shaped
+	// keys needs a Go field type change (string -> something that can hold
+	// an arbitrary payload dict per message type), which is a
+	// v1alpha1-breaking change - deferred to B2 like UnkownFeeRate, but
+	// with no urgency fixing it since the current shape isn't actually
+	// broken.
 	"config.json.webhook": {
 		"webhookentry": true, "webhookentrycancel": true, "webhookentryfill": true,
 		"webhookexit": true, "webhookexitcancel": true, "webhookexitfill": true,
 		"webhookstatus": true,
-		// allow_custom_messages isn't in schema.json's webhook properties at
-		// all (it's a real key under telegram) - likely copy-pasted from
-		// there; needs a decision on whether to drop it from webhook
-		// rendering rather than a rename.
-		"allow_custom_messages": true,
 	},
 	"config.json": {
-		// BotConfig.PositionAdjustment is a string, rendered as
-		// "position_adjustment". schema.json's actual key is
-		// position_adjustment_enable, typed boolean - a type mismatch, not
-		// just a name mismatch, so renaming the key alone would hand
-		// freqtrade a string where it validates a bool at startup.
+		// DataConfig.PositionAdjustment is a string, rendered as
+		// "position_adjustment". schema.json's real key,
+		// position_adjustment_enable, is typed boolean - confirmed a type
+		// mismatch, not just a name mismatch. Freqtrade validates the whole
+		// config against this schema at startup, before the bot runs
+		// (freqtrade/configuration/config_validation.py's
+		// validate_config_schema, a jsonschema Draft4Validator run whose
+		// failure raises ConfigurationError) - Draft4 does not coerce a
+		// JSON string into a boolean, so renaming the key alone would move
+		// anyone who sets this field from "silently ignored" today to "bot
+		// refuses to start" after the rename. Needs the Go field to become
+		// *bool first; deferred to B2 like UnkownFeeRate.
 		"position_adjustment": true,
-		// LoggingConfig.Version renders top-level "logging". schema.json
-		// defines a "logging" schema (definitions.logging) but never
-		// references it from a top-level property - i.e. this schema
-		// doesn't consider top-level "logging" a valid config key at all.
-		// Unclear whether freqtrade reads it via some other, unvalidated
-		// path; left alone pending that answer rather than deleting a
-		// feature on a guess.
+		// LoggingConfig.Version renders top-level "logging: {version: N}".
+		// Confirmed against upstream freqtrade/loggers/__init__.py
+		// (_create_log_config does `config.get("log_config",
+		// FT_LOGGING_CONFIG)`) that the real top-level key is "log_config",
+		// not "logging" - schema.json does reference definitions.logging
+		// via $ref, just under that different property name. So this field
+		// is a complete no-op today (same bug class as A1), confirming the
+		// suspicion instead of leaving it open. But it's not a safe rename:
+		// definitions.logging requires version, formatters, handlers, AND
+		// root together, and LoggingConfig only has Version - Formatters/
+		// Handlers/Root were never implemented (see the commented-out
+		// fields on LoggingConfig). Renaming the key alone would submit an
+		// incomplete object against that required list and hit the exact
+		// same ConfigurationError-at-startup failure mode as
+		// position_adjustment above. A correct fix needs Formatters/
+		// Handlers/Root added to the API first - new surface this
+		// key-name audit doesn't cover, not a rename. Left as a no-op
+		// pending that follow-up.
 		"logging": true,
 	},
 	"config.json.api_server": {
-		// APIServerConfig.EnableOpenAPI renders "enable_openapi". No key
-		// resembling this appears anywhere in schema.json - api_server's
-		// full property set is enabled/listen_ip_address/listen_port/
-		// username/password/ws_token/jwt_secret_key/CORS_origins/verbosity.
-		// Left alone rather than guessing at a replacement with no evidence
-		// for what it should be.
+		// APIServerConfig.EnableOpenAPI renders "enable_openapi" - confirmed
+		// CORRECT, not a bug. schema.json's api_server has no such property
+		// (enabled/listen_ip_address/listen_port/username/password/
+		// ws_token/jwt_secret_key/CORS_origins/verbosity is the full list),
+		// but upstream freqtrade/rpc/api_server/webserver.py reads it
+		// directly - `api_config.get("enable_openapi", False)` gates the
+		// FastAPI "/docs" endpoint - with no schema entry backing it. This
+		// vendored schema.json (checked against freqtrade's own
+		// config_schema.py on the develop branch too, not just this repo's
+		// copy) is simply incomplete for this one upstream key. Not
+		// configbuilder's bug to fix; kept in this allowlist only because
+		// the walk checks against schema.json specifically, which will
+		// never recognize it.
 		"enable_openapi": true,
 	},
 }

@@ -271,7 +271,6 @@
   },
   "use_exit_signal": true,
   "webhook": {
-    "allow_custom_messages": true,
     "enabled": true,
     "url": "https://hooks.example.com/notify",
     "webhookentry": "entry",

@@ -491,6 +491,11 @@ spec:
                   webhook:
                     properties:
                       allow_custom_messages:
+                        description: |-
+                          Deprecated: not a real Freqtrade webhook option - allow_custom_messages
+                          only exists under `telegram` (see NotificationTelegram.AllowCustomMessages).
+                          configbuilder no longer renders this field into config.json; it has no
+                          effect regardless of its value.
                         type: boolean
                       enabled:
                         type: boolean

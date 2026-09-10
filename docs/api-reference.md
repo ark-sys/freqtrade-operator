@@ -685,7 +685,7 @@ _Appears in:_
 | `exit_cancel` _string_ |  |  |  |
 | `exit_fill` _string_ |  |  |  |
 | `status` _string_ |  |  |  |
-| `allow_custom_messages` _boolean_ |  |  |  |
+| `allow_custom_messages` _boolean_ | Deprecated: not a real Freqtrade webhook option - allow_custom_messages<br />only exists under `telegram` (see NotificationTelegram.AllowCustomMessages).<br />configbuilder no longer renders this field into config.json; it has no<br />effect regardless of its value. |  |  |
 
 
 #### OrderSpec
