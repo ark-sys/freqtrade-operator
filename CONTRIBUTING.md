@@ -113,6 +113,7 @@ packaged, pushed to `ghcr.io/ark-sys` as an OCI artifact, and published to GitHu
 ## Design decisions
 
 Before proposing a change to how the CRDs or controllers are shaped, skim
-[PRODUCTION-PLAN.md](PRODUCTION-PLAN.md)'s "Decisions" table - several things that might look like oversights
-(no Job-mode `TradeBot`, no `spec.state` write path from the poller, same-namespace-only references) are
-deliberate, already-settled design decisions with a stated rationale, not gaps waiting to be filled.
+[docs/architecture.md](docs/architecture.md#design-decisions)'s decisions table - several things that might look
+like oversights (no Job-mode `TradeBot`, no `spec.state` write path from the poller, same-namespace-only
+references) are deliberate, already-settled design decisions with a stated rationale, not gaps waiting to be
+filled.

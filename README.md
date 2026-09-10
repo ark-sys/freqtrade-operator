@@ -41,7 +41,10 @@ The operator consists of the following components:
 
 For every field on every CRD - types, defaults, validation constraints, and doc comments straight from the Go
 source - see [docs/api-reference.md](docs/api-reference.md), regenerated from `api/*/*_types.go` via
-`make api-docs` whenever those types change.
+`make api-docs` whenever those types change. For how these pieces actually fit together under the hood (the
+`v1alpha1`/`v1beta1` conversion story, config rendering, the `Backtest` sidecar, RBAC, and the reasoning behind a
+handful of API design choices), see [docs/architecture.md](docs/architecture.md). Hit an error message along the
+way? [docs/troubleshooting.md](docs/troubleshooting.md) covers the ones worth writing down.
 
 ## Namespace model
 
@@ -147,21 +150,28 @@ taken.
 
 ## Usage
 
-### 1. Create a namespace for your trading bots
+[`examples/live-trading/`](examples/live-trading/) is a complete, self-contained kustomization - its own namespace,
+placeholder credential Secrets, a `Strategy`, a `TradeBotConfig`, and a dry-run `TradeBot`. Fill in real credentials
+first (or leave them as placeholders and the bot will simply fail to authenticate, rather than trade on garbage
+ones), then:
 
 ```bash
-kubectl create namespace freqtrade
+kubectl apply -k examples/live-trading/
 ```
 
-### 2. Create secrets for exchange API credentials
+This creates everything in a `freqtrade-example` namespace, including the namespace itself - no separate `kubectl
+create namespace` step needed. `FreqUI` is deliberately left out of that kustomization (it needs a real Ingress
+controller, DNS, and a cert-manager `ClusterIssuer` to actually be reachable); apply
+[`examples/live-trading/frequi.yaml`](examples/live-trading/frequi.yaml) separately once you've adjusted its
+`host`/`tls`/`ingressAnnotations` for your own cluster, then:
 
 ```bash
-kubectl apply -f examples/binance-credentials.yaml
+kubectl get frequi -n freqtrade-example
 ```
 
-Reference the Secret from `TradeBotConfig.spec.exchange.secretRef` (and, the same way, `spec.apiServer.secretRef` /
-`spec.notification.telegram.secretRef` for those credentials). The operator reads whichever of these keys the Secret's
-`data`/`stringData` provides - set only the ones your exchange needs:
+Credentials are referenced via `TradeBotConfig.spec.exchange.secretRef` (and, the same way,
+`spec.apiServer.secretRef` / `spec.notification.telegram.secretRef`). The operator reads whichever of these keys
+the Secret's `data`/`stringData` provides - set only the ones your exchange needs:
 
 | Secret | Expected keys |
 |---|---|
@@ -180,40 +190,12 @@ itself and keeps reusing that same value on every later reconcile - freqtrade ne
 API, and forwarding a short, guessable, or absent one is worse than picking a good one for you. A `jwt_secret_key` you *do*
 supply is still rejected if it's under 32 characters, from either source.
 
-### 3. Create FreqUI deployment
-
-```bash
-kubectl apply -f examples/frequi.yaml
-```
-
-### 4. Deploy a TradeBot
-
-```bash
-# Apply supporting resources
-kubectl apply -f examples/strategy.yaml
-kubectl apply -f examples/config.yaml
-
-# Deploy the bot
-kubectl apply -f examples/tradebot.yaml
-```
-
-### 5. Access FreqUI
-
-Get the FreqUI URL:
-```bash
-kubectl get frequi -n trading
-```
-
 ## Examples
 
-The `examples/` directory contains example resources for deploying a complete FreqTrade setup:
-
-- `namespace.yaml`: Namespace for trading resources
-- `binance-credentials.yaml`: Secret for exchange API credentials
-- `config.yaml`: Configuration file for a TradeBot
-- `strategy.yaml`: Python script of the Strategy run by the bot
-- `tradebot.yaml`: TradeBot deployment
-- `frequi.yaml`: FreqUI deployment
+[`examples/`](examples/) has two independent, self-contained sets - `live-trading/` (above) and
+[`backtest/`](examples/backtest/), a self-downloading `Backtest` that needs nothing beyond `kubectl apply -k
+examples/backtest/` to actually run. See [`examples/README.md`](examples/README.md) for what's in each and what to
+edit before applying either for real.
 
 
 ## Deploying a TradeBot
@@ -389,7 +371,7 @@ spec:
 
 Polling needs `spec.apiServer` configured on the bot's `TradeBotConfig` with Basic Auth credentials the operator can
 read back (`secretRef` or, deprecated, the plaintext `username`/`password` fields) - the same credentials
-[Create secrets for exchange API credentials](#2-create-secrets-for-exchange-api-credentials) already covers. A bot
+[Usage](#usage) already covers. A bot
 with no `apiServer` section at all just fails every poll attempt and reports `BotReachable=False` - set
 `spec.introspection.enabled: false` on it to silence that instead.
 
