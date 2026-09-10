@@ -2,6 +2,7 @@ package configbuilder
 
 import (
 	"encoding/json"
+
 	"github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 )
 
@@ -20,59 +21,7 @@ func BuildExchangeConfig(
 		cfg["name"] = exchange.Name
 	}
 
-	// 1. Deprecated plaintext credential fields (P3-1) are read first, as a
-	// fallback only - the webhook rejects setting these at all unless
-	// freqtrade.io/allow-plaintext-credentials is set, so the normal path
-	// never reaches this block with anything to read. account_id isn't
-	// treated as a credential (it's an identifier, not a secret), so it has
-	// no webhook-enforced deprecation and no secretData equivalent below.
-	if exchange.Key != "" {
-		cfg["key"] = exchange.Key
-	}
-	if exchange.Secret != "" {
-		cfg["secret"] = exchange.Secret
-	}
-	if exchange.Password != "" {
-		cfg["password"] = exchange.Password
-	}
-	if exchange.UID != "" {
-		cfg["uid"] = exchange.UID
-	}
-	if exchange.AccountID != "" {
-		cfg["account_id"] = exchange.AccountID
-	}
-	if exchange.WalletAddress != "" {
-		cfg["wallet_address"] = exchange.WalletAddress
-	}
-	if exchange.PrivateKey != "" {
-		cfg["private_key"] = exchange.PrivateKey
-	}
-
-	// 2. secretRef always wins over a plaintext value for the keys it
-	// supplies - do not error if the Secret is missing a given key.
-	if exchange.SecretRef != "" && secretData != nil {
-		if apiKey, ok := secretData["api-key"]; ok {
-			cfg["key"] = string(apiKey)
-		}
-		if secret, ok := secretData["secret"]; ok {
-			cfg["secret"] = string(secret)
-		}
-		if password, ok := secretData["password"]; ok {
-			cfg["password"] = string(password)
-		}
-		if uid, ok := secretData["uid"]; ok {
-			cfg["uid"] = string(uid)
-		}
-		if accountID, ok := secretData["account_id"]; ok {
-			cfg["account_id"] = string(accountID)
-		}
-		if walletAddress, ok := secretData["wallet_address"]; ok {
-			cfg["wallet_address"] = string(walletAddress)
-		}
-		if privateKey, ok := secretData["private_key"]; ok {
-			cfg["private_key"] = string(privateKey)
-		}
-	}
+	applyExchangeCredentials(cfg, exchange, secretData)
 
 	if exchange.LogResponses != nil {
 		cfg["log_responses"] = *exchange.LogResponses
@@ -116,4 +65,64 @@ func BuildExchangeConfig(
 	}
 
 	return cfg, nil
+}
+
+// applyExchangeCredentials writes the exchange credential fields into cfg.
+// 1. Deprecated plaintext credential fields (P3-1) are read first, as a
+// fallback only - the webhook rejects setting these at all unless
+// freqtrade.io/allow-plaintext-credentials is set, so the normal path
+// never reaches this block with anything to read. account_id isn't
+// treated as a credential (it's an identifier, not a secret), so it has
+// no webhook-enforced deprecation and no secretData equivalent below.
+// 2. secretRef always wins over a plaintext value for the keys it
+// supplies - do not error if the Secret is missing a given key.
+func applyExchangeCredentials(
+	cfg map[string]interface{}, exchange *v1alpha1.ExchangeSpec, secretData map[string][]byte,
+) {
+	if exchange.Key != "" {
+		cfg["key"] = exchange.Key
+	}
+	if exchange.Secret != "" {
+		cfg["secret"] = exchange.Secret
+	}
+	if exchange.Password != "" {
+		cfg["password"] = exchange.Password
+	}
+	if exchange.UID != "" {
+		cfg["uid"] = exchange.UID
+	}
+	if exchange.AccountID != "" {
+		cfg["account_id"] = exchange.AccountID
+	}
+	if exchange.WalletAddress != "" {
+		cfg["wallet_address"] = exchange.WalletAddress
+	}
+	if exchange.PrivateKey != "" {
+		cfg["private_key"] = exchange.PrivateKey
+	}
+
+	if exchange.SecretRef == "" || secretData == nil {
+		return
+	}
+	if apiKey, ok := secretData["api-key"]; ok {
+		cfg["key"] = string(apiKey)
+	}
+	if secret, ok := secretData["secret"]; ok {
+		cfg["secret"] = string(secret)
+	}
+	if password, ok := secretData["password"]; ok {
+		cfg["password"] = string(password)
+	}
+	if uid, ok := secretData["uid"]; ok {
+		cfg["uid"] = string(uid)
+	}
+	if accountID, ok := secretData["account_id"]; ok {
+		cfg["account_id"] = string(accountID)
+	}
+	if walletAddress, ok := secretData["wallet_address"]; ok {
+		cfg["wallet_address"] = string(walletAddress)
+	}
+	if privateKey, ok := secretData["private_key"]; ok {
+		cfg["private_key"] = string(privateKey)
+	}
 }
