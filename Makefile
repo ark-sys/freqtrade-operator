@@ -132,7 +132,8 @@ test-unit: manifests generate fmt vet ## Run only the fast, envtest-free unit te
 .PHONY: test-integration
 test-integration: manifests generate fmt vet setup-envtest ## Run only the envtest-backed controller suites.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" \
-		go test ./controllers/tradebot/... ./controllers/backtest/... ./controllers/frequi/... -coverprofile cover-integration.out
+		go test ./controllers/tradebot/... ./controllers/backtest/... ./controllers/frequi/... \
+			./controllers/strategy/... ./controllers/tradebotconfig/... -coverprofile cover-integration.out
 
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.

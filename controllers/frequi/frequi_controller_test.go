@@ -103,6 +103,44 @@ var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 	})
 })
 
+// A5 (REMAINING-WORK.md): SetupWithManager's For() predicate used to be a
+// hand-written predicate.Funcs doing reflect.DeepEqual on Spec, replaced
+// here with predicate.GenerationChangedPredicate{}. This proves a spec
+// change still reaches Reconcile - shared.PatchStatus stamps
+// Status.ObservedGeneration to the object's current generation on every
+// reconcile that completes, so ObservedGeneration catching up to the new
+// generation after a spec edit is direct evidence the predicate let the
+// Update event through, not just that the initial Create did.
+var _ = Describe("FreqUI controller", func() {
+	It("still reconciles a spec change (A5 predicate modernization)", func() {
+		ctx := context.Background()
+		frequi := &freqtradev1alpha1.FreqUI{
+			ObjectMeta: metav1.ObjectMeta{Name: "predicate-check", Namespace: testNamespace},
+		}
+		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
+		key := types.NamespacedName{Name: frequi.Name, Namespace: testNamespace}
+
+		Eventually(func(g Gomega) {
+			var latest freqtradev1alpha1.FreqUI
+			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
+			g.Expect(latest.Status.ObservedGeneration).To(Equal(latest.Generation))
+		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+		var toUpdate freqtradev1alpha1.FreqUI
+		Expect(k8sClient.Get(ctx, key, &toUpdate)).To(Succeed())
+		toUpdate.Spec.Host = "frequi.example.com"
+		Expect(k8sClient.Update(ctx, &toUpdate)).To(Succeed())
+		Expect(toUpdate.Generation).To(BeNumerically(">", 1), "expected the spec edit to bump generation")
+
+		Eventually(func(g Gomega) {
+			var latest freqtradev1alpha1.FreqUI
+			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
+			g.Expect(latest.Status.ObservedGeneration).To(Equal(latest.Generation),
+				"expected the reconciler to observe the new generation after the spec change")
+		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+	})
+})
+
 // P4-1: WorkloadReady is a status Deployment change, which
 // ownedResourcePredicate (setup.go) deliberately filters out of the Owns()
 // watch - the controller relies on RequeueAfter polling to notice it in a
