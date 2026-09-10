@@ -83,7 +83,12 @@ func tradeBotDryRunContext() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(output).To(Equal("true"), "bot pod not Ready yet")
 			}
-			Eventually(verifyPodReady, "3m").Should(Succeed())
+			// 3m wasn't enough in CI: the bot's readiness probe (30s initial delay,
+			// 30s period) only turns green once freqtrade's own startup - including
+			// a real network round-trip to the sandboxed exchange for market data,
+			// not just container/image readiness - completes, which is inherently
+			// more variable on shared CI infra than anything purely in-cluster.
+			Eventually(verifyPodReady, "6m").Should(Succeed())
 		})
 
 		It("introspects the bot successfully (proves live REST API connectivity)", func() {
