@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,8 +30,11 @@ func discardLogger(t *testing.T) logr.Logger {
 	return logr.Discard()
 }
 
-// stateRunning matches BotStatus.State's "running" enum value.
-const stateRunning = "running"
+// stateRunning/stateStopped match BotStatus.State's enum values.
+const (
+	stateRunning = "running"
+	stateStopped = "stopped"
+)
 
 // panicOnGetClient embeds client.Client so it satisfies the interface, but
 // overrides Get to panic - the rest of the interface is never reached in
@@ -301,7 +305,7 @@ func TestPollWithClient_HappyPath(t *testing.T) {
 	if status.TotalProfitAbs != "5.5" || status.TotalProfitPct != "1.1" {
 		t.Errorf("expected profit fields 5.5/1.1, got abs=%q pct=%q", status.TotalProfitAbs, status.TotalProfitPct)
 	}
-	if balance != 100 {
+	if balance == nil || *balance != 100 {
 		t.Errorf("expected balance 100, got %v", balance)
 	}
 	if reachable.Status != metav1.ConditionTrue || reachable.Reason != freqtradev1alpha1.ReasonAsExpected {
@@ -309,6 +313,113 @@ func TestPollWithClient_HappyPath(t *testing.T) {
 	}
 	if reachable.ObservedGeneration != 3 {
 		t.Errorf("expected ObservedGeneration 3, got %d", reachable.ObservedGeneration)
+	}
+	if status.LastPollError != "" {
+		t.Errorf("expected no LastPollError when every endpoint succeeds, got %q", status.LastPollError)
+	}
+}
+
+// TestPollWithClient_StoppedBotIsReachableWithBestEffortFieldsEmpty covers
+// the actual freqtrade behavior this poller has to tolerate (verified
+// directly against a real bot): a TradeBot with no explicit
+// spec.advanced.initial_state defaults to state=stopped, and while stopped,
+// /api/v1/count, /api/v1/profit, and /api/v1/balance all fail server-side
+// ("trader is not running") even though /api/v1/ping, /api/v1/show_config,
+// and /api/v1/version succeed fine. A stopped bot is reachable, just not
+// trading - BotReachable must stay True, not read as unreachable.
+func TestPollWithClient_StoppedBotIsReachableWithBestEffortFieldsEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/ping":
+			_, _ = w.Write([]byte(`{"status":"pong"}`))
+		case "/api/v1/show_config":
+			_, _ = w.Write([]byte(`{"state":"stopped","dry_run":true}`))
+		case "/api/v1/version":
+			_, _ = w.Write([]byte(`{"version":"2024.1"}`))
+		case "/api/v1/count", "/api/v1/profit", "/api/v1/balance":
+			w.WriteHeader(http.StatusBadRequest) // freqtrade's "trader is not running" RPCException
+		}
+	}))
+	defer srv.Close()
+
+	tradeBot := &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	c := botclient.New(srv.URL, "", "")
+
+	status, reachable, balance := pollWithClient(context.Background(), c, tradeBot)
+
+	if reachable.Status != metav1.ConditionTrue || reachable.Reason != freqtradev1alpha1.ReasonAsExpected {
+		t.Errorf("expected BotReachable=True/AsExpected for a stopped-but-reachable bot, got %+v", reachable)
+	}
+	if status == nil {
+		t.Fatal("expected a non-nil BotStatus for a stopped-but-reachable bot")
+	}
+	if status.State != stateStopped {
+		t.Errorf("expected state=stopped, got %q", status.State)
+	}
+	if status.OpenTrades != nil || status.MaxOpenTrades != nil {
+		t.Errorf("expected nil OpenTrades/MaxOpenTrades when count fails, got %+v", status)
+	}
+	if status.TotalProfitAbs != "" || status.TotalProfitPct != "" {
+		t.Errorf("expected empty profit fields when profit fails, got %+v", status)
+	}
+	if balance != nil {
+		t.Errorf("expected nil balance when the balance call fails, got %v", *balance)
+	}
+	for _, want := range []string{"count:", "profit:", "balance:"} {
+		if !strings.Contains(status.LastPollError, want) {
+			t.Errorf("expected LastPollError to mention %q, got %q", want, status.LastPollError)
+		}
+	}
+}
+
+// TestPollWithClient_PartialBestEffortFailureDoesNotAffectReachability
+// covers the same tolerant handling on a bot that IS running: an
+// unexpected failure of just one best-effort endpoint (as opposed to the
+// bot being stopped) must not cost the other two, or BotReachable.
+func TestPollWithClient_PartialBestEffortFailureDoesNotAffectReachability(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/ping":
+			_, _ = w.Write([]byte(`{"status":"pong"}`))
+		case "/api/v1/show_config":
+			_, _ = w.Write([]byte(`{"state":"running","dry_run":true}`))
+		case "/api/v1/version":
+			_, _ = w.Write([]byte(`{"version":"2024.1"}`))
+		case "/api/v1/count":
+			_, _ = w.Write([]byte(`{"current":1,"max":3}`))
+		case "/api/v1/profit":
+			w.WriteHeader(http.StatusInternalServerError) // simulated one-off failure
+		case "/api/v1/balance":
+			_, _ = w.Write([]byte(`{"total":100}`))
+		}
+	}))
+	defer srv.Close()
+
+	tradeBot := &freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	c := botclient.New(srv.URL, "", "")
+
+	status, reachable, balance := pollWithClient(context.Background(), c, tradeBot)
+
+	if reachable.Status != metav1.ConditionTrue || reachable.Reason != freqtradev1alpha1.ReasonAsExpected {
+		t.Errorf("expected BotReachable=True/AsExpected despite one best-effort failure, got %+v", reachable)
+	}
+	if status == nil {
+		t.Fatal("expected a non-nil BotStatus")
+	}
+	if status.OpenTrades == nil || *status.OpenTrades != 1 || status.MaxOpenTrades == nil || *status.MaxOpenTrades != 3 {
+		t.Errorf("expected count fields to still populate, got %+v", status)
+	}
+	if status.TotalProfitAbs != "" || status.TotalProfitPct != "" {
+		t.Errorf("expected empty profit fields when profit fails, got %+v", status)
+	}
+	if balance == nil || *balance != 100 {
+		t.Errorf("expected balance to still populate, got %v", balance)
+	}
+	if !strings.Contains(status.LastPollError, "profit:") {
+		t.Errorf("expected LastPollError to mention the profit failure, got %q", status.LastPollError)
+	}
+	if strings.Contains(status.LastPollError, "count:") || strings.Contains(status.LastPollError, "balance:") {
+		t.Errorf("expected LastPollError to mention only the failing endpoint, got %q", status.LastPollError)
 	}
 }
 

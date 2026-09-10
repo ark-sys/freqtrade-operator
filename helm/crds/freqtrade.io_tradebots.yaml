@@ -5883,8 +5883,15 @@ spec:
                     type: boolean
                   lastPollError:
                     description: |-
-                      LastPollError is the most recent poll failure's message, or empty
-                      after a successful poll.
+                      LastPollError is either the most recent poll failure's message (the
+                      whole poll failed - BotReachable is False and the rest of this
+                      struct is stale, unchanged from before this attempt), or a note
+                      about which best-effort fields (OpenTrades/MaxOpenTrades,
+                      TotalProfitAbs/TotalProfitPct, the freqtrade_bot_balance metric)
+                      could not be refreshed on an otherwise-successful poll (BotReachable
+                      is True and everything else here is fresh) - e.g. a reachable bot
+                      that isn't currently running. Empty after a poll that refreshed
+                      everything.
                     type: string
                   lastPollTime:
                     description: |-
@@ -5898,9 +5905,12 @@ spec:
                     type: integer
                   state:
                     description: |-
-                      State is freqtrade's own run state: running, stopped, or unknown
-                      (the operator either hasn't polled successfully yet, or the bot's
-                      api_server isn't reachable/configured - see BotReachable for why).
+                      State is freqtrade's own run state, from a successful poll's
+                      show_config response: running or stopped. Stopped is a normal,
+                      deliberate operational state (BotReachable stays True for it - see
+                      pollWithClient) - not a failure, and not the same thing as
+                      unreachable. unknown means the operator has never completed a poll
+                      that reached show_config at all; check BotReachable for why.
                     enum:
                     - running
                     - stopped

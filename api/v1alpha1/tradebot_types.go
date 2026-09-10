@@ -206,9 +206,12 @@ type TradeBotStatus struct {
 // (P4-3) - polled, never pushed by the bot itself, so every field can be
 // stale by up to spec.introspection.interval.
 type BotStatus struct {
-	// State is freqtrade's own run state: running, stopped, or unknown
-	// (the operator either hasn't polled successfully yet, or the bot's
-	// api_server isn't reachable/configured - see BotReachable for why).
+	// State is freqtrade's own run state, from a successful poll's
+	// show_config response: running or stopped. Stopped is a normal,
+	// deliberate operational state (BotReachable stays True for it - see
+	// pollWithClient) - not a failure, and not the same thing as
+	// unreachable. unknown means the operator has never completed a poll
+	// that reached show_config at all; check BotReachable for why.
 	// +kubebuilder:validation:Enum=running;stopped;unknown
 	State string `json:"state,omitempty"`
 
@@ -228,8 +231,15 @@ type BotStatus struct {
 	// LastPollTime is when the poller last completed a poll attempt for
 	// this bot, successful or not.
 	LastPollTime *metav1.Time `json:"lastPollTime,omitempty"`
-	// LastPollError is the most recent poll failure's message, or empty
-	// after a successful poll.
+	// LastPollError is either the most recent poll failure's message (the
+	// whole poll failed - BotReachable is False and the rest of this
+	// struct is stale, unchanged from before this attempt), or a note
+	// about which best-effort fields (OpenTrades/MaxOpenTrades,
+	// TotalProfitAbs/TotalProfitPct, the freqtrade_bot_balance metric)
+	// could not be refreshed on an otherwise-successful poll (BotReachable
+	// is True and everything else here is fresh) - e.g. a reachable bot
+	// that isn't currently running. Empty after a poll that refreshed
+	// everything.
 	LastPollError string `json:"lastPollError,omitempty"`
 }
 

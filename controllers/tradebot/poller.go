@@ -368,10 +368,10 @@ func (p *BotPoller) updateBackoff(
 // unit test can make resolve to a local test server.
 func (p *BotPoller) poll(
 	ctx context.Context, tradeBot *freqtradev1alpha1.TradeBot,
-) (botStatus *freqtradev1alpha1.BotStatus, reachable metav1.Condition, exchange string, balance float64) {
+) (botStatus *freqtradev1alpha1.BotStatus, reachable metav1.Condition, exchange string, balance *float64) {
 	username, password, exchange, err := p.resolveCredentials(ctx, tradeBot)
 	if err != nil {
-		return nil, unreachableCondition(tradeBot, freqtradev1alpha1.ReasonConnectionRefused, err), exchange, 0
+		return nil, unreachableCondition(tradeBot, freqtradev1alpha1.ReasonConnectionRefused, err), exchange, nil
 	}
 
 	baseURL := fmt.Sprintf(
@@ -382,56 +382,73 @@ func (p *BotPoller) poll(
 }
 
 // pollWithClient does the actual HTTP work for one bot: ping, then (if
-// reachable) the endpoints status.bot's fields and the
-// freqtrade_bot_balance metric are drawn from. Returns a nil status and a
-// False BotReachable condition at the first failure - a bot that's down
-// gets no partial/stale status.bot rather than a mix of fresh and
-// hours-old fields with no way to tell which is which. balance is
-// returned separately since it isn't one of BotStatus's own fields (see
-// BalanceResponse's doc comment) - only the metric needs it.
+// reachable) show_config and version. These three are required and
+// determine BotReachable - all three succeed regardless of whether the
+// bot is actively trading (verified directly against a real bot: an
+// api_server that's up but stopped still answers all three fine). Count,
+// Profit, and Balance are best-effort from there: freqtrade errors all
+// three whenever the bot isn't running - state == "stopped" is a normal,
+// deliberate operational state, not a failure - so a failure on any of
+// them just leaves that one field unset (noted in LastPollError) without
+// touching BotReachable or blocking the other two. Only a Ping/ShowConfig/
+// Version failure returns a nil status and a False BotReachable condition
+// - a bot whose API itself doesn't answer gets no partial/stale
+// status.bot, rather than a mix of fresh and hours-old fields with no way
+// to tell which is which. balance is returned separately since it isn't
+// one of BotStatus's own fields (see BalanceResponse's doc comment) - only
+// the metric needs it; nil (as opposed to a pointer to 0) means the
+// balance call itself failed, so recordMetrics knows not to overwrite the
+// gauge's last known value with a false zero.
 func pollWithClient(
 	ctx context.Context, c *botclient.Client, tradeBot *freqtradev1alpha1.TradeBot,
-) (botStatus *freqtradev1alpha1.BotStatus, reachable metav1.Condition, balance float64) {
+) (botStatus *freqtradev1alpha1.BotStatus, reachable metav1.Condition, balance *float64) {
 	if err := c.Ping(ctx); err != nil {
-		return nil, unreachableCondition(tradeBot, classifyError(err), err), 0
+		return nil, unreachableCondition(tradeBot, classifyError(err), err), nil
 	}
 	config, err := c.ShowConfig(ctx)
 	if err != nil {
-		return nil, unreachableCondition(tradeBot, classifyError(err), err), 0
+		return nil, unreachableCondition(tradeBot, classifyError(err), err), nil
 	}
 	version, err := c.Version(ctx)
 	if err != nil {
-		return nil, unreachableCondition(tradeBot, classifyError(err), err), 0
-	}
-	count, err := c.Count(ctx)
-	if err != nil {
-		return nil, unreachableCondition(tradeBot, classifyError(err), err), 0
-	}
-	profit, err := c.Profit(ctx)
-	if err != nil {
-		return nil, unreachableCondition(tradeBot, classifyError(err), err), 0
-	}
-	balanceResp, err := c.Balance(ctx)
-	if err != nil {
-		return nil, unreachableCondition(tradeBot, classifyError(err), err), 0
+		return nil, unreachableCondition(tradeBot, classifyError(err), err), nil
 	}
 
 	// LastPollTime is stamped by the caller (pollOne), for both this
 	// success path and the failure paths above uniformly.
 	botStatus = &freqtradev1alpha1.BotStatus{
-		State:          config.State,
-		Version:        version.Version,
-		DryRun:         ptr.To(config.DryRun),
-		OpenTrades:     ptr.To(count.Current),
-		MaxOpenTrades:  ptr.To(count.Max),
-		TotalProfitAbs: formatFloat(profit.ProfitAllCoin),
-		TotalProfitPct: formatFloat(profit.ProfitAllPercent),
+		State:   config.State,
+		Version: version.Version,
+		DryRun:  ptr.To(config.DryRun),
 	}
+
+	var degraded []string
+	if count, err := c.Count(ctx); err != nil {
+		degraded = append(degraded, "count: "+err.Error())
+	} else {
+		botStatus.OpenTrades = ptr.To(count.Current)
+		botStatus.MaxOpenTrades = ptr.To(count.Max)
+	}
+	if profit, err := c.Profit(ctx); err != nil {
+		degraded = append(degraded, "profit: "+err.Error())
+	} else {
+		botStatus.TotalProfitAbs = formatFloat(profit.ProfitAllCoin)
+		botStatus.TotalProfitPct = formatFloat(profit.ProfitAllPercent)
+	}
+	if balanceResp, err := c.Balance(ctx); err != nil {
+		degraded = append(degraded, "balance: "+err.Error())
+	} else {
+		balance = ptr.To(balanceResp.Total)
+	}
+	if len(degraded) > 0 {
+		botStatus.LastPollError = "best-effort fields unavailable: " + strings.Join(degraded, "; ")
+	}
+
 	reachable = metav1.Condition{
 		Type: freqtradev1alpha1.ConditionBotReachable, Status: metav1.ConditionTrue,
 		Reason: freqtradev1alpha1.ReasonAsExpected, ObservedGeneration: tradeBot.Generation,
 	}
-	return botStatus, reachable, balanceResp.Total
+	return botStatus, reachable, balance
 }
 
 // recordMetrics pushes the freqtrade_bot_* gauges (P4-3) after one poll
@@ -443,7 +460,7 @@ func pollWithClient(
 // right labels once the bot itself is gone.
 func (p *BotPoller) recordMetrics(
 	key types.NamespacedName, tradeBot *freqtradev1alpha1.TradeBot,
-	botStatus *freqtradev1alpha1.BotStatus, reachable metav1.Condition, exchange string, balance float64,
+	botStatus *freqtradev1alpha1.BotStatus, reachable metav1.Condition, exchange string, balance *float64,
 ) {
 	dryRun := "unknown"
 	if botStatus != nil && botStatus.DryRun != nil {
@@ -487,7 +504,9 @@ func (p *BotPoller) recordMetrics(
 	if v, err := strconv.ParseFloat(botStatus.TotalProfitPct, 64); err == nil {
 		shared.BotProfitRatio.With(labels).Set(v / 100)
 	}
-	shared.BotBalance.With(labels).Set(balance)
+	if balance != nil {
+		shared.BotBalance.With(labels).Set(*balance)
+	}
 }
 
 func formatFloat(f float64) string {
