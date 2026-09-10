@@ -1,0 +1,19 @@
+# Enables the conversion webhook for Strategy (B3): the API server calls
+# this operator's own webhook server to translate v1alpha1 <-> v1beta1
+# objects, via the ConvertTo/ConvertFrom methods in
+# api/v1alpha1/strategy_conversion.go.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: strategies.freqtrade.io
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      conversionReviewVersions:
+        - v1
+      clientConfig:
+        service:
+          namespace: system
+          name: webhook-service
+          path: /convert

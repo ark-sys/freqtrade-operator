@@ -344,6 +344,14 @@ func runManager() {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Strategy")
 		os.Exit(1)
 	}
+	// FreqUI has no admission validation of its own - this registers it
+	// with the webhook server solely to activate the shared /convert
+	// endpoint (B3), same reasoning as api/v1alpha1/frequi_webhook.go's
+	// own doc comment.
+	if err = (&freqtradev1alpha1.FreqUI{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "FreqUI")
+		os.Exit(1)
+	}
 	if err = (&freqtradev1beta1.Backtest{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Backtest")
 		os.Exit(1)

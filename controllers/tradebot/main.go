@@ -12,6 +12,7 @@ import (
 	"github.com/ark-sys/freqtrade-operator/controllers/tradebotconfig/configbuilder"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -77,14 +78,14 @@ type Reconciler struct {
 // have real per-bot origin routing can still list it explicitly via
 // TradeBotConfig.Spec.APIServer.CORSOrigins, which is additive with this.
 func collectCORSHostsForTradeBot(
-	tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1alpha1.FreqUIList,
+	tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1beta1.FreqUIList,
 ) []string {
 	var corsHosts []string
 	corsSet := make(map[string]struct{})
 
 	for _, frequi := range frequiList.Items {
 		for _, ref := range frequi.Spec.TradeBotRefs {
-			if ref == tradeBot.Name {
+			if ref.Name == tradeBot.Name {
 				if frequi.Spec.Host != "" {
 					host := frequi.Spec.Host
 					scheme := "https"
@@ -132,11 +133,11 @@ func collectCORSHostsForTradeBot(
 // FreqUI's Deployment pod carries app: <frequi.Name> (see
 // controllers/frequi/resources/deployment.go), so the name is exactly what
 // a NetworkPolicy peer needs to select it.
-func referencingFreqUINames(tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1alpha1.FreqUIList) []string {
+func referencingFreqUINames(tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1beta1.FreqUIList) []string {
 	var names []string
 	for _, frequi := range frequiList.Items {
 		for _, ref := range frequi.Spec.TradeBotRefs {
-			if ref == tradeBot.Name {
+			if ref.Name == tradeBot.Name {
 				names = append(names, frequi.Name)
 				break
 			}
@@ -297,7 +298,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger.V(2).Info("Fetched referenced resources", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
 
 	// 5. Collect CORS hosts from all FreqUI referencing this TradeBot
-	var frequiList freqtradev1alpha1.FreqUIList
+	var frequiList freqtradev1beta1.FreqUIList
 	if err := r.List(ctx, &frequiList, client.InNamespace(tradeBot.Namespace)); err != nil {
 		logger.Error(err, "Failed to list FreqUI resources")
 		return ctrl.Result{}, fmt.Errorf("failed to list FreqUI resources: %w", err)

@@ -80,10 +80,11 @@ linters:
         text: "`unkown` is a misspelling of `unknown`"
       # "strat" is Strategy's deliberate kubebuilder shortName abbreviation
       # (kubectl get strat), matching the tb/tbot/bt/fui/tbc abbreviations
-      # used for the other CRDs - not a typo of "start".
+      # used for the other CRDs - not a typo of "start". Both served
+      # versions (v1alpha1 and v1beta1, B3) carry the same marker.
       - linters:
           - misspell
-        path: api/v1alpha1/strategy_types.go
+        path: api/v1(alpha1|beta1)/strategy_types\.go
         text: "`strat` is a misspelling of `start`"
       # This file's whole job is proving BuildExchangeConfig does NOT emit
       # the old misspelled key (A1) - the misspelled string has to appear

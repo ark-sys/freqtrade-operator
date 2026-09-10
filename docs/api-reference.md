@@ -1352,6 +1352,10 @@ Package v1beta1 contains API Schema definitions for the freqtrade v1beta1 API gr
 ### Resource Types
 - [Backtest](#backtest)
 - [BacktestList](#backtestlist)
+- [FreqUI](#frequi)
+- [FreqUIList](#frequilist)
+- [Strategy](#strategy)
+- [StrategyList](#strategylist)
 - [TradeBot](#tradebot)
 - [TradeBotConfig](#tradebotconfig)
 - [TradeBotConfigList](#tradebotconfiglist)
@@ -1738,6 +1742,101 @@ _Appears in:_
 | `block_bad_exchanges` _boolean_ |  |  |  |
 
 
+#### FUAppConfig
+
+
+
+FUAppConfig defines the configuration for the FreqUI application -
+identical to v1alpha1's.
+
+
+
+_Appears in:_
+- [FreqUISpec](#frequispec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `pod` _[FUPodSpec](#fupodspec)_ | PodSpec is the pod specification for FreqUI |  |  |
+| `service` _[FUServiceSpec](#fuservicespec)_ | ServiceSpec is the service specification for FreqUI |  |  |
+| `ingress` _[FUIngressSpec](#fuingressspec)_ | IngressSpec is the ingress specification for FreqUI |  |  |
+
+
+#### FUIngressSpec
+
+
+
+FUIngressSpec defines the ingress specification for FreqUI - identical
+to v1alpha1's.
+
+
+
+_Appears in:_
+- [FUAppConfig](#fuappconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ingressClassName` _string_ | IngressClassName defines the ingress class name |  |  |
+| `rules` _[IngressRule](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#ingressrule-v1-networking) array_ | Rules defines ingress rules |  |  |
+| `tls` _[IngressTLS](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#ingresstls-v1-networking) array_ | TLS defines TLS configuration |  |  |
+| `defaultBackend` _[IngressBackend](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#ingressbackend-v1-networking)_ | DefaultBackend defines the default backend |  |  |
+| `annotations` _object (keys:string, values:string)_ | Annotations defines additional annotations for the ingress |  |  |
+
+
+#### FUPodSpec
+
+
+
+FUPodSpec defines the pod specification for FreqUI - identical to
+v1alpha1's.
+
+
+
+_Appears in:_
+- [FUAppConfig](#fuappconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `image` _string_ | Image is the container image for FreqUI |  |  |
+| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#resourcerequirements-v1-core)_ | Resources defines the resource requirements for the pod |  |  |
+| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#envvar-v1-core) array_ | Env defines environment variables for the pod |  |  |
+| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#volumemount-v1-core) array_ | VolumeMounts defines volume mounts for the pod |  |  |
+| `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#volume-v1-core) array_ | Volumes defines volumes for the pod |  |  |
+| `securityContext` _[PodSecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#podsecuritycontext-v1-core)_ | SecurityContext defines the security context for the pod |  |  |
+| `initContainers` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#container-v1-core) array_ | InitContainers defines init containers for the pod |  |  |
+| `imagePullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#localobjectreference-v1-core) array_ | ImagePullSecrets defines image pull secrets for the pod |  |  |
+| `livenessProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#probe-v1-core)_ | LivenessProbe defines the liveness probe for the pod |  |  |
+| `readinessProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#probe-v1-core)_ | ReadinessProbe defines the readiness probe for the pod |  |  |
+| `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#affinity-v1-core)_ | Affinity defines pod affinity rules |  |  |
+| `antiAffinity` _[PodAntiAffinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#podantiaffinity-v1-core)_ | AntiAffinity defines pod anti-affinity rules |  |  |
+| `nodeSelector` _object (keys:string, values:string)_ | NodeSelector defines node selector for the pod |  |  |
+| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#toleration-v1-core) array_ | Tolerations defines tolerations for the pod |  |  |
+| `topologySpreadConstraints` _[TopologySpreadConstraint](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#topologyspreadconstraint-v1-core) array_ | TopologySpreadConstraints defines topology spread constraints |  |  |
+| `replicas` _integer_ | Replicas defines the number of pod replicas |  |  |
+
+
+#### FUServiceSpec
+
+
+
+FUServiceSpec defines the service specification for FreqUI - identical
+to v1alpha1's.
+
+
+
+_Appears in:_
+- [FUAppConfig](#fuappconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _[ServiceType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#servicetype-v1-core)_ | Type defines the type of service (e.g., ClusterIP, NodePort, LoadBalancer) |  |  |
+| `ports` _[ServicePort](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceport-v1-core) array_ | Ports defines the ports for the service |  |  |
+| `selector` _object (keys:string, values:string)_ | Selector defines the labels to select the pods for this service |  |  |
+| `annotations` _object (keys:string, values:string)_ | Annotations defines additional annotations for the service |  |  |
+| `loadBalancerSourceRanges` _string array_ | LoadBalancerSourceRanges defines source ranges for load balancer |  |  |
+| `externalTrafficPolicy` _[ServiceExternalTrafficPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicy-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
+| `sessionAffinity` _[ServiceAffinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceaffinity-v1-core)_ | SessionAffinity defines session affinity |  |  |
+
+
 #### FeatureParameters
 
 
@@ -1785,6 +1884,93 @@ _Appears in:_
 | `stacked_imbalance_range` _integer_ |  |  |  |
 | `imbalance_volume` _integer_ |  |  |  |
 | `imbalance_ratio` _float_ |  |  |  |
+
+
+#### FreqUI
+
+
+
+FreqUI is the Schema for the frequis API
+
+
+
+_Appears in:_
+- [FreqUIList](#frequilist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
+| `kind` _string_ | `FreqUI` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[FreqUISpec](#frequispec)_ |  |  |  |
+| `status` _[FreqUIStatus](#frequistatus)_ |  |  |  |
+
+
+#### FreqUIList
+
+
+
+FreqUIList contains a list of FreqUI
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
+| `kind` _string_ | `FreqUIList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[FreqUI](#frequi) array_ |  |  |  |
+
+
+#### FreqUISpec
+
+
+
+FreqUISpec defines the desired state of FreqUI - field-for-field
+identical to v1alpha1.FreqUISpec (B3, REMAINING-WORK.md) except
+TradeBotRefs, which is P6-5's own requirement extended here: every
+cross-object reference becomes a typed, same-namespace-only
+corev1.LocalObjectReference instead of a bare string.
+
+
+
+_Appears in:_
+- [FreqUI](#frequi)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `host` _string_ | Host is the hostname for the FreqUI ingress |  |  |
+| `tls` _[IngressTLS](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#ingresstls-v1-networking) array_ | TLS configuration for the FreqUI ingress |  |  |
+| `ingressAnnotations` _object (keys:string, values:string)_ | IngressAnnotations are additional annotations for the FreqUI ingress |  |  |
+| `app` _[FUAppConfig](#fuappconfig)_ | App is the configuration for the FreqUI application |  |  |
+| `tradeBotRefs` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#localobjectreference-v1-core) array_ | TradeBotRefs is a list of TradeBot references this FreqUI should<br />manage, resolved in this FreqUI's own namespace only (D3) -<br />same-namespace-only is a deliberate, documented constraint, not a<br />TODO. A name that doesn't resolve is surfaced via the<br />TradeBotRefsResolved condition rather than silently yielding no CORS<br />entry for that bot. |  |  |
+
+
+#### FreqUIStatus
+
+
+
+FreqUIStatus defines the observed state of FreqUI - identical to
+v1alpha1's.
+
+
+
+_Appears in:_
+- [FreqUI](#frequi)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
+| `message` _string_ | Message is a human-readable message indicating details about the current phase |  |  |
+| `url` _string_ | URL is the URL where FreqUI is accessible |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
 #### InternalsConfig
@@ -2343,6 +2529,90 @@ _Appears in:_
 | `ports` _[ServicePort](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceport-v1-core) array_ |  |  |  |
 | `selector` _object (keys:string, values:string)_ |  |  |  |
 | `annotations` _object (keys:string, values:string)_ |  |  |  |
+
+
+#### Strategy
+
+
+
+
+
+
+
+_Appears in:_
+- [StrategyList](#strategylist)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
+| `kind` _string_ | `Strategy` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[StrategySpec](#strategyspec)_ |  |  |  |
+| `status` _[StrategyStatus](#strategystatus)_ |  |  |  |
+
+
+#### StrategyList
+
+
+
+
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `freqtrade.io/v1beta1` | | |
+| `kind` _string_ | `StrategyList` | | |
+| `kind` _string_ | Kind is a string value representing the REST resource this object represents.<br />Servers may infer this from the endpoint the client submits requests to.<br />Cannot be updated.<br />In CamelCase.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds |  |  |
+| `apiVersion` _string_ | APIVersion defines the versioned schema of this representation of an object.<br />Servers should convert recognized schemas to the latest internal value, and<br />may reject unrecognized values.<br />More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources |  |  |
+| `metadata` _[ListMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#listmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `items` _[Strategy](#strategy) array_ |  |  |  |
+
+
+#### StrategySpec
+
+
+
+StrategySpec defines the desired state of Strategy - field-for-field
+identical to v1alpha1.StrategySpec (B3, REMAINING-WORK.md): Strategy
+carries neither credentials nor references, so graduating it is a
+mechanical copy, not a breaking change in substance. Done anyway rather
+than leaving it on v1alpha1 alone, to avoid a papercut every user would
+otherwise hit (every other kind on v1beta1, this one not).
+
+
+
+_Appears in:_
+- [Strategy](#strategy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `name` _string_ | Name of the strategy (e.g., "SampleStrategy") |  |  |
+| `script` _string_ | Script content or reference to a ConfigMap/Secret |  |  |
+
+
+#### StrategyStatus
+
+
+
+StrategyStatus defines the observed state of Strategy - identical to
+v1alpha1's.
+
+
+
+_Appears in:_
+- [Strategy](#strategy)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `phase` _string_ | Phase is a derived, human-facing summary for the printer column only -<br />it is never the source of truth. Conditions are. |  |  |
+| `message` _string_ |  |  |  |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#condition-v1-meta) array_ |  |  |  |
+| `observedGeneration` _integer_ | ObservedGeneration is the most recent metadata.generation this status<br />was computed from. |  |  |
 
 
 #### TBAppConfig
