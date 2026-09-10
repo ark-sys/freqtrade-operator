@@ -1,4 +1,4 @@
-apiVersion: freqtrade.io/v1alpha1
+apiVersion: freqtrade.io/v1beta1
 kind: TradeBotConfig
 metadata:
   name: btc-backtest-config
@@ -15,7 +15,8 @@ spec:
 
   exchange:
     name: binance
-    secretRef: exchange-credentials
+    secretRef:
+      name: exchange-credentials
     whitelist:
       pairs:
         - BTC/USDT

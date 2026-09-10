@@ -1,4 +1,4 @@
-apiVersion: freqtrade.io/v1alpha1
+apiVersion: freqtrade.io/v1beta1
 kind: TradeBotConfig
 metadata:
   name: btc-trader-config
@@ -30,7 +30,8 @@ spec:
   # Exchange configuration
   exchange:
     name: binance
-    secretRef: binance-credentials
+    secretRef:
+      name: binance-credentials
     whitelist:
       pairs:
         - BTC/USDT
@@ -100,21 +101,23 @@ spec:
   notification:
     telegram:
       enabled: true
-      secretRef: telegram-credentials
+      secretRef:
+        name: telegram-credentials
       balance_dust_level: 0.01
       reload: true
       chat_id: "your-chat-id"
 
-  # API configuration. username/password fields exist on this CRD too, but the admission
-  # webhook rejects them unless the freqtrade.io/allow-plaintext-credentials annotation is set
-  # (they're stored in etcd unencrypted) - secretRef is the supported path, same as exchange
-  # and notification.telegram above.
+  # API configuration. v1beta1 (this example) has no plaintext username/password fields at all -
+  # v1alpha1 carried them behind the freqtrade.io/allow-plaintext-credentials annotation (etcd
+  # stores them unencrypted regardless), but v1beta1 drops the fields entirely rather than just
+  # gating them. secretRef is the only path, same as exchange and notification.telegram above.
   apiServer:
     enabled: true
     listen_ip_address: 0.0.0.0
     listen_port: 8080
     verbosity: "error"
-    secretRef: api-server-credentials
+    secretRef:
+      name: api-server-credentials
     cors_origins:
       - http://localhost:8000
       - http://localhost:8123

@@ -14,11 +14,11 @@ Both assume the operator itself is already installed and running - see the main
 
 ## [`live-trading/`](live-trading/)
 
-A dry-run `TradeBot` (v1beta1) against Binance, with a `Strategy`, `TradeBotConfig`, and a
-commented-out `FreqUI` (needs a real Ingress controller/DNS to actually be reachable - see the
-comment in its `kustomization.yaml`). Every credential is a placeholder `Secret` - fill in real
-values, or leave them as-is and the bot will fail to authenticate rather than trade on garbage
-credentials.
+A dry-run `TradeBot` against Binance, with a `Strategy`, `TradeBotConfig`, and a commented-out
+`FreqUI` (needs a real Ingress controller/DNS to actually be reachable - see the comment in its
+`kustomization.yaml`) - all four `v1beta1`. Every credential is a placeholder `Secret` - fill in
+real values, or leave them as-is and the bot will fail to authenticate rather than trade on
+garbage credentials.
 
 Before applying for real:
 - Edit `binance-credentials.yaml`, `api-server-credentials.yaml`, and `telegram-credentials.yaml`
@@ -32,7 +32,7 @@ Before applying for real:
 
 ## [`backtest/`](backtest/)
 
-A self-downloading `Backtest` (v1beta1): apply it as-is and it fetches its own historical data
+A self-downloading `Backtest`, with its `Strategy` and `TradeBotConfig` (all `v1beta1`): apply it as-is and it fetches its own historical data
 (`cache-pvc.yaml` + `spec.data.pvcName`) before running, no live bot involved. `stakeAmount:
 "unlimited"` and `dry_run: true` in `config.yaml` mean nothing here places a real order -
 backtesting never does, regardless of either setting.

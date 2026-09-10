@@ -1,4 +1,4 @@
-apiVersion: freqtrade.io/v1alpha1
+apiVersion: freqtrade.io/v1beta1
 kind: FreqUI
 metadata:
   name: freqtrade-ui
@@ -16,4 +16,4 @@ spec:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 
   tradeBotRefs:
-    - btc-trader
+    - name: btc-trader

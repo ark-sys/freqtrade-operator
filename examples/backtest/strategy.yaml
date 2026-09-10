@@ -1,4 +1,4 @@
-apiVersion: freqtrade.io/v1alpha1
+apiVersion: freqtrade.io/v1beta1
 kind: Strategy
 metadata:
   name: default-strategy

@@ -138,9 +138,9 @@ OLM installed, or addable to your own catalog via `make catalog-build` (see `mak
 ## Usage
 
 [`examples/live-trading/`](examples/live-trading/) is a complete, self-contained kustomization - its own namespace,
-placeholder credential Secrets, a `Strategy`, a `TradeBotConfig`, and a dry-run `TradeBot`. Fill in real credentials
-first (or leave them as placeholders and the bot will simply fail to authenticate, rather than trade on garbage
-ones), then:
+placeholder credential Secrets, a `Strategy`, a `TradeBotConfig`, and a dry-run `TradeBot` (all `v1beta1`). Fill in
+real credentials first (or leave them as placeholders and the bot will simply fail to authenticate, rather than
+trade on garbage ones), then:
 
 ```bash
 kubectl apply -k examples/live-trading/
@@ -157,7 +157,9 @@ kubectl get frequi -n freqtrade-example
 ```
 
 Credentials are referenced via `TradeBotConfig.spec.exchange.secretRef` (and, the same way,
-`spec.apiServer.secretRef` / `spec.notification.telegram.secretRef`). The operator reads whichever of these keys
+`spec.apiServer.secretRef` / `spec.notification.telegram.secretRef`) - in `v1beta1` (what the example above uses
+and what's shown below), each of these is a typed reference, `secretRef: {name: <secret-name>}`, rather than the
+bare-string `secretRef: <secret-name>` that `v1alpha1` still accepts. The operator reads whichever of these keys
 the Secret's `data`/`stringData` provides - set only the ones your exchange needs:
 
 | Secret | Expected keys |

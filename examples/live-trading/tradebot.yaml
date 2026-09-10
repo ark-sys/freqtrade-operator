@@ -9,9 +9,11 @@ metadata:
     # "Config Secret backups" section for the full story on what this does and doesn't protect.
     freqtrade.io/preserve-data: "true"
 spec:
-  # TradeBotConfig/Strategy are v1alpha1-only CRDs (no v1beta1 equivalent exists) - configRef/
-  # strategyRef resolve by bare name in this TradeBot's own namespace regardless of the
-  # TradeBot's own apiVersion (D3: same-namespace-only, no cross-version typing).
+  # TradeBotConfig/Strategy now have their own v1beta1 too (this example's config.yaml/
+  # strategy.yaml use it) - configRef/strategyRef still just resolve by bare name in this
+  # TradeBot's own namespace, regardless of which apiVersion either side was written as
+  # (D3: same-namespace-only, no cross-version typing; Kubernetes' registered conversion
+  # transparently serves whichever version a reader asks for).
   configRef:
     name: btc-trader-config
   strategyRef:
