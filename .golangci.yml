@@ -78,6 +78,20 @@ linters:
           - misspell
         path: api/v1alpha1/tradebotconfig_types.go
         text: "`unkown` is a misspelling of `unknown`"
+      # "strat" is Strategy's deliberate kubebuilder shortName abbreviation
+      # (kubectl get strat), matching the tb/tbot/bt/fui/tbc abbreviations
+      # used for the other CRDs - not a typo of "start".
+      - linters:
+          - misspell
+        path: api/v1alpha1/strategy_types.go
+        text: "`strat` is a misspelling of `start`"
+      # This file's whole job is proving BuildExchangeConfig does NOT emit
+      # the old misspelled key (A1) - the misspelled string has to appear
+      # verbatim to test for its absence.
+      - linters:
+          - misspell
+        path: controllers/tradebotconfig/configbuilder/exchange_test.go
+        text: "`unkown` is a misspelling of `unknown`"
     paths:
       - third_party$
       - builtin$

@@ -8,7 +8,9 @@ import (
 )
 
 // mergePVCSpecOverrides merges user overrides from App.PVCSpec into the default PVC spec.
-func mergePVCSpecOverrides(defaultSpec corev1.PersistentVolumeClaimSpec, override *freqtradev1alpha1.PVCSpec) corev1.PersistentVolumeClaimSpec {
+func mergePVCSpecOverrides(
+	defaultSpec corev1.PersistentVolumeClaimSpec, override *freqtradev1alpha1.PVCSpec,
+) corev1.PersistentVolumeClaimSpec {
 	if override == nil {
 		return defaultSpec
 	}

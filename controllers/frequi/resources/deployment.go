@@ -227,6 +227,8 @@ func applyPodSpecOverrides(podSpec *corev1.PodSpec, userPodSpec *freqtradev1alph
 
 	// Override topology spread constraints if specified
 	if len(userPodSpec.TopologySpreadConstraints) > 0 {
-		podSpec.TopologySpreadConstraints = append(podSpec.TopologySpreadConstraints, userPodSpec.TopologySpreadConstraints...)
+		podSpec.TopologySpreadConstraints = append(
+			podSpec.TopologySpreadConstraints, userPodSpec.TopologySpreadConstraints...,
+		)
 	}
 }

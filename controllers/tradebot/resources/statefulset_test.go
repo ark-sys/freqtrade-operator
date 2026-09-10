@@ -9,7 +9,7 @@ import (
 
 func TestBuildStatefulSet(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 		Spec: freqtradev1alpha1.TradeBotSpec{
 			// StatefulSet must always run in trade mode, regardless of this field.
 			FreqtradeCommand: "backtesting",
@@ -23,18 +23,18 @@ func TestBuildStatefulSet(t *testing.T) {
 	if got := sts.Spec.Template.Annotations[ConfigHashAnnotation]; got != "abc123" {
 		t.Errorf("expected %s annotation %q, got %q", ConfigHashAnnotation, "abc123", got)
 	}
-	if sts.Name != "my-bot" {
-		t.Errorf("expected Name %q, got %q", "my-bot", sts.Name)
+	if sts.Name != testBotName {
+		t.Errorf("expected Name %q, got %q", testBotName, sts.Name)
 	}
-	if sts.Namespace != "trading" {
-		t.Errorf("expected Namespace %q, got %q", "trading", sts.Namespace)
+	if sts.Namespace != testNamespace {
+		t.Errorf("expected Namespace %q, got %q", testNamespace, sts.Namespace)
 	}
 	if sts.Spec.Replicas == nil || *sts.Spec.Replicas != 1 {
 		t.Errorf("expected 1 replica, got %+v", sts.Spec.Replicas)
 	}
 
 	container := sts.Spec.Template.Spec.Containers[0]
-	if got := container.Args[0]; got != "trade" {
+	if got := container.Args[0]; got != freqCommandTrade {
 		t.Errorf("expected StatefulSet to always run in trade mode regardless of spec.freqtrade_command, got args[0]=%q", got)
 	}
 	if !containsArg(container.Args, "MyStrategy") {
@@ -56,12 +56,14 @@ func TestBuildStatefulSet(t *testing.T) {
 }
 
 func TestBuildStatefulSet_EmptyConfigHashSetsNoAnnotation(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
 	sts := BuildStatefulSet(tradeBot, testImage, "MyStrategy", "my-bot-config", "my-bot-strategy", "my-bot-data", "")
 
 	if _, ok := sts.Spec.Template.Annotations[ConfigHashAnnotation]; ok {
-		t.Errorf("expected no %s annotation when configHash is empty, got %+v", ConfigHashAnnotation, sts.Spec.Template.Annotations)
+		t.Errorf(
+			"expected no %s annotation when configHash is empty, got %+v", ConfigHashAnnotation, sts.Spec.Template.Annotations,
+		)
 	}
 }
 

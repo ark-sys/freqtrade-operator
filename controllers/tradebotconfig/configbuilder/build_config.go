@@ -89,10 +89,8 @@ func BuildConfig(
 
 	// Add pairlists configuration if specified
 	pairlistsConfig := BuildPairlistMethodsConfig(tradeBotConfig.Spec.PairlistMethod)
-	if pairlistsConfig != nil {
-		for k, v := range pairlistsConfig {
-			config[k] = v
-		}
+	for k, v := range pairlistsConfig {
+		config[k] = v
 	}
 
 	// Add entry pricing configuration
@@ -127,10 +125,8 @@ func BuildConfig(
 
 	// Add risk management configuration
 	riskConfig := BuildRiskManagementConfig(tradeBotConfig.Spec.RiskManagement)
-	if riskConfig != nil {
-		for k, v := range riskConfig {
-			config[k] = v
-		}
+	for k, v := range riskConfig {
+		config[k] = v
 	}
 
 	// Add notification configuration
@@ -148,10 +144,8 @@ func BuildConfig(
 		return nil, fmt.Errorf("failed to build Notification config: %w", err)
 	}
 
-	if notificationConfig != nil {
-		for k, v := range notificationConfig {
-			config[k] = v
-		}
+	for k, v := range notificationConfig {
+		config[k] = v
 	}
 
 	// Marshal to JSON

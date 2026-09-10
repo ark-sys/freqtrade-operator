@@ -24,7 +24,7 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 		mainHost = frequi.Name + "." + frequi.Namespace + ".svc.cluster.local"
 	}
 
-	var rules []networkingv1.IngressRule
+	rules := make([]networkingv1.IngressRule, 0, 1+len(tradeBotAPIRoutes))
 
 	// Add main UI rule
 	rules = append(rules, networkingv1.IngressRule{
@@ -124,7 +124,9 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 }
 
 // applyIngressSpecOverrides applies user-provided ingress specification overrides to the base ingress spec
-func applyIngressSpecOverrides(ingressSpec *networkingv1.IngressSpec, userIngressSpec *freqtradev1alpha1.FUIngressSpec) {
+func applyIngressSpecOverrides(
+	ingressSpec *networkingv1.IngressSpec, userIngressSpec *freqtradev1alpha1.FUIngressSpec,
+) {
 	// Override ingress class name if specified
 	if userIngressSpec.IngressClassName != nil {
 		ingressSpec.IngressClassName = userIngressSpec.IngressClassName

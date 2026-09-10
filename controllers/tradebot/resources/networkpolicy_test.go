@@ -9,14 +9,14 @@ import (
 )
 
 func TestBuildNetworkPolicy_SelectsThisBotsOwnPods(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
 	np := BuildNetworkPolicy(tradeBot, []string{"ui"}, "operator-system")
 
-	if np.Name != "my-bot" || np.Namespace != "trading" {
+	if np.Name != testBotName || np.Namespace != testNamespace {
 		t.Errorf("expected NetworkPolicy my-bot/trading, got %s/%s", np.Namespace, np.Name)
 	}
-	want := map[string]string{"name": "my-bot", "app": "freqtrade"}
+	want := map[string]string{"name": testBotName, "app": "freqtrade"}
 	if got := np.Spec.PodSelector.MatchLabels; !mapsEqual(got, want) {
 		t.Errorf("expected podSelector %v to match this TradeBot's own pods (see statefulset.go/job.go), got %v", want, got)
 	}
@@ -26,7 +26,7 @@ func TestBuildNetworkPolicy_SelectsThisBotsOwnPods(t *testing.T) {
 }
 
 func TestBuildNetworkPolicy_AllowsOperatorAndFreqUIOnPort8080(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
 	np := BuildNetworkPolicy(tradeBot, []string{"ui-a", "ui-b"}, "operator-system")
 
@@ -70,7 +70,7 @@ func TestBuildNetworkPolicy_AllowsOperatorAndFreqUIOnPort8080(t *testing.T) {
 }
 
 func TestBuildNetworkPolicy_NoOperatorNamespaceDropsThatPeerOnly(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
 	np := BuildNetworkPolicy(tradeBot, []string{"ui"}, "")
 
@@ -89,7 +89,7 @@ func TestBuildNetworkPolicy_NoOperatorNamespaceDropsThatPeerOnly(t *testing.T) {
 // nothing legitimate to allow, so BuildNetworkPolicy must drop the ingress
 // rule entirely (deny-all) rather than emit one with an empty From.
 func TestBuildNetworkPolicy_NothingToAllowStaysDenyAllNotAllowAll(t *testing.T) {
-	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"}}
+	tradeBot := freqtradev1alpha1.TradeBot{ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace}}
 
 	np := BuildNetworkPolicy(tradeBot, nil, "")
 

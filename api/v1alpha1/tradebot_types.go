@@ -247,13 +247,13 @@ type BotStatus struct {
 	LastPollError string `json:"lastPollError,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Command",type=string,JSONPath=`.spec.freqtrade_command`
-//+kubebuilder:printcolumn:name="Strategy",type=string,JSONPath=`.spec.strategy`
-//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-//+kubebuilder:resource:shortName=tb;tbot
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Command",type=string,JSONPath=`.spec.freqtrade_command`
+// +kubebuilder:printcolumn:name="Strategy",type=string,JSONPath=`.spec.strategy`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:resource:shortName=tb;tbot
 
 type TradeBot struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -263,7 +263,7 @@ type TradeBot struct {
 	Status TradeBotStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 type TradeBotList struct {
 	metav1.TypeMeta `json:",inline"`

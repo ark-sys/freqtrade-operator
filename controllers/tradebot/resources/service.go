@@ -8,7 +8,9 @@ import (
 )
 
 // mergeServiceSpecOverrides merges user overrides from App.ServiceSpec into the default ServiceSpec.
-func mergeServiceSpecOverrides(defaultSpec corev1.ServiceSpec, override *freqtradev1alpha1.ServiceSpec) corev1.ServiceSpec {
+func mergeServiceSpecOverrides(
+	defaultSpec corev1.ServiceSpec, override *freqtradev1alpha1.ServiceSpec,
+) corev1.ServiceSpec {
 	if override == nil {
 		return defaultSpec
 	}
@@ -49,7 +51,8 @@ func BuildService(tradeBot freqtradev1alpha1.TradeBot) corev1.Service {
 	}
 
 	annotations := map[string]string{}
-	if tradeBot.Spec.App != nil && tradeBot.Spec.App.ServiceSpec != nil && len(tradeBot.Spec.App.ServiceSpec.Annotations) > 0 {
+	if tradeBot.Spec.App != nil && tradeBot.Spec.App.ServiceSpec != nil &&
+		len(tradeBot.Spec.App.ServiceSpec.Annotations) > 0 {
 		annotations = tradeBot.Spec.App.ServiceSpec.Annotations
 	}
 

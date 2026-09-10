@@ -10,13 +10,13 @@ import (
 
 func TestBuildService_Defaults(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 	}
 
 	svc := BuildService(tradeBot)
 
-	if svc.Name != "my-bot" {
-		t.Errorf("expected Name %q, got %q", "my-bot", svc.Name)
+	if svc.Name != testBotName {
+		t.Errorf("expected Name %q, got %q", testBotName, svc.Name)
 	}
 	if svc.Spec.Type != corev1.ServiceTypeClusterIP {
 		t.Errorf("expected default type ClusterIP, got %q", svc.Spec.Type)
@@ -24,21 +24,21 @@ func TestBuildService_Defaults(t *testing.T) {
 	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 8080 {
 		t.Errorf("expected a single port 8080, got %+v", svc.Spec.Ports)
 	}
-	if svc.Spec.Selector["name"] != "my-bot" {
+	if svc.Spec.Selector["name"] != testBotName {
 		t.Errorf("expected selector name=my-bot, got %v", svc.Spec.Selector)
 	}
 }
 
 func TestBuildService_Overrides(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 		Spec: freqtradev1alpha1.TradeBotSpec{
 			App: &freqtradev1alpha1.TBAppConfig{
 				ServiceSpec: &freqtradev1alpha1.ServiceSpec{
 					Type:        corev1.ServiceTypeNodePort,
 					Ports:       []corev1.ServicePort{{Name: "api", Port: 9000}},
 					Selector:    map[string]string{"custom": "selector"},
-					Annotations: map[string]string{"lb.example.com/internal": "true"},
+					Annotations: map[string]string{"lb.example.com/internal": labelValueTrue},
 				},
 			},
 		},
@@ -55,7 +55,7 @@ func TestBuildService_Overrides(t *testing.T) {
 	if svc.Spec.Selector["custom"] != "selector" {
 		t.Errorf("expected overridden selector, got %v", svc.Spec.Selector)
 	}
-	if svc.Annotations["lb.example.com/internal"] != "true" {
+	if svc.Annotations["lb.example.com/internal"] != labelValueTrue {
 		t.Errorf("expected the override annotation to be set, got %v", svc.Annotations)
 	}
 }

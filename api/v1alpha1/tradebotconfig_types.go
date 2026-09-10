@@ -422,9 +422,6 @@ type ExperimentalConfig struct {
 
 type LoggingConfig struct {
 	Version *int `json:"version,omitempty"`
-	//Formatters map[string]map[string]interface{} `json:"formatters,omitempty"`
-	//Handlers   map[string]map[string]interface{} `json:"handlers,omitempty"`
-	//Root       map[string]interface{}            `json:"root,omitempty"`
 }
 
 type NotificationSpec struct {
@@ -507,13 +504,13 @@ type TradeBotConfigStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Exchange",type=string,JSONPath=`.spec.exchange.name`
-//+kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.bot.dry_run`
-//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-//+kubebuilder:resource:shortName=tbc
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Exchange",type=string,JSONPath=`.spec.exchange.name`
+// +kubebuilder:printcolumn:name="DryRun",type=boolean,JSONPath=`.spec.bot.dry_run`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:resource:shortName=tbc
 
 type TradeBotConfig struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -523,7 +520,7 @@ type TradeBotConfig struct {
 	Status TradeBotConfigStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 type TradeBotConfigList struct {
 	metav1.TypeMeta `json:",inline"`

@@ -9,10 +9,10 @@ import (
 
 func TestBuildStrategyConfigMap(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 	}
 	strategy := freqtradev1alpha1.Strategy{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-strategy", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: "my-strategy", Namespace: testNamespace},
 		Spec:       freqtradev1alpha1.StrategySpec{Name: "SampleStrategy", Script: "class SampleStrategy:\n    pass"},
 	}
 
@@ -21,8 +21,8 @@ func TestBuildStrategyConfigMap(t *testing.T) {
 	if cm.Name != "my-bot-strategy" {
 		t.Errorf("expected Name %q, got %q", "my-bot-strategy", cm.Name)
 	}
-	if cm.Namespace != "trading" {
-		t.Errorf("expected Namespace %q, got %q", "trading", cm.Namespace)
+	if cm.Namespace != testNamespace {
+		t.Errorf("expected Namespace %q, got %q", testNamespace, cm.Namespace)
 	}
 	script, ok := cm.Data["SampleStrategy.py"]
 	if !ok {

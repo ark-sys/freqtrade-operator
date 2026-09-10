@@ -35,7 +35,8 @@ func BuildPricingConfig(pricing *v1alpha1.PricingSpec) map[string]interface{} {
 			cfg["check_depth_of_market"].(map[string]interface{})["enabled"] = *pricing.CheckDepthOfMarket.Enabled
 		}
 		if pricing.CheckDepthOfMarket.BidsToAskDelta != nil {
-			cfg["check_depth_of_market"].(map[string]interface{})["bids_to_ask_delta"] = *pricing.CheckDepthOfMarket.BidsToAskDelta
+			depthOfMarket := cfg["check_depth_of_market"].(map[string]interface{})
+			depthOfMarket["bids_to_ask_delta"] = *pricing.CheckDepthOfMarket.BidsToAskDelta
 		}
 
 	}

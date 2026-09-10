@@ -201,16 +201,16 @@ type BacktestResults struct {
 	ResultFile string `json:"resultFile,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Strategy",type=string,JSONPath=`.spec.strategyRef.name`
-//+kubebuilder:printcolumn:name="Timerange",type=string,JSONPath=`.spec.timerange`
-//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-//+kubebuilder:printcolumn:name="Trades",type=integer,JSONPath=`.status.results.totalTrades`
-//+kubebuilder:printcolumn:name="Profit%",type=string,JSONPath=`.status.results.profitPct`
-//+kubebuilder:printcolumn:name="Drawdown%",type=string,JSONPath=`.status.results.maxDrawdownPct`
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-//+kubebuilder:resource:shortName=bt
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Strategy",type=string,JSONPath=`.spec.strategyRef.name`
+// +kubebuilder:printcolumn:name="Timerange",type=string,JSONPath=`.spec.timerange`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Trades",type=integer,JSONPath=`.status.results.totalTrades`
+// +kubebuilder:printcolumn:name="Profit%",type=string,JSONPath=`.status.results.profitPct`
+// +kubebuilder:printcolumn:name="Drawdown%",type=string,JSONPath=`.status.results.maxDrawdownPct`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:resource:shortName=bt
 
 type Backtest struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -220,7 +220,7 @@ type Backtest struct {
 	Status BacktestStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 type BacktestList struct {
 	metav1.TypeMeta `json:",inline"`

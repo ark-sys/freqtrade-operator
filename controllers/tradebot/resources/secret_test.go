@@ -10,7 +10,7 @@ import (
 
 func TestBuildSecret(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 	}
 	secretData := map[string]string{"config.json": `{"stake_currency":"USDT"}`}
 
@@ -19,8 +19,8 @@ func TestBuildSecret(t *testing.T) {
 	if secret.Name != "my-bot-config" {
 		t.Errorf("expected Name %q, got %q", "my-bot-config", secret.Name)
 	}
-	if secret.Namespace != "trading" {
-		t.Errorf("expected Namespace %q, got %q", "trading", secret.Namespace)
+	if secret.Namespace != testNamespace {
+		t.Errorf("expected Namespace %q, got %q", testNamespace, secret.Namespace)
 	}
 	if secret.Type != corev1.SecretTypeOpaque {
 		t.Errorf("expected type Opaque, got %q", secret.Type)
@@ -28,7 +28,7 @@ func TestBuildSecret(t *testing.T) {
 	if secret.StringData["config.json"] != secretData["config.json"] {
 		t.Errorf("expected StringData to round-trip, got %v", secret.StringData)
 	}
-	if secret.Labels[ContainsCredentialsLabel] != "true" {
+	if secret.Labels[ContainsCredentialsLabel] != labelValueTrue {
 		t.Errorf("expected %s=true so backup tooling can exclude it, got %v", ContainsCredentialsLabel, secret.Labels)
 	}
 }

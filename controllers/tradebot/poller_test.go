@@ -36,6 +36,16 @@ const (
 	stateStopped = "stopped"
 )
 
+// pathPing etc. are the botclient endpoints these tests fake responses for.
+const (
+	pathPing       = "/api/v1/ping"
+	pathShowConfig = "/api/v1/show_config"
+	pathVersion    = "/api/v1/version"
+	pathCount      = "/api/v1/count"
+	pathProfit     = "/api/v1/profit"
+	pathBalance    = "/api/v1/balance"
+)
+
 // panicOnGetClient embeds client.Client so it satisfies the interface, but
 // overrides Get to panic - the rest of the interface is never reached in
 // this test, so a nil embedded value there is fine.
@@ -270,17 +280,17 @@ func TestUpdateBackoff(t *testing.T) {
 func TestPollWithClient_HappyPath(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v1/ping":
+		case pathPing:
 			_, _ = w.Write([]byte(`{"status":"pong"}`))
-		case "/api/v1/show_config":
+		case pathShowConfig:
 			_, _ = w.Write([]byte(`{"state":"running","dry_run":true}`))
-		case "/api/v1/version":
+		case pathVersion:
 			_, _ = w.Write([]byte(`{"version":"2024.1"}`))
-		case "/api/v1/count":
+		case pathCount:
 			_, _ = w.Write([]byte(`{"current":1,"max":3}`))
-		case "/api/v1/profit":
+		case pathProfit:
 			_, _ = w.Write([]byte(`{"profit_all_coin":5.5,"profit_all_percent":1.1}`))
-		case "/api/v1/balance":
+		case pathBalance:
 			_, _ = w.Write([]byte(`{"total":100}`))
 		}
 	}))
@@ -330,13 +340,13 @@ func TestPollWithClient_HappyPath(t *testing.T) {
 func TestPollWithClient_StoppedBotIsReachableWithBestEffortFieldsEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v1/ping":
+		case pathPing:
 			_, _ = w.Write([]byte(`{"status":"pong"}`))
-		case "/api/v1/show_config":
+		case pathShowConfig:
 			_, _ = w.Write([]byte(`{"state":"stopped","dry_run":true}`))
-		case "/api/v1/version":
+		case pathVersion:
 			_, _ = w.Write([]byte(`{"version":"2024.1"}`))
-		case "/api/v1/count", "/api/v1/profit", "/api/v1/balance":
+		case pathCount, pathProfit, pathBalance:
 			w.WriteHeader(http.StatusBadRequest) // freqtrade's "trader is not running" RPCException
 		}
 	}))
@@ -379,17 +389,17 @@ func TestPollWithClient_StoppedBotIsReachableWithBestEffortFieldsEmpty(t *testin
 func TestPollWithClient_PartialBestEffortFailureDoesNotAffectReachability(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v1/ping":
+		case pathPing:
 			_, _ = w.Write([]byte(`{"status":"pong"}`))
-		case "/api/v1/show_config":
+		case pathShowConfig:
 			_, _ = w.Write([]byte(`{"state":"running","dry_run":true}`))
-		case "/api/v1/version":
+		case pathVersion:
 			_, _ = w.Write([]byte(`{"version":"2024.1"}`))
-		case "/api/v1/count":
+		case pathCount:
 			_, _ = w.Write([]byte(`{"current":1,"max":3}`))
-		case "/api/v1/profit":
+		case pathProfit:
 			w.WriteHeader(http.StatusInternalServerError) // simulated one-off failure
-		case "/api/v1/balance":
+		case pathBalance:
 			_, _ = w.Write([]byte(`{"total":100}`))
 		}
 	}))
@@ -444,7 +454,7 @@ func TestPollWithClient_PingFailureReportsUnreachable(t *testing.T) {
 
 func TestPollWithClient_AuthFailureSetsAuthFailedReason(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/ping" {
+		if r.URL.Path == pathPing {
 			_, _ = w.Write([]byte(`{"status":"pong"}`))
 			return
 		}

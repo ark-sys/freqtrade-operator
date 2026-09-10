@@ -14,11 +14,11 @@ import (
 )
 
 // TestConfigbuilderKeysExistInSchema is the D2 audit (REMAINING-WORK.md):
-// A1 found "unkown_fee_rate" by accident, via a spelling linter. Freqtrade
-// ignores unknown config keys silently, so a wrong key name is invisible at
-// runtime - misspell only catches the subset of wrong names that happen to
-// look like a typo of a dictionary word, which is why this needs its own
-// test rather than relying on lint. This renders a fully-populated
+// A1 found its fee-rate key bug by accident, via a spelling linter.
+// Freqtrade ignores unknown config keys silently, so a wrong key name is
+// invisible at runtime - misspell only catches the subset of wrong names
+// that happen to look like a typo of a dictionary word, which is why this
+// needs its own test rather than relying on lint. This renders a fully-populated
 // TradeBotConfig and walks every key in the result against schema.json (the
 // vendored upstream Freqtrade config schema), failing loudly on any key
 // schema.json doesn't recognize at that position.
@@ -115,7 +115,8 @@ func TestConfigbuilderKeysExistInSchema(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(exchangeSecret, telegramSecret, apiSecret).Build()
 
 	tradeBotConfig := fullTradeBotConfigFixture()
-	data, err := BuildConfig(context.Background(), c, "full-bot", "trading", tradeBotConfig, []string{"https://full-bot.frequi.example.com"})
+	extraCorsHosts := []string{"https://full-bot.frequi.example.com"}
+	data, err := BuildConfig(context.Background(), c, "full-bot", "trading", tradeBotConfig, extraCorsHosts)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -172,7 +173,9 @@ func schemaObjectProperties(schema, propNode map[string]interface{}) map[string]
 // walkSchemaKeys asserts every key in got exists in props (schema.json's
 // property set for this position), recursing into nested objects and the
 // "pairlists" array. path is for failure messages only.
-func walkSchemaKeys(t *testing.T, schema map[string]interface{}, path string, props map[string]interface{}, got map[string]interface{}) {
+func walkSchemaKeys(
+	t *testing.T, schema map[string]interface{}, path string, props map[string]interface{}, got map[string]interface{},
+) {
 	t.Helper()
 	if props == nil {
 		return // not modeled by schema.json - opaque, e.g. ccxt_config.

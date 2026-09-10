@@ -223,7 +223,8 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 
 		// Retrieve TradeBotConfig for the TradeBot
 		var tradeBotConfig freqtradev1alpha1.TradeBotConfig
-		if err := r.Get(ctx, types.NamespacedName{Name: tradeBot.Spec.Config, Namespace: frequi.Namespace}, &tradeBotConfig); err != nil {
+		configKey := types.NamespacedName{Name: tradeBot.Spec.Config, Namespace: frequi.Namespace}
+		if err := r.Get(ctx, configKey, &tradeBotConfig); err != nil {
 			logger.Error(err, "Failed to get TradeBotConfig for TradeBot", "tradeBot", tradeBotRef)
 			continue
 		}

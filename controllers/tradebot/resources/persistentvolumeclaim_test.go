@@ -11,7 +11,7 @@ import (
 
 func TestBuildUserDataPVC_Defaults(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 	}
 
 	pvc := BuildUserDataPVC(tradeBot)
@@ -30,7 +30,7 @@ func TestBuildUserDataPVC_Defaults(t *testing.T) {
 
 func TestBuildUserDataPVC_Overrides(t *testing.T) {
 	tradeBot := freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-bot", Namespace: "trading"},
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
 		Spec: freqtradev1alpha1.TradeBotSpec{
 			App: &freqtradev1alpha1.TBAppConfig{
 				PVCSpec: &freqtradev1alpha1.PVCSpec{
@@ -38,8 +38,8 @@ func TestBuildUserDataPVC_Overrides(t *testing.T) {
 					StorageSize:      quantityPtr("10Gi"),
 					StorageClassName: "fast-ssd",
 					VolumeName:       "pv-precreated",
-					Annotations:      map[string]string{"backup.example.com/exclude": "true"},
-					Labels:           map[string]string{"tier": "trading"},
+					Annotations:      map[string]string{"backup.example.com/exclude": labelValueTrue},
+					Labels:           map[string]string{"tier": testNamespace},
 				},
 			},
 		},
@@ -60,10 +60,10 @@ func TestBuildUserDataPVC_Overrides(t *testing.T) {
 	if pvc.Spec.VolumeName != "pv-precreated" {
 		t.Errorf("expected overridden volume name, got %q", pvc.Spec.VolumeName)
 	}
-	if pvc.Annotations["backup.example.com/exclude"] != "true" {
+	if pvc.Annotations["backup.example.com/exclude"] != labelValueTrue {
 		t.Errorf("expected the override annotation to be set, got %v", pvc.Annotations)
 	}
-	if pvc.Labels["tier"] != "trading" {
+	if pvc.Labels["tier"] != testNamespace {
 		t.Errorf("expected the override label to be set, got %v", pvc.Labels)
 	}
 }

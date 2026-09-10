@@ -463,8 +463,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `host` _string_ | // Host is the hostname for the FreqUI ingress |  |  |
-| `tls` _[IngressTLS](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#ingresstls-v1-networking) array_ | // TLS configuration for the FreqUI ingress |  |  |
+| `host` _string_ | Host is the hostname for the FreqUI ingress |  |  |
+| `tls` _[IngressTLS](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#ingresstls-v1-networking) array_ | TLS configuration for the FreqUI ingress |  |  |
 | `ingressAnnotations` _object (keys:string, values:string)_ | IngressAnnotations are additional annotations for the FreqUI ingress |  |  |
 | `app` _[FUAppConfig](#fuappconfig)_ | App is the configuration for the FreqUI application |  |  |
 | `tradeBotRefs` _string array_ | TradeBotRefs is a list of TradeBot names that this FreqUI should manage,<br />resolved in this FreqUI's own namespace only (D3) - same-namespace-only<br />is a deliberate, documented constraint, not a TODO. A name that doesn't<br />resolve is surfaced via the TradeBotRefsResolved condition rather than<br />silently yielding no CORS entry for that bot. |  |  |
@@ -1274,7 +1274,7 @@ _Appears in:_
 | `config` _string_ | Reference to the TradeBotConfig resource, same namespace only (D3) |  | MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 | `strategy` _string_ | Reference to the Strategy resource, same namespace only (D3) |  | MinLength: 1 <br />Pattern: `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` <br /> |
 | `app` _[TBAppConfig](#tbappconfig)_ |  |  |  |
-| `data` _[DataCacheSpec](#datacachespec)_ |  |  |  |
+| `data` _[DataCacheSpec](#datacachespec)_ | Deprecated: no effect since v1beta1 - TradeBot is trade-only there and<br />has no Job-mode pod to cache data for; use a Backtest instead. Absent<br />from v1beta1 entirely; kept here only because it's a served v1alpha1<br />field. |  |  |
 | `updateStrategy` _string_ | UpdateStrategy controls what happens when a config change can't take<br />effect without a restart (config.json is mounted from a Secret and<br />read once at freqtrade startup, so rewriting the Secret alone doesn't<br />change what a running bot is doing). "Manual" (the default, per D2)<br />leaves the running StatefulSet pod template untouched and reports the<br />pending restart via the ConfigDrift condition instead - a bot may be<br />holding open positions, so an unrequested restart is not this<br />controller's call to make. "Auto" writes the new config hash onto the<br />pod template, letting Kubernetes' own StatefulSet rolling update<br />carry out the restart. Only meaningful for freqtrade_command: trade;<br />a Job's pod template is already immutable after creation regardless<br />(see the WorkloadImmutable condition). | Manual | Enum: [Manual Auto] <br /> |
 | `introspection` _[IntrospectionSpec](#introspectionspec)_ | Introspection controls the operator's own polling of this bot's<br />freqtrade REST API for live trading state (P4-3, implements D4).<br />Read-only: nothing here can start, stop, or otherwise act on the bot<br />(see P4-4 for that, a deliberately separate task). |  |  |
 

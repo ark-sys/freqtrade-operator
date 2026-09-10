@@ -8,10 +8,10 @@ import (
 
 // FreqUISpec defines the desired state of FreqUI
 type FreqUISpec struct {
-	//// Host is the hostname for the FreqUI ingress
+	// Host is the hostname for the FreqUI ingress
 	Host string `json:"host,omitempty"`
 
-	//// TLS configuration for the FreqUI ingress
+	// TLS configuration for the FreqUI ingress
 	TLS []networkingv1.IngressTLS `json:"tls,omitempty"`
 
 	// IngressAnnotations are additional annotations for the FreqUI ingress
@@ -131,13 +131,13 @@ type FreqUIStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:printcolumn:name="Host",type=string,JSONPath=`.spec.host`
-//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-//+kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
-//+kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-//+kubebuilder:resource:shortName=fui
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Host",type=string,JSONPath=`.spec.host`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="URL",type=string,JSONPath=`.status.url`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:resource:shortName=fui
 
 // FreqUI is the Schema for the frequis API
 type FreqUI struct {
@@ -148,7 +148,7 @@ type FreqUI struct {
 	Status FreqUIStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // FreqUIList contains a list of FreqUI
 type FreqUIList struct {

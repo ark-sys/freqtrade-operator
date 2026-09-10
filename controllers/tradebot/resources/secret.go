@@ -11,6 +11,10 @@ import (
 // see the README's "Config Secret backups" section.
 const ContainsCredentialsLabel = "freqtrade.io/contains-credentials"
 
+// labelValueTrue is the canonical string value k8s labels/annotations use
+// for a boolean flag - labels and annotations are always strings.
+const labelValueTrue = "true"
+
 // BuildSecret creates a Secret for the bot's config.json
 func BuildSecret(tradeBot freqtradev1alpha1.TradeBot, secretData map[string]string) corev1.Secret {
 	return corev1.Secret{
@@ -20,7 +24,7 @@ func BuildSecret(tradeBot freqtradev1alpha1.TradeBot, secretData map[string]stri
 			Labels: map[string]string{
 				"app":                    "freqtrade",
 				"name":                   tradeBot.Name,
-				ContainsCredentialsLabel: "true",
+				ContainsCredentialsLabel: labelValueTrue,
 			},
 		},
 		StringData: secretData,

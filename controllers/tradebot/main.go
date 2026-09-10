@@ -76,7 +76,9 @@ type Reconciler struct {
 // widened a trading API's CORS allowlist for no reason. Anyone who does
 // have real per-bot origin routing can still list it explicitly via
 // TradeBotConfig.Spec.APIServer.CORSOrigins, which is additive with this.
-func collectCORSHostsForTradeBot(tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1alpha1.FreqUIList) []string {
+func collectCORSHostsForTradeBot(
+	tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1alpha1.FreqUIList,
+) []string {
 	var corsHosts []string
 	corsSet := make(map[string]struct{})
 
@@ -155,7 +157,7 @@ func validateCORSHosts(hosts []string) error {
 
 // Helper function to log configData keys
 func keys(m map[string]string) []string {
-	var k []string
+	k := make([]string, 0, len(m))
 	for key := range m {
 		k = append(k, key)
 	}
@@ -196,7 +198,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	logger.V(1).Info("Reconciling TradeBot", "name", tradeBot.Name, "generation", tradeBot.Generation, "phase", tradeBot.Status.Phase)
+	logger.V(1).Info(
+		"Reconciling TradeBot", "name", tradeBot.Name, "generation", tradeBot.Generation, "phase", tradeBot.Status.Phase,
+	)
 
 	// 2. Handle deletion if needed
 	if tradeBot.GetDeletionTimestamp() != nil {
@@ -218,7 +222,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 			var latestTradeBot freqtradev1alpha1.TradeBot
-			if getErr := r.Get(ctx, client.ObjectKey{Namespace: tradeBot.Namespace, Name: tradeBot.Name}, &latestTradeBot); getErr != nil {
+			latestKey := client.ObjectKey{Namespace: tradeBot.Namespace, Name: tradeBot.Name}
+			if getErr := r.Get(ctx, latestKey, &latestTradeBot); getErr != nil {
 				if errors.IsNotFound(getErr) {
 					logger.V(2).Info("TradeBot resource not found during finalizer removal, ignoring")
 					return ctrl.Result{}, nil
@@ -248,7 +253,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			logger.V(2).Info("Requeue requested", "reason", "add finalizer error", "error", err)
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, err
 		}
-		logger.V(1).Info("Finalizer added, returning to avoid further processing until update is processed", "name", tradeBot.Name)
+		logger.V(1).Info(
+			"Finalizer added, returning to avoid further processing until update is processed", "name", tradeBot.Name,
+		)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
@@ -274,7 +281,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// 4. Fetch all referenced CRDs
-	logger.V(2).Info("Fetching referenced resources for TradeBot", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config)
+	logger.V(2).Info(
+		"Fetching referenced resources for TradeBot", "strategy", tradeBot.Spec.Strategy, "config", tradeBot.Spec.Config,
+	)
 	resources, err := r.fetchReferencedResources(ctx, &tradeBot, req.Namespace)
 	if err != nil {
 		reason := freqtradev1alpha1.ReasonReconcileError
@@ -298,7 +307,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	freqUINames := referencingFreqUINames(&tradeBot, &frequiList)
 	var corsWarning string
 	if len(corsHosts) == 0 {
-		corsWarning = "Warning: No CORS hosts configured. API may not be accessible from UIs. Setting default CORS hosts (localhost and BOTNAME.SERVICE.svc.cluster.local)."
+		corsWarning = "Warning: No CORS hosts configured. API may not be accessible from UIs. " +
+			"Setting default CORS hosts (localhost and BOTNAME.SERVICE.svc.cluster.local)."
 	} else if err := validateCORSHosts(corsHosts); err != nil {
 		corsWarning = fmt.Sprintf("Warning: Invalid CORS host: %v", err)
 	}

@@ -52,7 +52,8 @@ var _ = Describe("watching referenced TradeBotConfig/Strategy (P2-3)", func() {
 		// still updates, it can only be because the new Watches() on
 		// TradeBotConfig (setup.go) picked this up on its own.
 		var latestConfig freqtradev1alpha1.TradeBotConfig
-		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: config.Name, Namespace: testNamespace}, &latestConfig)).To(Succeed())
+		configKey := types.NamespacedName{Name: config.Name, Namespace: testNamespace}
+		Expect(k8sClient.Get(ctx, configKey, &latestConfig)).To(Succeed())
 		latestConfig.Spec.Bot.StakeAmount = "150"
 		Expect(k8sClient.Update(ctx, &latestConfig)).To(Succeed())
 
