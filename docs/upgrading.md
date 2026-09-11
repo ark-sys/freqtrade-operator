@@ -15,7 +15,7 @@ kubectl get tradebots -A -o json | \
   jq -r '.items[] | select(.spec.freqtrade_command != null and .spec.freqtrade_command != "trade") | "\(.metadata.namespace)/\(.metadata.name): \(.spec.freqtrade_command)"'
 ```
 
-For each one, recreate it as a [Backtest](../README.md#backtest-runs-v1beta1) (the same run,
+For each one, recreate it as a [Backtest](backtesting.md#backtest-runs-v1beta1) (the same run,
 expressed as a dedicated one-shot resource instead of a mode on a live bot), then delete the old
 Job-mode TradeBot. Do this *before* upgrading, not after: once the operator's CRDs are updated,
 `v1beta1` becomes the storage version, and `v1beta1` has no representation for Job mode at all

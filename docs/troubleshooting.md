@@ -14,7 +14,7 @@ The backtest ran against a data directory with nothing in it for the requested
 
 1. **`spec.data` is unset entirely.** The operator never auto-provisions historical market data -
    omit `spec.data.pvcName` and no cache volume is mounted at all, full stop. See the README's
-   [Backtest runs](../README.md#backtest-runs-v1beta1) section and
+   [Backtest runs](backtesting.md#backtest-runs-v1beta1) section and
    [`examples/backtest/`](../examples/backtest/) for the required shape (a pre-existing PVC you
    create yourself, referenced by name).
 2. **The requested `timerange` predates what the exchange actually has.** This bites hardest

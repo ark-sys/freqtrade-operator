@@ -17,10 +17,10 @@ this before deploying it against a real exchange account.
 The manager runs under one ClusterRole scoped to the specific resource types it manages: this operator's own CRDs
 (`tradebots`, `tradebotconfigs`, `strategies`, `frequis`, `backtests`), the workloads it builds
 (`statefulsets`, `jobs`, `services`, `networkpolicies`), `secrets` and `configmaps` it reads and renders, `events`
-it emits, and (for the [Backtest results sidecar](README.md#backtest-runs-v1beta1)) a narrowly-scoped
+it emits, and (for the [Backtest results sidecar](docs/backtesting.md#backtest-runs-v1beta1)) a narrowly-scoped
 `serviceaccounts`/`roles`/`rolebindings` grant limited to `configmaps` in the sidecar's own namespace. There is no
 `get`/`list` on arbitrary cluster resources, and no access to `pods/exec` or `pods/log` (deliberately - see
-[Config Secret backups](README.md#config-secret-backups) for why `pods/log` in particular was ruled out for result
+[Config Secret backups](docs/operations.md#config-secret-backups) for why `pods/log` in particular was ruled out for result
 extraction).
 
 The ClusterRole itself is cluster-scoped (it has to be, to watch every namespace), but every cross-resource
@@ -34,13 +34,13 @@ be pointed at a `TradeBotConfig` or credential `Secret` in namespace `b`. Use on
 Exchange API keys, Telegram bot tokens, and the freqtrade REST API's own Basic Auth password all follow the same
 pattern: a `secretRef` pointing at a Kubernetes `Secret` the operator reads and renders into the bot's `config.json`,
 itself stored in a Secret (labeled `freqtrade.io/contains-credentials: "true"` - see
-[Config Secret backups](README.md#config-secret-backups) for what that means for your backup tooling). Plaintext
+[Config Secret backups](docs/operations.md#config-secret-backups) for what that means for your backup tooling). Plaintext
 credential fields on `TradeBotConfig` still exist on the served (but deprecated) `v1alpha1` and are rejected by its
 admission webhook unless the object carries `freqtrade.io/allow-plaintext-credentials: "true"` - but that
 annotation only bypasses `v1alpha1`'s own admission check. `v1beta1`, the storage version, has no field a plaintext
 credential could occupy at all: any write that round-trips through storage - including one admitted past
 `v1alpha1`'s webhook via the annotation - is rejected at conversion instead. There is no way to persist a plaintext
-credential, opt-out annotation or not (see the README's [Upgrading to v1beta1](README.md#upgrading-to-v1beta1) for
+credential, opt-out annotation or not (see [Upgrading to v1beta1](docs/upgrading.md) for
 migrating any that predate this).
 
 Anyone who can `get` a credential `Secret` in a trading namespace has the same access the bot itself has: the
@@ -76,11 +76,11 @@ revisiting that would need its own, separate threat model.
 you're still on it: a `v1alpha1` write to a `TradeBot` that has ever had `spec.state=Stopped` set is rejected
 outright, because `v1alpha1` has no way to carry that value through a write and would otherwise silently reset it
 back to `Running` on the next unrelated edit. Once you use `spec.state`, write that object via `v1beta1` only (see
-the README's [Upgrading to v1beta1](README.md#upgrading-to-v1beta1)).
+[Upgrading to v1beta1](docs/upgrading.md)).
 
 ### Supply chain
 
 Every released image is signed with [cosign](https://docs.sigstore.dev/) (keyless, via this repository's own GitHub
-Actions OIDC identity) and ships an SPDX SBOM as a release asset - see the [Installation](README.md#installation)
-section for the verification command. Dependencies are kept current via Dependabot (Go modules, GitHub Actions,
+Actions OIDC identity) and ships an SPDX SBOM as a release asset - see [docs/installation.md](docs/installation.md)
+for the verification command. Dependencies are kept current via Dependabot (Go modules, GitHub Actions,
 and the base image).

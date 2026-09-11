@@ -31,6 +31,23 @@ All references (`configRef`, `strategyRef`, `tradeBotRefs`) resolve by bare name
 referencing object's own namespace only - deliberate (D3 below), not a gap to fill in later with
 cross-namespace syntax.
 
+## Namespace model
+
+Every cross-resource reference this operator follows - `TradeBot.spec.strategyRef`/`.configRef`,
+`Backtest.spec.strategyRef`/`.configRef`, `FreqUI.spec.tradeBotRefs`, every `secretRef` - is **same-namespace-only**.
+A `TradeBot` cannot reference a `Strategy`, `TradeBotConfig`, or credential `Secret` in a different namespace than
+its own. This is a deliberate design decision (D3), not a current limitation waiting to be lifted: it keeps RBAC
+boundaries meaningful (a `Role` scoped to one namespace is a real security boundary, not one an object's own spec
+can silently reach past) and keeps every reference resolvable with a plain namespaced `Get` - no cluster-scoped
+lookup, and no admission-time check that has to reason about a second namespace's RBAC to decide whether a
+reference is even allowed.
+
+**Recommended pattern:** one namespace per trading environment, not per bot - e.g. `trading-prod`,
+`trading-staging`, `trading-backtest`. Bots, their configs, strategies, and credential Secrets that belong together
+live together; environments that shouldn't be able to affect each other (most importantly, staging and prod
+sharing no namespace at all) are isolated by the same boundary Kubernetes RBAC already uses, with no extra
+mechanism this operator has to enforce on your behalf.
+
 ## Two API versions
 
 `TradeBot` is the only CRD with both a `v1alpha1` and a `v1beta1` representation.
