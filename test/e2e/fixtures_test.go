@@ -37,16 +37,26 @@ import (
 func ptrBool(b bool) *bool { return &b }
 func ptrInt(i int) *int    { return &i }
 
-// sandboxCcxtConfig points the exchange at Binance's public testnet
-// (testnet.binance.vision) instead of production Binance. Verified directly
-// (real freqtrade image, `trade --dry-run`, no other changes): without this,
-// freqtrade's own market-data load fails at startup and its REST API server
-// never starts listening at all ("connection reset by peer", not just an
-// auth failure) - dry_run:true alone does not avoid needing a real,
-// reachable exchange. The sandbox is exactly what "never a real exchange"
-// (P5-3) means in practice: no real funds, no real credentials, but a real,
-// freqtrade-supported market-data source, since freqtrade cannot start
-// against nothing at all.
+// sandboxCcxtConfig puts the exchange in ccxt's generic sandbox/testnet mode
+// instead of hitting production. Verified directly (real freqtrade image,
+// `trade --dry-run`, no other changes): without this, freqtrade's own
+// market-data load fails at startup and its REST API server never starts
+// listening at all ("connection reset by peer", not just an auth failure) -
+// dry_run:true alone does not avoid needing a real, reachable exchange. The
+// sandbox is exactly what "never a real exchange" (P5-3) means in practice:
+// no real funds, no real credentials, but a real, freqtrade-supported
+// market-data source, since freqtrade cannot start against nothing at all.
+//
+// The exchange itself is Bybit (api-testnet.bybit.com), not Binance
+// (testnet.binance.vision) - this spec passed locally against Binance's
+// testnet every time but failed in every CI run so far with the freqtrade
+// container's API port never opening, consistent with Binance's
+// well-documented blocking/rate-limiting of API access from major cloud
+// provider IP ranges (AWS/GCP/Azure) - GitHub Actions runners are Azure VMs.
+// Not yet independently confirmed against the real image the way the
+// sandbox-vs-no-sandbox finding above was; if CI still fails identically
+// against Bybit, that points at CI egress/DNS in general rather than at
+// Binance specifically.
 var sandboxCcxtConfig = apiextensionsv1.JSON{Raw: []byte(`{"sandbox":true}`)}
 
 // sampleStrategyClassName must match sampleStrategySource's actual `class ...(IStrategy):` name -
@@ -127,7 +137,7 @@ func newDryRunTradeBotConfig(name, exchangeSecretRef string) *freqtradev1alpha1.
 			// "unexpected HTTP status" actually turned out to mean, not a network/proxy problem.
 			Advanced: &freqtradev1alpha1.AdvancedConfig{InitialState: "running"},
 			Exchange: &freqtradev1alpha1.ExchangeSpec{
-				Name:            "binance",
+				Name:            "bybit",
 				SecretRef:       exchangeSecretRef,
 				CcxtConfig:      sandboxCcxtConfig,
 				CcxtAsyncConfig: sandboxCcxtConfig,
