@@ -70,12 +70,16 @@ type Reconciler struct {
 // collectCORSHostsForTradeBot only ever allows origins this operator can
 // itself account for: each referencing FreqUI's own configured (or derived
 // default) origin. It deliberately does NOT add a speculative
-// "<botname>.<frequi-host>" subdomain entry (P3-4) - nothing in this
-// operator provisions per-bot subdomains (FreqUI is a single shared
-// dashboard across all of TradeBotRefs, not one deployment per bot), so
-// that entry never corresponded to anything actually served and only
-// widened a trading API's CORS allowlist for no reason. Anyone who does
-// have real per-bot origin routing can still list it explicitly via
+// "<botname>.<frequi-host>" subdomain entry (P3-4/G7-2) - this operator
+// does provision exactly those subdomains, as Ingress rules
+// (controllers/frequi/resources/ingress.go) and, since G2-1, as
+// HTTPRoutes too, but that subdomain is the *target* of a browser's XHR
+// to the bot's API, never its *origin*. The origin the browser actually
+// sends in its CORS preflight is always the FreqUI hostname the page was
+// served from - so FreqUI's own origin is the only entry that's ever
+// correct here, regardless of how many per-bot subdomains route
+// somewhere real. Anyone who does have a genuinely different origin
+// reaching a bot's API can still list it explicitly via
 // TradeBotConfig.Spec.APIServer.CORSOrigins, which is additive with this.
 func collectCORSHostsForTradeBot(
 	tradeBot *freqtradev1alpha1.TradeBot, frequiList *freqtradev1beta1.FreqUIList,
