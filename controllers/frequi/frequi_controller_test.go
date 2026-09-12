@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 )
 
 const testNamespace = "default"
@@ -28,14 +29,14 @@ const eventuallyPoll = "250ms"
 var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 	It("is True when TradeBotRefs is empty", func() {
 		ctx := context.Background()
-		frequi := &freqtradev1alpha1.FreqUI{
+		frequi := &freqtradev1beta1.FreqUI{
 			ObjectMeta: metav1.ObjectMeta{Name: "no-refs", Namespace: testNamespace},
 		}
 		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
 		key := types.NamespacedName{Name: frequi.Name, Namespace: testNamespace}
 
 		Eventually(func(g Gomega) {
-			var latest freqtradev1alpha1.FreqUI
+			var latest freqtradev1beta1.FreqUI
 			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
 			cond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionTradeBotRefsResolved)
 			g.Expect(cond).NotTo(BeNil())
@@ -45,15 +46,17 @@ var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 
 	It("is False and names the ref when a TradeBotRef doesn't match any TradeBot", func() {
 		ctx := context.Background()
-		frequi := &freqtradev1alpha1.FreqUI{
+		frequi := &freqtradev1beta1.FreqUI{
 			ObjectMeta: metav1.ObjectMeta{Name: "typo-ref", Namespace: testNamespace},
-			Spec:       freqtradev1alpha1.FreqUISpec{TradeBotRefs: []string{"does-not-exist"}},
+			Spec: freqtradev1beta1.FreqUISpec{
+				TradeBotRefs: []corev1.LocalObjectReference{{Name: "does-not-exist"}},
+			},
 		}
 		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
 		key := types.NamespacedName{Name: frequi.Name, Namespace: testNamespace}
 
 		Eventually(func(g Gomega) {
-			var latest freqtradev1alpha1.FreqUI
+			var latest freqtradev1beta1.FreqUI
 			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
 			cond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionTradeBotRefsResolved)
 			g.Expect(cond).NotTo(BeNil())
@@ -63,7 +66,7 @@ var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 
 		// A typo must not stop FreqUI itself from deploying.
-		var latest freqtradev1alpha1.FreqUI
+		var latest freqtradev1beta1.FreqUI
 		Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
 		readyCond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionReady)
 		Expect(readyCond).NotTo(BeNil())
@@ -72,15 +75,17 @@ var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 
 	It("is True once a previously-unresolvable ref is created", func() {
 		ctx := context.Background()
-		frequi := &freqtradev1alpha1.FreqUI{
+		frequi := &freqtradev1beta1.FreqUI{
 			ObjectMeta: metav1.ObjectMeta{Name: "ref-arrives-late", Namespace: testNamespace},
-			Spec:       freqtradev1alpha1.FreqUISpec{TradeBotRefs: []string{"bot-arrives-late"}},
+			Spec: freqtradev1beta1.FreqUISpec{
+				TradeBotRefs: []corev1.LocalObjectReference{{Name: "bot-arrives-late"}},
+			},
 		}
 		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
 		key := types.NamespacedName{Name: frequi.Name, Namespace: testNamespace}
 
 		Eventually(func(g Gomega) {
-			var latest freqtradev1alpha1.FreqUI
+			var latest freqtradev1beta1.FreqUI
 			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
 			cond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionTradeBotRefsResolved)
 			g.Expect(cond).NotTo(BeNil())
@@ -94,7 +99,7 @@ var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 		Expect(k8sClient.Create(ctx, tradeBot)).To(Succeed())
 
 		Eventually(func(g Gomega) {
-			var latest freqtradev1alpha1.FreqUI
+			var latest freqtradev1beta1.FreqUI
 			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
 			cond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionTradeBotRefsResolved)
 			g.Expect(cond).NotTo(BeNil())
@@ -114,26 +119,26 @@ var _ = Describe("FreqUI TradeBotRefsResolved condition (P2-5)", func() {
 var _ = Describe("FreqUI controller", func() {
 	It("still reconciles a spec change (A5 predicate modernization)", func() {
 		ctx := context.Background()
-		frequi := &freqtradev1alpha1.FreqUI{
+		frequi := &freqtradev1beta1.FreqUI{
 			ObjectMeta: metav1.ObjectMeta{Name: "predicate-check", Namespace: testNamespace},
 		}
 		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
 		key := types.NamespacedName{Name: frequi.Name, Namespace: testNamespace}
 
 		Eventually(func(g Gomega) {
-			var latest freqtradev1alpha1.FreqUI
+			var latest freqtradev1beta1.FreqUI
 			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
 			g.Expect(latest.Status.ObservedGeneration).To(Equal(latest.Generation))
 		}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
 
-		var toUpdate freqtradev1alpha1.FreqUI
+		var toUpdate freqtradev1beta1.FreqUI
 		Expect(k8sClient.Get(ctx, key, &toUpdate)).To(Succeed())
 		toUpdate.Spec.Host = "frequi.example.com"
 		Expect(k8sClient.Update(ctx, &toUpdate)).To(Succeed())
 		Expect(toUpdate.Generation).To(BeNumerically(">", 1), "expected the spec edit to bump generation")
 
 		Eventually(func(g Gomega) {
-			var latest freqtradev1alpha1.FreqUI
+			var latest freqtradev1beta1.FreqUI
 			g.Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
 			g.Expect(latest.Status.ObservedGeneration).To(Equal(latest.Generation),
 				"expected the reconciler to observe the new generation after the spec change")
@@ -150,7 +155,7 @@ var _ = Describe("FreqUI controller", func() {
 var _ = Describe("FreqUI lifecycle Events (P4-1)", func() {
 	It("records a WorkloadReady event when the Deployment transitions to ready", func() {
 		ctx := context.Background()
-		frequi := &freqtradev1alpha1.FreqUI{
+		frequi := &freqtradev1beta1.FreqUI{
 			ObjectMeta: metav1.ObjectMeta{Name: "events-ready", Namespace: testNamespace},
 		}
 		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())

@@ -1,7 +1,7 @@
 package resources
 
 import (
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +35,7 @@ func frequiSecurityContext() *corev1.SecurityContext {
 }
 
 // BuildFreqUIDeployment creates a Deployment for FreqUI
-func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
+func BuildFreqUIDeployment(frequi freqtradev1beta1.FreqUI) appsv1.Deployment {
 	replicas := int32(1)
 
 	// Set default image if not specified
@@ -150,7 +150,7 @@ func BuildFreqUIDeployment(frequi freqtradev1alpha1.FreqUI) appsv1.Deployment {
 }
 
 // applyPodSpecOverrides applies user-provided pod specification overrides to the base pod spec
-func applyPodSpecOverrides(podSpec *corev1.PodSpec, userPodSpec *freqtradev1alpha1.FUPodSpec) {
+func applyPodSpecOverrides(podSpec *corev1.PodSpec, userPodSpec *freqtradev1beta1.FUPodSpec) {
 	// Override container resources if specified
 	if len(userPodSpec.Resources.Limits) > 0 || len(userPodSpec.Resources.Requests) > 0 {
 		if len(podSpec.Containers) > 0 {

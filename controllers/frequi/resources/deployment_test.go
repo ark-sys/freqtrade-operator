@@ -3,7 +3,7 @@ package resources
 import (
 	"testing"
 
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -13,7 +13,7 @@ const testNamespace = "trading"
 const testFreqUIName = "my-frequi"
 
 func TestBuildFreqUIDeployment_Defaults(t *testing.T) {
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
 	}
 
@@ -54,7 +54,7 @@ func TestBuildFreqUIDeployment_Defaults(t *testing.T) {
 // root-owned by default, so FSGroup is what actually makes them writable by that UID - verified
 // end to end against a real pod on a real cluster (1/1 Running, a real HTTP 200 from its Service).
 func TestBuildFreqUIDeployment_RestrictedSecurityContext(t *testing.T) {
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
 	}
 
@@ -112,11 +112,11 @@ func TestBuildFreqUIDeployment_RestrictedSecurityContext(t *testing.T) {
 
 func TestBuildFreqUIDeployment_ImageAndReplicaOverrides(t *testing.T) {
 	replicas := int32(3)
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
-		Spec: freqtradev1alpha1.FreqUISpec{
-			App: &freqtradev1alpha1.FUAppConfig{
-				PodSpec: &freqtradev1alpha1.FUPodSpec{
+		Spec: freqtradev1beta1.FreqUISpec{
+			App: &freqtradev1beta1.FUAppConfig{
+				PodSpec: &freqtradev1beta1.FUPodSpec{
 					Image:    "custom/frequi:v2",
 					Replicas: &replicas,
 				},
@@ -138,7 +138,7 @@ func TestApplyPodSpecOverrides(t *testing.T) {
 	podSpec := &corev1.PodSpec{
 		Containers: []corev1.Container{{Name: "frequi"}},
 	}
-	userSpec := &freqtradev1alpha1.FUPodSpec{
+	userSpec := &freqtradev1beta1.FUPodSpec{
 		Resources:        corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: {}}},
 		Env:              []corev1.EnvVar{{Name: "FOO", Value: "bar"}},
 		VolumeMounts:     []corev1.VolumeMount{{Name: "data", MountPath: "/data"}},
@@ -185,7 +185,7 @@ func TestApplyPodSpecOverrides(t *testing.T) {
 
 func TestApplyPodSpecOverrides_AntiAffinityCreatesAffinityIfNil(t *testing.T) {
 	podSpec := &corev1.PodSpec{Containers: []corev1.Container{{Name: "frequi"}}}
-	userSpec := &freqtradev1alpha1.FUPodSpec{
+	userSpec := &freqtradev1beta1.FUPodSpec{
 		AntiAffinity: &corev1.PodAntiAffinity{},
 	}
 

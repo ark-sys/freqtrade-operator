@@ -62,3 +62,5 @@ const (
 func (b *Backtest) SetObservedGeneration(generation int64) { b.Status.ObservedGeneration = generation }
 
 func (t *TradeBot) SetObservedGeneration(generation int64) { t.Status.ObservedGeneration = generation }
+
+func (f *FreqUI) SetObservedGeneration(generation int64) { f.Status.ObservedGeneration = generation }

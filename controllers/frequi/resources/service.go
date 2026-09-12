@@ -1,14 +1,14 @@
 package resources
 
 import (
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // BuildFreqUIService creates a Service for FreqUI
-func BuildFreqUIService(frequi freqtradev1alpha1.FreqUI) corev1.Service {
+func BuildFreqUIService(frequi freqtradev1beta1.FreqUI) corev1.Service {
 	// Build default service spec
 	baseServiceSpec := corev1.ServiceSpec{
 		Selector: map[string]string{appLabelKey: frequi.Name},
@@ -39,7 +39,7 @@ func BuildFreqUIService(frequi freqtradev1alpha1.FreqUI) corev1.Service {
 }
 
 // applyServiceSpecOverrides applies user-provided service specification overrides to the base service spec
-func applyServiceSpecOverrides(serviceSpec *corev1.ServiceSpec, userServiceSpec *freqtradev1alpha1.FUServiceSpec) {
+func applyServiceSpecOverrides(serviceSpec *corev1.ServiceSpec, userServiceSpec *freqtradev1beta1.FUServiceSpec) {
 	// Override service type if specified
 	if userServiceSpec.Type != "" {
 		serviceSpec.Type = userServiceSpec.Type

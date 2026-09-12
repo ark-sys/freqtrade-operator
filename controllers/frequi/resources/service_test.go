@@ -3,13 +3,13 @@ package resources
 import (
 	"testing"
 
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestBuildFreqUIService_Defaults(t *testing.T) {
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
 	}
 
@@ -30,11 +30,11 @@ func TestBuildFreqUIService_Defaults(t *testing.T) {
 }
 
 func TestBuildFreqUIService_Overrides(t *testing.T) {
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
-		Spec: freqtradev1alpha1.FreqUISpec{
-			App: &freqtradev1alpha1.FUAppConfig{
-				ServiceSpec: &freqtradev1alpha1.FUServiceSpec{
+		Spec: freqtradev1beta1.FreqUISpec{
+			App: &freqtradev1beta1.FUAppConfig{
+				ServiceSpec: &freqtradev1beta1.FUServiceSpec{
 					Type:                     corev1.ServiceTypeLoadBalancer,
 					Ports:                    []corev1.ServicePort{{Name: "web", Port: 8443}},
 					Selector:                 map[string]string{"custom": "selector"},
@@ -71,7 +71,7 @@ func TestBuildFreqUIService_Overrides(t *testing.T) {
 func TestApplyServiceSpecOverrides_EmptyOverrideIsNoOp(t *testing.T) {
 	defaultSpec := corev1.ServiceSpec{Type: corev1.ServiceTypeClusterIP}
 
-	applyServiceSpecOverrides(&defaultSpec, &freqtradev1alpha1.FUServiceSpec{})
+	applyServiceSpecOverrides(&defaultSpec, &freqtradev1beta1.FUServiceSpec{})
 
 	if defaultSpec.Type != corev1.ServiceTypeClusterIP {
 		t.Errorf("expected the default spec unchanged, got %+v", defaultSpec)

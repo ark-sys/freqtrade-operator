@@ -1,7 +1,7 @@
 package resources
 
 import (
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -14,7 +14,7 @@ type TradeBotAPIRoute struct {
 }
 
 // BuildFreqUIIngress creates an Ingress for FreqUI with subdomain-based API routing
-func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []TradeBotAPIRoute) networkingv1.Ingress {
+func BuildFreqUIIngress(frequi freqtradev1beta1.FreqUI, tradeBotAPIRoutes []TradeBotAPIRoute) networkingv1.Ingress {
 	spec := frequi.Spec
 	pathType := networkingv1.PathTypePrefix
 
@@ -125,7 +125,7 @@ func BuildFreqUIIngress(frequi freqtradev1alpha1.FreqUI, tradeBotAPIRoutes []Tra
 
 // applyIngressSpecOverrides applies user-provided ingress specification overrides to the base ingress spec
 func applyIngressSpecOverrides(
-	ingressSpec *networkingv1.IngressSpec, userIngressSpec *freqtradev1alpha1.FUIngressSpec,
+	ingressSpec *networkingv1.IngressSpec, userIngressSpec *freqtradev1beta1.FUIngressSpec,
 ) {
 	// Override ingress class name if specified
 	if userIngressSpec.IngressClassName != nil {

@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 )
 
 // SetupWithManager sets up the controller with the Manager.
@@ -22,7 +22,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	ownedResourceChanged := predicate.ResourceVersionChangedPredicate{}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&freqtradev1alpha1.FreqUI{}, builder.WithPredicates(specChanged)).
+		For(&freqtradev1beta1.FreqUI{}, builder.WithPredicates(specChanged)).
 		Owns(&appsv1.Deployment{}, builder.WithPredicates(ownedResourceChanged)).
 		Owns(&corev1.Service{}, builder.WithPredicates(ownedResourceChanged)).
 		Owns(&networkingv1.Ingress{}, builder.WithPredicates(ownedResourceChanged)).

@@ -3,13 +3,13 @@ package resources
 import (
 	"testing"
 
-	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestBuildFreqUIIngress_DefaultHostAndNoAPIRoutes(t *testing.T) {
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
 	}
 
@@ -31,9 +31,9 @@ func TestBuildFreqUIIngress_DefaultHostAndNoAPIRoutes(t *testing.T) {
 }
 
 func TestBuildFreqUIIngress_ExplicitHostAndAPIRoutes(t *testing.T) {
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
-		Spec:       freqtradev1alpha1.FreqUISpec{Host: "frequi.example.com"},
+		Spec:       freqtradev1beta1.FreqUISpec{Host: "frequi.example.com"},
 	}
 	routes := []TradeBotAPIRoute{
 		{Name: "bot-a", ServiceName: "bot-a-svc", PathPrefix: "/"},
@@ -62,9 +62,9 @@ func TestBuildFreqUIIngress_ExplicitHostAndAPIRoutes(t *testing.T) {
 }
 
 func TestBuildFreqUIIngress_ExplicitTLSIsNotOverwritten(t *testing.T) {
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
-		Spec: freqtradev1alpha1.FreqUISpec{
+		Spec: freqtradev1beta1.FreqUISpec{
 			Host: "frequi.example.com",
 			TLS:  []networkingv1.IngressTLS{{Hosts: []string{"frequi.example.com"}, SecretName: "my-cert"}},
 		},
@@ -79,15 +79,15 @@ func TestBuildFreqUIIngress_ExplicitTLSIsNotOverwritten(t *testing.T) {
 
 func TestBuildFreqUIIngress_AnnotationsMergeWithAppOverrideTakingPrecedence(t *testing.T) {
 	ingressClass := "nginx"
-	frequi := freqtradev1alpha1.FreqUI{
+	frequi := freqtradev1beta1.FreqUI{
 		ObjectMeta: metav1.ObjectMeta{Name: testFreqUIName, Namespace: testNamespace},
-		Spec: freqtradev1alpha1.FreqUISpec{
+		Spec: freqtradev1beta1.FreqUISpec{
 			IngressAnnotations: map[string]string{
 				"a": "from-spec",
 				"b": "from-spec-only",
 			},
-			App: &freqtradev1alpha1.FUAppConfig{
-				IngressSpec: &freqtradev1alpha1.FUIngressSpec{
+			App: &freqtradev1beta1.FUAppConfig{
+				IngressSpec: &freqtradev1beta1.FUIngressSpec{
 					IngressClassName: &ingressClass,
 					Annotations:      map[string]string{"a": "from-app-override"},
 				},
@@ -111,7 +111,7 @@ func TestBuildFreqUIIngress_AnnotationsMergeWithAppOverrideTakingPrecedence(t *t
 
 func TestApplyIngressSpecOverrides_DefaultBackend(t *testing.T) {
 	spec := &networkingv1.IngressSpec{}
-	userSpec := &freqtradev1alpha1.FUIngressSpec{
+	userSpec := &freqtradev1beta1.FUIngressSpec{
 		DefaultBackend: &networkingv1.IngressBackend{
 			Service: &networkingv1.IngressServiceBackend{Name: "fallback"},
 		},

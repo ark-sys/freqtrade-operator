@@ -19,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
+	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/controllers/frequi/resources"
 	"github.com/ark-sys/freqtrade-operator/controllers/shared"
 )
@@ -49,7 +50,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	logger.V(1).Info("Reconciling FreqUI", "namespacedName", req.NamespacedName)
 
 	// 1. Fetch FreqUI resource
-	var frequi freqtradev1alpha1.FreqUI
+	var frequi freqtradev1beta1.FreqUI
 	if err := r.Get(ctx, req.NamespacedName, &frequi); err != nil {
 		if errors.IsNotFound(err) {
 			logger.V(1).Info("FreqUI resource not found, ignoring since it must be deleted")
@@ -156,7 +157,7 @@ func tradeBotRefsResolvedCondition(unresolvedRefs []string) metav1.Condition {
 // own exponential backoff takes over (its Result is ignored whenever a
 // non-nil error is also returned).
 func (r *Reconciler) failReconcile(
-	ctx context.Context, frequi *freqtradev1alpha1.FreqUI, message string, requeueAfter time.Duration, err error,
+	ctx context.Context, frequi *freqtradev1beta1.FreqUI, message string, requeueAfter time.Duration, err error,
 ) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	if patchErr := shared.PatchStatus(ctx, r.Client, frequi, func() {
@@ -188,7 +189,7 @@ func (r *Reconciler) failReconcile(
 // TradeBotRefsResolved condition. It's nil, not an error: a typo in
 // TradeBotRefs means that one bot gets no CORS/API route, not that FreqUI
 // itself fails to deploy.
-func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtradev1alpha1.FreqUI) ([]string, error) {
+func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtradev1beta1.FreqUI) ([]string, error) {
 	logger := log.FromContext(ctx)
 
 	// 1. Reconcile Deployment
@@ -208,7 +209,8 @@ func (r *Reconciler) reconcileAllResources(ctx context.Context, frequi *freqtrad
 	// 3. Reconcile Ingress if configured
 	var apiRoutes []resources.TradeBotAPIRoute
 	var unresolvedRefs []string
-	for _, tradeBotRef := range frequi.Spec.TradeBotRefs {
+	for _, ref := range frequi.Spec.TradeBotRefs {
+		tradeBotRef := ref.Name
 		var tradeBot freqtradev1alpha1.TradeBot
 		err := r.Get(ctx, types.NamespacedName{Name: tradeBotRef, Namespace: frequi.Namespace}, &tradeBot)
 		switch {
