@@ -21,6 +21,16 @@ aid, not a substitute for actually reading what changed.
 ## [Unreleased]
 
 ### Added
+- `FreqUI.spec.exposure` (`Ingress`/`Gateway`/`None`, default `Ingress`): an explicit exposure-mode
+  discriminator, additive to the existing Ingress path - which keeps working unchanged and stays the
+  default. `Gateway` mode creates `gateway.networking.k8s.io/v1` `HTTPRoute`s (one per hostname; this
+  operator never creates the `Gateway`/`GatewayClass` itself) attached to a `Gateway` you provide;
+  `None` creates only the `Deployment`/`Service`, for `kubectl port-forward`-only access with zero
+  extra infrastructure - previously an Ingress (with a cluster-local host, at minimum) was always
+  created, even when it could never serve anything. A new `ExposureReady` status condition reports
+  whether the chosen mode is actually working - see [docs/exposure.md](docs/exposure.md). Gateway API
+  is entirely optional at runtime: the operator detects it once at startup and keeps reconciling
+  Ingress-mode `FreqUI`s normally on any cluster that doesn't have it installed.
 - `Backtest` (`v1beta1`): a dedicated CRD for one-shot backtesting runs, immutable after creation, with typed
   parameters, an `extraArgs` escape hatch gated behind an annotation and a denylist, and results extracted by a
   native sidecar into `status.results` (D1, D6, D8).
@@ -79,6 +89,12 @@ aid, not a substitute for actually reading what changed.
     typed-reference convention used elsewhere.
 
 ### Fixed
+- `FreqUI.status.url` hardcoded a `http://<name>.<namespace>.svc.cluster.local` address and ignored
+  `spec.host` entirely, even in Ingress mode with a real public hostname configured. It now reflects
+  `spec.host` (scheme inferred from `spec.tls`), falling back to the cluster-local address only in
+  `exposure: None` mode, since nothing actually routes to `spec.host` there. **Behaviour change for
+  existing Ingress-mode `FreqUI` users**: `status.url` will change on next reconcile if `spec.host`
+  is set.
 - Several Phase-0 correctness bugs: nil-pointer dereferences in `configbuilder`, `panic(err)` in resource builders
   (replaced with returned errors), a `TradeBot` that could get stuck reporting a stale error phase forever, a
   finalizer that could block the reconcile worker, and CI running against a staging branch that didn't exist.

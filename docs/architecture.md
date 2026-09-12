@@ -11,7 +11,7 @@ see [api-reference.md](api-reference.md).
 | `TradeBotConfig` | `v1alpha1` | `controllers/tradebotconfig` | Validation + status only. `configbuilder/` renders freqtrade's `config.json` from it; nothing else does. |
 | `Strategy` | `v1alpha1` | `controllers/strategy` | Validation + status only - checks the script is a loadable Python module with a valid `IStrategy` class name. |
 | `TradeBot` | `v1alpha1` (converted) + `v1beta1` (storage) | `controllers/tradebot` | Secret (`config.json`), ConfigMap (strategy `.py`), PVC (trades DB), StatefulSet + Service. Trade-only - see [Two API versions](#two-api-versions) below. |
-| `FreqUI` | `v1alpha1` | `controllers/frequi` | Deployment, Service, Ingress; reads the `TradeBot`s it references back to derive CORS origins for each one's `config.json`. |
+| `FreqUI` | `v1alpha1` (converted) + `v1beta1` (storage) | `controllers/frequi` | Deployment, Service, and an Ingress **or** HTTPRoutes depending on `spec.exposure` (see [exposure.md](exposure.md)); reads the `TradeBot`s it references back to derive CORS origins for each one's `config.json`. |
 | `Backtest` | `v1beta1` only | `controllers/backtest` | Job (one-shot), a per-run results PVC, and a native sidecar that extracts a results summary. |
 
 ```mermaid
@@ -23,7 +23,7 @@ graph LR
     BT -- strategyRef --> STRAT
 
     TB --> STS[StatefulSet + Service]
-    UI --> DEP[Deployment + Service + Ingress]
+    UI --> DEP[Deployment + Service + Ingress/HTTPRoutes]
     BT --> JOB[Job: freqtrade + collect-results sidecar]
 ```
 
@@ -50,11 +50,11 @@ mechanism this operator has to enforce on your behalf.
 
 ## Two API versions
 
-`TradeBot` is the only CRD with both a `v1alpha1` and a `v1beta1` representation.
-`TradeBotConfig`, `Strategy`, and `FreqUI` never got a `v1beta1` - there was nothing about their
-own shape that P6-x's changes needed to touch. `Backtest` is the reverse case: it only ever
-existed as `v1beta1`, introduced already carrying the reference-type and naming conventions the
-rest of `v1beta1` established.
+`TradeBot` and `FreqUI` both have a `v1alpha1` and a `v1beta1` representation - `v1beta1` the
+storage version/Hub, `v1alpha1` the converted spoke. `TradeBotConfig` and `Strategy` never got a
+`v1beta1` - there was nothing about their own shape that P6-x's changes needed to touch.
+`Backtest` is the reverse case: it only ever existed as `v1beta1`, introduced already carrying
+the reference-type and naming conventions the rest of `v1beta1` established.
 
 `v1beta1.TradeBot` is the **storage version** - what's actually persisted in etcd - and
 `v1alpha1.TradeBot` converts to/from it on every read and write
@@ -137,7 +137,8 @@ Two identities, deliberately not one:
 
 - The manager's own `ServiceAccount` (`freqtrade-operator-controller-manager`) holds a
   cluster-scoped `ClusterRole` - full CRUD on the CRDs themselves and everything the reconcilers
-  create (Secrets, ConfigMaps, PVCs, StatefulSets, Jobs, Services, Ingresses).
+  create (Secrets, ConfigMaps, PVCs, StatefulSets, Jobs, Services, Ingresses, and - optionally,
+  see [exposure.md](exposure.md) - Gateway API HTTPRoutes).
 - The `Backtest` sidecar's `ServiceAccount` holds a narrow, namespace-scoped `Role` (above) - it
   runs inside a Job pod whose `spec.pod` a `Backtest`'s own author can otherwise influence, so it
   gets the least privilege that lets it do its one job, not the manager's own broader identity.

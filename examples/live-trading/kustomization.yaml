@@ -10,7 +10,9 @@ resources:
   - strategy.yaml
   - config.yaml
   - tradebot.yaml
-  # frequi.yaml needs a real Ingress controller, DNS, and a cert-manager ClusterIssuer to
-  # actually be reachable - uncomment once you've adjusted its host/tls/ingressAnnotations for
-  # your own cluster, rather than applying it as-is and getting an Ingress that just sits there.
+  # frequi.yaml defaults to Ingress mode, which needs a real Ingress controller, DNS, and a
+  # cert-manager ClusterIssuer to actually be reachable (Gateway mode needs a Gateway instead -
+  # see docs/exposure.md) - uncomment once you've adjusted it for your own cluster, rather than
+  # applying it as-is and getting an Ingress/HTTPRoute that just sits there. Or set
+  # `spec.exposure: None` for the zero-infrastructure `kubectl port-forward` path (docs/usage.md).
   # - frequi.yaml

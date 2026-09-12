@@ -15,10 +15,28 @@ kubectl apply -k examples/live-trading/
 ```
 
 This creates everything in a `freqtrade-example` namespace, including the namespace itself - no separate `kubectl
-create namespace` step needed. `FreqUI` is deliberately left out of that kustomization (it needs a real Ingress
-controller, DNS, and a cert-manager `ClusterIssuer` to actually be reachable); apply
-[`examples/live-trading/frequi.yaml`](../examples/live-trading/frequi.yaml) separately once you've adjusted its
-`host`/`tls`/`ingressAnnotations` for your own cluster, then:
+create namespace` step needed. `FreqUI` is deliberately left out of that kustomization, since how it's reached
+depends on `spec.exposure` and your own cluster - see [`examples/live-trading/frequi.yaml`](../examples/live-trading/frequi.yaml)
+and [exposure.md](exposure.md) for the three modes. The zero-infrastructure way to try it needs nothing from your
+cluster at all:
+
+```bash
+kubectl apply -n freqtrade-example -f - <<'EOF'
+apiVersion: freqtrade.io/v1beta1
+kind: FreqUI
+metadata:
+  name: frequi
+spec:
+  exposure: None
+EOF
+kubectl port-forward -n freqtrade-example svc/frequi 8080:80
+```
+
+Then open `http://localhost:8080`. For a real public hostname, apply
+[`examples/live-trading/frequi.yaml`](../examples/live-trading/frequi.yaml) instead, adjusted for your cluster -
+either its `Ingress`-mode block (needs an ingress controller, DNS, and a cert-manager `ClusterIssuer`) or its
+commented-out `Gateway`-mode block (needs a `Gateway` your cluster's owner provides - see
+[exposure.md](exposure.md)). Either way:
 
 ```bash
 kubectl get frequi -n freqtrade-example

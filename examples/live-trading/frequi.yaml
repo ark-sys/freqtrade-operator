@@ -5,6 +5,10 @@ metadata:
   namespace: freqtrade-example
 spec:
 #  host: frequi-example.example.com
+
+  # exposure defaults to Ingress - this is the mode below, unchanged from before spec.exposure
+  # existed. See docs/exposure.md for the other two modes (Gateway, None).
+  # exposure: Ingress
   tls:
     - hosts:
         - "frequi-example.example.com"
@@ -14,6 +18,18 @@ spec:
     kubernetes.io/ingress.class: nginx
     cert-manager.io/cluster-issuer: letsencrypt
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+  # Gateway mode: HTTPRoutes attached to a Gateway your cluster's owner already created (this
+  # operator never creates one itself - see docs/exposure.md). To use it, comment out
+  # `tls`/`ingressAnnotations` above (they do nothing in Gateway mode - TLS terminates on the
+  # Gateway's own listener) and uncomment this block instead:
+  # exposure: Gateway
+  # gateway:
+  #   parentRefs:
+  #     - name: my-gateway
+  #       namespace: gateway-infra  # only if the Gateway lives in a different namespace
+  #   hostnames:
+  #     - frequi-example.example.com
 
   tradeBotRefs:
     - name: btc-trader
