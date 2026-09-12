@@ -4,6 +4,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
@@ -12,6 +14,10 @@ import (
 // TradeBotRefs, which is P6-5's own requirement extended here: every
 // cross-object reference becomes a typed, same-namespace-only
 // corev1.LocalObjectReference instead of a bare string.
+//
+// +kubebuilder:validation:XValidation:rule="self.exposure != 'Gateway' || has(self.gateway)",message="spec.gateway is required when spec.exposure is Gateway"
+// +kubebuilder:validation:XValidation:rule="self.exposure != 'Gateway' || !has(self.tls)",message="spec.tls has no effect in Gateway mode; TLS terminates on the Gateway listener, which this operator does not manage"
+// +kubebuilder:validation:XValidation:rule="self.exposure == 'Gateway' || !has(self.gateway)",message="spec.gateway is only valid when spec.exposure is Gateway"
 type FreqUISpec struct {
 	// Host is the hostname for the FreqUI ingress
 	Host string `json:"host,omitempty"`
@@ -32,6 +38,65 @@ type FreqUISpec struct {
 	// TradeBotRefsResolved condition rather than silently yielding no CORS
 	// entry for that bot.
 	TradeBotRefs []corev1.LocalObjectReference `json:"tradeBotRefs,omitempty"`
+
+	// Exposure selects how this FreqUI is reachable from outside the cluster.
+	//
+	//	Ingress - a networking.k8s.io/v1 Ingress (the default, and what every
+	//	          release before this one did unconditionally).
+	//	Gateway - gateway.networking.k8s.io/v1 HTTPRoutes attached to a Gateway
+	//	          somebody else owns. Requires spec.gateway.parentRefs.
+	//	None    - Service only. Nothing routable is created; reach the UI with
+	//	          `kubectl port-forward` or your own routing object.
+	//
+	// +kubebuilder:validation:Enum=Ingress;Gateway;None
+	// +kubebuilder:default=Ingress
+	// +optional
+	Exposure FUExposureType `json:"exposure,omitempty"`
+
+	// Gateway configures HTTPRoute-based exposure. Required when exposure is
+	// Gateway, ignored otherwise. The operator never creates the Gateway
+	// itself - that is infrastructure the cluster owner provides, the same way
+	// an IngressClass is.
+	// +optional
+	Gateway *FUGatewaySpec `json:"gateway,omitempty"`
+}
+
+// FUExposureType is the value of FreqUISpec.Exposure.
+type FUExposureType string
+
+const (
+	FUExposureIngress FUExposureType = "Ingress"
+	FUExposureGateway FUExposureType = "Gateway"
+	FUExposureNone    FUExposureType = "None"
+)
+
+// FUGatewaySpec configures Gateway API exposure for a FreqUI.
+type FUGatewaySpec struct {
+	// ParentRefs are the Gateways (and optionally the specific listeners)
+	// the generated HTTPRoutes attach to. Cross-namespace parents are
+	// allowed by the Gateway API, but whether they are accepted is decided
+	// by that Gateway's own listeners[].allowedRoutes - not by anything
+	// this operator can set.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=16
+	ParentRefs []gatewayv1.ParentReference `json:"parentRefs"`
+
+	// Hostnames overrides the hostname of the FreqUI's own HTTPRoute.
+	// Defaults to [spec.host]. Per-TradeBot API routes are always derived
+	// from spec.host, never from this field.
+	// +kubebuilder:validation:MaxItems=16
+	// +optional
+	Hostnames []gatewayv1.Hostname `json:"hostnames,omitempty"`
+
+	// Annotations are added to every generated HTTPRoute. The Gateway API
+	// analogue of spec.ingressAnnotations.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// Labels are added to every generated HTTPRoute, on top of the
+	// operator's own ownership labels (which cannot be overridden).
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // FUAppConfig defines the configuration for the FreqUI application -

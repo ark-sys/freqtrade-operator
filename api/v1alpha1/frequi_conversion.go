@@ -8,10 +8,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
-// ConvertTo converts this v1alpha1 FreqUI to the v1beta1 Hub (B3). Unlike
-// TradeBot/TradeBotConfig, this can't fail - TradeBotRefs is a list of
-// bare names, and every bare name is representable as a
-// corev1.LocalObjectReference with that name.
+// ConvertTo converts this v1alpha1 FreqUI to the v1beta1 Hub (B3).
+// TradeBotRefs can't fail to convert - it's a list of bare names, and every
+// bare name is representable as a corev1.LocalObjectReference with that
+// name. spec.gateway (G1-1, GATEWAY-API-PLAN.md) goes through convertJSON
+// like spec.app, since ParentRefs/Hostnames are the same upstream
+// gatewayv1 types in both versions and only the surrounding struct type
+// differs by package.
 func (f *FreqUI) ConvertTo(dstRaw conversion.Hub) error {
 	dst := dstRaw.(*v1beta1.FreqUI)
 
@@ -34,6 +37,14 @@ func (f *FreqUI) ConvertTo(dstRaw conversion.Hub) error {
 		}
 		dst.Spec.TradeBotRefs = refs
 	}
+	dst.Spec.Exposure = v1beta1.FUExposureType(f.Spec.Exposure)
+	if f.Spec.Gateway != nil {
+		var gw v1beta1.FUGatewaySpec
+		if err := convertJSON(f.Spec.Gateway, &gw); err != nil {
+			return fmt.Errorf("converting spec.gateway: %w", err)
+		}
+		dst.Spec.Gateway = &gw
+	}
 
 	dst.Status.Phase = f.Status.Phase
 	dst.Status.Message = f.Status.Message
@@ -44,9 +55,10 @@ func (f *FreqUI) ConvertTo(dstRaw conversion.Hub) error {
 	return nil
 }
 
-// ConvertFrom converts the v1beta1 Hub to this v1alpha1 FreqUI - always
-// succeeds: every corev1.LocalObjectReference's Name is representable as
-// a bare string.
+// ConvertFrom converts the v1beta1 Hub to this v1alpha1 FreqUI.
+// TradeBotRefs can't fail to convert - every corev1.LocalObjectReference's
+// Name is representable as a bare string. spec.gateway goes through
+// convertJSON, same as ConvertTo.
 func (f *FreqUI) ConvertFrom(srcRaw conversion.Hub) error {
 	src := srcRaw.(*v1beta1.FreqUI)
 
@@ -68,6 +80,14 @@ func (f *FreqUI) ConvertFrom(srcRaw conversion.Hub) error {
 			refs[i] = ref.Name
 		}
 		f.Spec.TradeBotRefs = refs
+	}
+	f.Spec.Exposure = FUExposureType(src.Spec.Exposure)
+	if src.Spec.Gateway != nil {
+		var gw FUGatewaySpec
+		if err := convertJSON(src.Spec.Gateway, &gw); err != nil {
+			return fmt.Errorf("converting spec.gateway: %w", err)
+		}
+		f.Spec.Gateway = &gw
 	}
 
 	f.Status.Phase = src.Status.Phase
