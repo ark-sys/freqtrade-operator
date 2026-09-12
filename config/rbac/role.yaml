@@ -124,18 +124,28 @@ rules:
   - list
   - watch
 - apiGroups:
-  - networking.k8s.io
+  - gateway.networking.k8s.io
   resources:
-  - ingresses
+  - httproutes
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
   - watch
 - apiGroups:
+  - gateway.networking.k8s.io
+  resources:
+  - httproutes/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
+  - ingresses
   - networkpolicies
   verbs:
   - create
