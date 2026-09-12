@@ -271,6 +271,19 @@ func runManager() {
 
 	metrics.Registry.MustRegister(shared.NewTradeBotCollector(mgr.GetClient()))
 
+	// G3-1 (GATEWAY-API-PLAN.md): detected once, here, at startup - not re-checked on a
+	// timer. Gateway API is optional (D9); most clusters don't have it, and this must never
+	// stop the operator from reconciling Ingress-mode FreqUIs. A discovery hiccup (RBAC
+	// denied, apiserver unreachable) is logged and treated as unavailable rather than
+	// failing startup.
+	gatewayAPIAvailable, err := shared.GatewayAPIAvailable(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "failed to detect whether Gateway API is installed - "+
+			"treating it as unavailable; Gateway-mode FreqUIs will report a condition explaining why")
+		gatewayAPIAvailable = false
+	}
+	setupLog.Info("Gateway API detection", "available", gatewayAPIAvailable)
+
 	resolvedOperatorImage := operatorImage
 	if resolvedOperatorImage == "" {
 		resolvedOperatorImage = resolveOwnImage(mgr.GetAPIReader())
@@ -292,9 +305,10 @@ func runManager() {
 
 	// Setup FreqUI controller
 	if err = (&frequi.Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("frequi-controller"),
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		Recorder:            mgr.GetEventRecorderFor("frequi-controller"),
+		GatewayAPIAvailable: gatewayAPIAvailable,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "FreqUI")
 		os.Exit(1)

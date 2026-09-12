@@ -32,6 +32,14 @@ type Reconciler struct {
 	// Recorder emits the P4-1 Events below. Nil is fine - not every test
 	// constructs one.
 	Recorder record.EventRecorder
+
+	// GatewayAPIAvailable reports whether this cluster serves
+	// gateway.networking.k8s.io/v1 HTTPRoute (G3-1, shared.GatewayAPIAvailable),
+	// checked once at operator startup - installing Gateway API afterwards
+	// needs an operator restart to be noticed. Reconciling a Gateway-mode
+	// FreqUI while this is false is G2-2's job (not yet implemented);
+	// Ingress-mode FreqUIs are unaffected either way.
+	GatewayAPIAvailable bool
 }
 
 // +kubebuilder:rbac:groups=freqtrade.io,resources=frequis,verbs=get;list;watch
