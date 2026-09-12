@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	v1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -97,6 +98,17 @@ type TBAppConfig struct {
 	PodSpec     *PodSpec     `json:"pod,omitempty"`     // Pod specification for the application
 	ServiceSpec *ServiceSpec `json:"service,omitempty"` // Service specification for the application
 	PVCSpec     *PVCSpec     `json:"pvc,omitempty"`     // Persistent Volume Claim specification for the application
+	// NetworkPolicySpec extends the default-deny NetworkPolicy's peer list -
+	// see v1beta1.TBNetworkPolicySpec's own doc comment for the full
+	// rationale (G8, GATEWAY-API-PLAN.md).
+	NetworkPolicySpec *TBNetworkPolicySpec `json:"networkPolicy,omitempty"`
+}
+
+// TBNetworkPolicySpec is field-for-field identical to
+// v1beta1.TBNetworkPolicySpec - see its own doc comment.
+type TBNetworkPolicySpec struct {
+	// +optional
+	ExtraPeers []networkingv1.NetworkPolicyPeer `json:"extraPeers,omitempty"`
 }
 
 type PodSpec struct {

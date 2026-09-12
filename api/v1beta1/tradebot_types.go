@@ -2,6 +2,7 @@ package v1beta1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
@@ -74,9 +75,34 @@ const (
 // (P6-1) already uses the bare name for Backtest's own, differently-shaped
 // (no probes, no ServiceName) one-shot-run pod spec.
 type TBAppConfig struct {
-	PodSpec     *TradeBotPodSpec `json:"pod,omitempty"`
-	ServiceSpec *ServiceSpec     `json:"service,omitempty"`
-	PVCSpec     *PVCSpec         `json:"pvc,omitempty"`
+	PodSpec           *TradeBotPodSpec     `json:"pod,omitempty"`
+	ServiceSpec       *ServiceSpec         `json:"service,omitempty"`
+	PVCSpec           *PVCSpec             `json:"pvc,omitempty"`
+	NetworkPolicySpec *TBNetworkPolicySpec `json:"networkPolicy,omitempty"`
+}
+
+// TBNetworkPolicySpec extends BuildNetworkPolicy's default-deny peer list
+// (G8, GATEWAY-API-PLAN.md). The default (same-namespace FreqUI pods + the
+// operator namespace) is not reachable from an Ingress controller's or a
+// Gateway's data plane, which typically runs in its own namespace - this
+// is what makes the per-bot API subdomains FreqUI generates (Ingress
+// rules, or HTTPRoutes since G2-1) unreachable from outside on any
+// cluster with an enforcing CNI. Deliberately opt-in and explicit rather
+// than derived automatically from a FreqUI's spec.gateway.parentRefs
+// (D-G8, option C rejected): a parentRef's namespace is the Gateway's own
+// namespace, not necessarily where its data-plane pods actually run, so
+// deriving from it can be simultaneously too broad (grants a whole
+// namespace when the actual proxy runs elsewhere) and wrong. Widening a
+// live trading API's network reachability is a decision for whoever owns
+// this TradeBot to make explicitly, not something this operator infers.
+type TBNetworkPolicySpec struct {
+	// ExtraPeers are additional NetworkPolicyPeers allowed to reach this
+	// bot's freqtrade REST API port (FreqtradeAPIPort, 8080), on top of
+	// the operator's own default (same-namespace FreqUI pods + the
+	// operator namespace). Typically an ingress controller's or a
+	// Gateway's data-plane namespace/pods - see docs/exposure.md.
+	// +optional
+	ExtraPeers []networkingv1.NetworkPolicyPeer `json:"extraPeers,omitempty"`
 }
 
 type TradeBotPodSpec struct {

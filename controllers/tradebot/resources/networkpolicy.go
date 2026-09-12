@@ -15,12 +15,24 @@ const FreqtradeAPIPort = 8080
 
 // BuildNetworkPolicy locks a trade-mode TradeBot's freqtrade REST API down
 // to default-deny (P3-4): only the FreqUI instance(s) that actually
-// reference this bot, and the operator itself, may reach port 8080 -
-// everything else in the namespace (other bots included) is refused. The
-// operator peer is here for D4/P4-3's future bot-polling, built now per the
-// plan's own instruction to land both rules together rather than needing a
+// reference this bot, the operator itself, and any spec.app.networkPolicy.
+// extraPeers (G8, GATEWAY-API-PLAN.md) may reach port 8080 - everything
+// else in the namespace (other bots included) is refused. The operator
+// peer is here for D4/P4-3's future bot-polling, built now per the plan's
+// own instruction to land both rules together rather than needing a
 // second pass later; nothing polls yet, but nothing is blocked by having
 // the rule exist early either.
+//
+// extraPeers exists because the default two peers above are NOT reachable
+// from an Ingress controller's or a Gateway's data plane, which typically
+// runs in its own namespace - meaning the per-bot API subdomains FreqUI
+// generates (an Ingress rule, or an HTTPRoute since G2-1) are unreachable
+// from outside the cluster on any cluster with an enforcing CNI, unless
+// this TradeBot's own owner explicitly opts a peer in here. Deliberately
+// not derived automatically from anything on the FreqUI side (see
+// v1beta1.TBNetworkPolicySpec's own doc comment for why) - copied
+// verbatim, since this operator has no way to validate a caller-supplied
+// NetworkPolicyPeer beyond what the API server's own schema already does.
 //
 // Job-mode TradeBots never get one at all (see reconcileResources) - a Job
 // pod never opens 8080 in the first place (pod.go only sets it up for
@@ -28,14 +40,19 @@ const FreqtradeAPIPort = 8080
 //
 // operatorNamespace empty (Reconciler.OperatorNamespace unset) drops that
 // peer entirely rather than emitting a selector that matches nothing by
-// accident. If freqUINames is also empty, the ingress rule itself is
-// dropped too - PolicyTypes still lists Ingress, so the net effect is
-// deny-all on this pod rather than a rule with an empty From, which would
-// mean the opposite: allow-all.
+// accident. If freqUINames and extraPeers are also empty, the ingress rule
+// itself is dropped too - PolicyTypes still lists Ingress, so the net
+// effect is deny-all on this pod rather than a rule with an empty From,
+// which would mean the opposite: allow-all.
 func BuildNetworkPolicy(
 	tradeBot freqtradev1alpha1.TradeBot, freqUINames []string, operatorNamespace string,
 ) networkingv1.NetworkPolicy {
-	peers := make([]networkingv1.NetworkPolicyPeer, 0, len(freqUINames)+1)
+	var extraPeers []networkingv1.NetworkPolicyPeer
+	if tradeBot.Spec.App != nil && tradeBot.Spec.App.NetworkPolicySpec != nil {
+		extraPeers = tradeBot.Spec.App.NetworkPolicySpec.ExtraPeers
+	}
+
+	peers := make([]networkingv1.NetworkPolicyPeer, 0, len(freqUINames)+len(extraPeers)+1)
 	if operatorNamespace != "" {
 		peers = append(peers, networkingv1.NetworkPolicyPeer{
 			NamespaceSelector: &metav1.LabelSelector{
@@ -52,6 +69,7 @@ func BuildNetworkPolicy(
 			PodSelector: &metav1.LabelSelector{MatchLabels: map[string]string{appLabelKey: name}},
 		})
 	}
+	peers = append(peers, extraPeers...)
 
 	var ingress []networkingv1.NetworkPolicyIngressRule
 	if len(peers) > 0 {

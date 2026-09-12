@@ -1141,6 +1141,24 @@ _Appears in:_
 | `pod` _[PodSpec](#podspec)_ |  |  |  |
 | `service` _[ServiceSpec](#servicespec)_ |  |  |  |
 | `pvc` _[PVCSpec](#pvcspec)_ |  |  |  |
+| `networkPolicy` _[TBNetworkPolicySpec](#tbnetworkpolicyspec)_ | NetworkPolicySpec extends the default-deny NetworkPolicy's peer list -<br />see v1beta1.TBNetworkPolicySpec's own doc comment for the full<br />rationale (G8, GATEWAY-API-PLAN.md). |  |  |
+
+
+#### TBNetworkPolicySpec
+
+
+
+TBNetworkPolicySpec is field-for-field identical to
+v1beta1.TBNetworkPolicySpec - see its own doc comment.
+
+
+
+_Appears in:_
+- [TBAppConfig](#tbappconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `extraPeers` _[NetworkPolicyPeer](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#networkpolicypeer-v1-networking) array_ |  |  | Optional: \{\} <br /> |
 
 
 #### TimeInForce
@@ -2733,6 +2751,36 @@ _Appears in:_
 | `pod` _[TradeBotPodSpec](#tradebotpodspec)_ |  |  |  |
 | `service` _[ServiceSpec](#servicespec)_ |  |  |  |
 | `pvc` _[PVCSpec](#pvcspec)_ |  |  |  |
+| `networkPolicy` _[TBNetworkPolicySpec](#tbnetworkpolicyspec)_ |  |  |  |
+
+
+#### TBNetworkPolicySpec
+
+
+
+TBNetworkPolicySpec extends BuildNetworkPolicy's default-deny peer list
+(G8, GATEWAY-API-PLAN.md). The default (same-namespace FreqUI pods + the
+operator namespace) is not reachable from an Ingress controller's or a
+Gateway's data plane, which typically runs in its own namespace - this
+is what makes the per-bot API subdomains FreqUI generates (Ingress
+rules, or HTTPRoutes since G2-1) unreachable from outside on any
+cluster with an enforcing CNI. Deliberately opt-in and explicit rather
+than derived automatically from a FreqUI's spec.gateway.parentRefs
+(D-G8, option C rejected): a parentRef's namespace is the Gateway's own
+namespace, not necessarily where its data-plane pods actually run, so
+deriving from it can be simultaneously too broad (grants a whole
+namespace when the actual proxy runs elsewhere) and wrong. Widening a
+live trading API's network reachability is a decision for whoever owns
+this TradeBot to make explicitly, not something this operator infers.
+
+
+
+_Appears in:_
+- [TBAppConfig](#tbappconfig)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `extraPeers` _[NetworkPolicyPeer](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#networkpolicypeer-v1-networking) array_ | ExtraPeers are additional NetworkPolicyPeers allowed to reach this<br />bot's freqtrade REST API port (FreqtradeAPIPort, 8080), on top of<br />the operator's own default (same-namespace FreqUI pods + the<br />operator namespace). Typically an ingress controller's or a<br />Gateway's data-plane namespace/pods - see docs/exposure.md. |  | Optional: \{\} <br /> |
 
 
 #### TimeInForce

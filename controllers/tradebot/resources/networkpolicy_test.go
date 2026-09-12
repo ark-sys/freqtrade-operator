@@ -101,6 +101,72 @@ func TestBuildNetworkPolicy_NothingToAllowStaysDenyAllNotAllowAll(t *testing.T) 
 	}
 }
 
+// TestBuildNetworkPolicy_ExtraPeersAreCopiedVerbatim covers G8
+// (GATEWAY-API-PLAN.md): spec.app.networkPolicy.extraPeers is the opt-in
+// escape hatch for reaching a bot's API from an ingress controller's or a
+// Gateway's data-plane namespace, which the operator's own default two
+// peers never cover.
+func TestBuildNetworkPolicy_ExtraPeersAreCopiedVerbatim(t *testing.T) {
+	extraPeer := networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"kubernetes.io/metadata.name": "envoy-gateway-system"},
+		},
+	}
+	tradeBot := freqtradev1alpha1.TradeBot{
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
+		Spec: freqtradev1alpha1.TradeBotSpec{
+			App: &freqtradev1alpha1.TBAppConfig{
+				NetworkPolicySpec: &freqtradev1alpha1.TBNetworkPolicySpec{
+					ExtraPeers: []networkingv1.NetworkPolicyPeer{extraPeer},
+				},
+			},
+		},
+	}
+
+	np := BuildNetworkPolicy(tradeBot, []string{"ui"}, "operator-system")
+
+	if len(np.Spec.Ingress) != 1 || len(np.Spec.Ingress[0].From) != 3 {
+		t.Fatalf("expected 3 peers (operator + FreqUI + 1 extra), got %+v", np.Spec.Ingress)
+	}
+	found := false
+	for _, peer := range np.Spec.Ingress[0].From {
+		if peer.NamespaceSelector != nil &&
+			peer.NamespaceSelector.MatchLabels["kubernetes.io/metadata.name"] == "envoy-gateway-system" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected the extra peer to be copied verbatim into From, got %+v", np.Spec.Ingress[0].From)
+	}
+}
+
+// TestBuildNetworkPolicy_ExtraPeersAloneStillProduceAnIngressRule covers the
+// no-FreqUI-no-operator-namespace edge of the deny-all-not-allow-all
+// invariant above: extraPeers alone must still be enough to produce an
+// ingress rule (not fall through to the deny-all "nothing to allow" path).
+func TestBuildNetworkPolicy_ExtraPeersAloneStillProduceAnIngressRule(t *testing.T) {
+	tradeBot := freqtradev1alpha1.TradeBot{
+		ObjectMeta: metav1.ObjectMeta{Name: testBotName, Namespace: testNamespace},
+		Spec: freqtradev1alpha1.TradeBotSpec{
+			App: &freqtradev1alpha1.TBAppConfig{
+				NetworkPolicySpec: &freqtradev1alpha1.TBNetworkPolicySpec{
+					ExtraPeers: []networkingv1.NetworkPolicyPeer{{
+						NamespaceSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"kubernetes.io/metadata.name": "ingress-nginx"},
+						},
+					}},
+				},
+			},
+		},
+	}
+
+	np := BuildNetworkPolicy(tradeBot, nil, "")
+
+	if len(np.Spec.Ingress) != 1 || len(np.Spec.Ingress[0].From) != 1 {
+		t.Fatalf("expected exactly one ingress rule with the one extra peer, got %+v", np.Spec.Ingress)
+	}
+}
+
 func mapsEqual(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false

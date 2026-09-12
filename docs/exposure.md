@@ -107,17 +107,39 @@ traffic to it.
 
 ## The NetworkPolicy caveat
 
-Each trade-mode `TradeBot`'s `NetworkPolicy` allows exactly two kinds of peer on its API port:
-the operator's own namespace, and same-namespace `FreqUI` pods. **Nothing allows an
-ingress-controller or Gateway data-plane pod**, which typically run in their own namespace
+Each trade-mode `TradeBot`'s `NetworkPolicy` allows, by default, exactly two kinds of peer on its
+API port: the operator's own namespace, and same-namespace `FreqUI` pods. **Neither of those is
+an ingress-controller or Gateway data-plane pod**, which typically run in their own namespace
 (`envoy-gateway-system`, `istio-system`, `ingress-nginx`, ...). This means the per-bot API
-subdomains this operator generates - `Ingress` rules today, `HTTPRoute`s in Gateway mode - are
-**not actually reachable from outside the cluster** on any cluster with a `NetworkPolicy`-enforcing
-CNI. This is a pre-existing limitation, not something Gateway mode introduces, and it isn't fixed
-yet: widening a live trading API's network reachability is a decision for a cluster operator to
-make explicitly, not something this operator does on your behalf by default.
+subdomains this operator generates - `Ingress` rules, or `HTTPRoute`s in Gateway mode - are **not
+actually reachable from outside the cluster by default** on any cluster with a
+`NetworkPolicy`-enforcing CNI. This is a pre-existing limitation, not something Gateway mode
+introduces.
 
-If you need the per-bot API subdomains reachable, add your own `NetworkPolicy` allowing your
-ingress controller's or Gateway's data-plane namespace/pods to reach the affected `TradeBot`'s API
-port. The UI itself (the non-bot-subdomain hostname) is unaffected - it only ever needs to reach
-the `FreqUI` Deployment's own port 80, which has no such restriction.
+Widening a live trading API's network reachability is a decision for whoever owns the `TradeBot`
+to make explicitly, not something this operator infers automatically from a `FreqUI`'s
+`spec.gateway.parentRefs` - a `Gateway`'s `parentRef` names the `Gateway` object's own namespace,
+not necessarily where its data-plane pods actually run, so deriving from it would be both too
+broad and sometimes simply wrong.
+
+If you need a `TradeBot`'s per-bot API subdomain reachable, opt the ingress controller's or
+Gateway's data-plane namespace/pods in explicitly via `TradeBot.spec.app.networkPolicy.extraPeers`
+- a list of standard `networking.k8s.io/v1` `NetworkPolicyPeer`s, folded verbatim into the
+generated `NetworkPolicy` alongside the two defaults:
+
+```yaml
+apiVersion: freqtrade.io/v1beta1
+kind: TradeBot
+spec:
+  app:
+    networkPolicy:
+      extraPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+```
+
+Off by default, per-`TradeBot`, and auditable directly on the object that owns the widened
+exposure - not a cluster-wide switch. The UI itself (the non-bot-subdomain hostname) is
+unaffected either way - it only ever needs to reach the `FreqUI` Deployment's own port 80, which
+has no such restriction.

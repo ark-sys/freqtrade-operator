@@ -21,6 +21,14 @@ aid, not a substitute for actually reading what changed.
 ## [Unreleased]
 
 ### Added
+- `TradeBot.spec.app.networkPolicy.extraPeers`: an opt-in, off-by-default list of extra
+  `NetworkPolicyPeer`s allowed to reach a trade-mode bot's freqtrade API port, on top of the
+  operator's own default (same-namespace `FreqUI` pods + the operator namespace) - neither of
+  which is reachable from an ingress controller's or a Gateway's data-plane namespace, which is
+  what makes the per-bot API subdomains `FreqUI` generates (`Ingress` rules, or `HTTPRoute`s in
+  Gateway mode) unreachable from outside the cluster by default on any cluster with an enforcing
+  CNI. Deliberately explicit and per-`TradeBot` rather than derived automatically from a
+  `FreqUI`'s `spec.gateway.parentRefs` - see [docs/exposure.md](docs/exposure.md).
 - `FreqUI.spec.exposure` (`Ingress`/`Gateway`/`None`, default `Ingress`): an explicit exposure-mode
   discriminator, additive to the existing Ingress path - which keeps working unchanged and stays the
   default. `Gateway` mode creates `gateway.networking.k8s.io/v1` `HTTPRoute`s (one per hostname; this
