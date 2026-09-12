@@ -6,7 +6,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
@@ -66,9 +69,10 @@ var _ = BeforeSuite(func() {
 	// controllers/tradebot/suite_test.go's identical comment for why.
 	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(freqtradev1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	Expect(gatewayv1.Install(scheme.Scheme)).To(Succeed())
 
 	By("bootstrapping the envtest environment")
-	// No Paths here, deliberately: this suite only needs the local serving
+	// No webhook Paths here, deliberately: this suite only needs the local serving
 	// cert/host/port that WebhookInstallOptions generates regardless of
 	// Paths (envtest's own conversion-webhook auto-wiring, see this
 	// file's own top comment, uses those directly) - it must NOT install
@@ -76,13 +80,26 @@ var _ = BeforeSuite(func() {
 	// cover TradeBot/TradeBotConfig/Strategy and would otherwise reject
 	// this suite's plain fixture objects against a webhook server that
 	// never registers their handlers.
+	//
+	// crdPaths always includes this repo's own CRDs. The Gateway API standard CRDs
+	// (G2-2/G6-1) are resolved from the module cache at test time via `go list` rather
+	// than vendored into the repo or hardcoded to a GOMODCACHE path - if that lookup
+	// fails (e.g. offline with an uncached module), this suite skips instead of failing,
+	// since the module being unavailable isn't this suite's own bug to report.
+	crdPaths := make([]string, 0, 2)
+	crdPaths = append(crdPaths, filepath.Join("..", "..", "config", "crd", "bases"))
+	gatewayAPIDir, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "sigs.k8s.io/gateway-api").Output()
+	if err != nil {
+		Skip(fmt.Sprintf("could not resolve sigs.k8s.io/gateway-api module dir for its standard CRDs: %v", err))
+	}
+	crdPaths = append(crdPaths, filepath.Join(strings.TrimSpace(string(gatewayAPIDir)), "config", "crd", "standard"))
+
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     crdPaths,
 		ErrorIfCRDPathMissing: true,
 		WebhookInstallOptions: envtest.WebhookInstallOptions{},
 	}
 
-	var err error
 	testCfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(testCfg).NotTo(BeNil())
@@ -108,6 +125,11 @@ var _ = BeforeSuite(func() {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("frequi-controller"),
+		// The Gateway API standard CRDs are installed above, so this suite covers the
+		// available path end to end (G2-2). G3-1's own unit tests cover the availability
+		// check itself; this suite doesn't re-run envtest a second time to cover the
+		// unavailable path too, per G6-1's own note in GATEWAY-API-PLAN.md.
+		GatewayAPIAvailable: true,
 	}
 	Expect(testReconciler.SetupWithManager(mgr)).To(Succeed())
 

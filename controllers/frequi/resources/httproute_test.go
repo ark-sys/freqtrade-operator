@@ -143,7 +143,7 @@ func TestBuildFreqUIHTTPRoutes_LabelsAndAnnotations(t *testing.T) {
 				ParentRefs:  []gatewayv1.ParentReference{{Name: "gw"}},
 				Annotations: map[string]string{"custom/annotation": "yes"},
 				// Attempting to override the operator's own ownership label must lose.
-				Labels: map[string]string{"team": "trading", frequiRouteLabelKey: "someone-else"},
+				Labels: map[string]string{"team": "trading", FrequiRouteLabelKey: "someone-else"},
 			},
 		},
 	}
@@ -151,8 +151,8 @@ func TestBuildFreqUIHTTPRoutes_LabelsAndAnnotations(t *testing.T) {
 	routes, _ := BuildFreqUIHTTPRoutes(frequi, nil)
 	route := routes[0]
 
-	if route.Labels[frequiRouteLabelKey] != testFreqUIName {
-		t.Errorf("expected operator's ownership label to win, got %q", route.Labels[frequiRouteLabelKey])
+	if route.Labels[FrequiRouteLabelKey] != testFreqUIName {
+		t.Errorf("expected operator's ownership label to win, got %q", route.Labels[FrequiRouteLabelKey])
 	}
 	if route.Labels[managedByLabelKey] != managedByLabelValue {
 		t.Errorf("expected managed-by label %q, got %q", managedByLabelValue, route.Labels[managedByLabelKey])

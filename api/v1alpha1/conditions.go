@@ -43,6 +43,14 @@ const (
 	// not a one-shot action: a bot that crashes and restarts comes back
 	// Running and must be re-stopped without anyone asking again.
 	ConditionStateReconciled = "StateReconciled"
+
+	// ConditionExposureReady reports whether FreqUI.Spec.Exposure's chosen
+	// mode is actually working (G2-2/G4-1, GATEWAY-API-PLAN.md): the
+	// Ingress applied, the HTTPRoutes were accepted by their Gateway, or
+	// (mode None) there's nothing to be ready. Independent of
+	// WorkloadReady - the Deployment can be perfectly healthy while
+	// nothing routes traffic to it.
+	ConditionExposureReady = "ExposureReady"
 )
 
 // Condition reasons. Shared across every condition type and controller that
@@ -135,6 +143,20 @@ const (
 	// was reachable per the last poll, but the start/stop call itself
 	// failed (e.g. it went unreachable in the moments since).
 	ReasonStateChangeFailed = "StateChangeFailed"
+
+	// ReasonGatewayAPINotInstalled is an ExposureReady=False reason
+	// (G2-2/G3-1): spec.exposure is Gateway but this cluster doesn't serve
+	// gateway.networking.k8s.io/v1 HTTPRoute, so no HTTPRoutes were
+	// created at all. Availability is checked once at operator startup -
+	// installing Gateway API afterwards needs an operator restart to be
+	// noticed, which the condition message says explicitly.
+	ReasonGatewayAPINotInstalled = "GatewayAPINotInstalled"
+	// ReasonRouteNameConflict is an ExposureReady=False reason (G2-2): the
+	// generated name for an HTTPRoute or Ingress collided with an object
+	// already owned by a different FreqUI (controllerutil.AlreadyOwnedError
+	// from shared.Apply) - surfaced as a condition instead of a generic
+	// reconcile error that requeues forever.
+	ReasonRouteNameConflict = "RouteNameConflict"
 
 	// ReasonAsExpected is the positive-case reason for a condition type when
 	// nothing more specific applies - e.g. ConfigResolved=True. Kubernetes

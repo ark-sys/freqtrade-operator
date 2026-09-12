@@ -8,12 +8,12 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
-// managedByLabelValue and frequiRouteLabelKey stamp every HTTPRoute this
+// managedByLabelValue and FrequiRouteLabelKey stamp every HTTPRoute this
 // operator generates, so pruneHTTPRoutes (G2-2) can select on them without
 // touching routes anything else created. Deliberately not appLabelKey
 // (that key selects Pods for the Deployment/Service, a different concept).
 const (
-	frequiRouteLabelKey  = "freqtrade.io/frequi"
+	FrequiRouteLabelKey  = "freqtrade.io/frequi"
 	managedByLabelKey    = "app.kubernetes.io/managed-by"
 	managedByLabelValue  = "freqtrade-operator"
 	pathPrefixMatchValue = "/"
@@ -50,8 +50,8 @@ func BuildFreqUIHTTPRoutes(
 		}
 	}
 	// Operator labels win over any user-supplied spec.gateway.labels of the same key -
-	// pruneHTTPRoutes depends on frequiRouteLabelKey actually naming this FreqUI.
-	labels[frequiRouteLabelKey] = frequi.Name
+	// pruneHTTPRoutes depends on FrequiRouteLabelKey actually naming this FreqUI.
+	labels[FrequiRouteLabelKey] = frequi.Name
 	labels[managedByLabelKey] = managedByLabelValue
 
 	uiHostnames := []gatewayv1.Hostname{gatewayv1.Hostname(mainHost)}
