@@ -32,6 +32,9 @@ jobs:
       - name: Check coverage against the ratcheted floors
         run: make coverage-gate
 
+      - name: Check sigs.k8s.io/gateway-api hasn't drifted off its pinned version
+        run: make gateway-api-version-gate
+
       - name: Verify generated manifests are up to date
         run: |
           make manifests generate

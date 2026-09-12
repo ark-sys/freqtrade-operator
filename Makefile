@@ -122,6 +122,10 @@ test: test-unit test-integration ## Run unit + envtest-backed integration tests 
 coverage-gate: ## Check coverage against the ratcheted floors in hack/coverage-gate.sh. Run after `make test`.
 	./hack/coverage-gate.sh
 
+.PHONY: gateway-api-version-gate
+gateway-api-version-gate: ## Fail if sigs.k8s.io/gateway-api drifted off its deliberate v1.3.0 pin (G0-2).
+	./hack/gateway-api-version-gate.sh
+
 # -short skips the envtest-backed suites entirely (controllers/tradebot, controllers/backtest,
 # controllers/frequi, controllers/strategy, controllers/tradebotconfig - each package's
 # TestControllers checks testing.Short() itself, see their suite_test.go) - no envtest binaries

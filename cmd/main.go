@@ -33,6 +33,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,6 +74,12 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(freqtradev1alpha1.AddToScheme(scheme))
 	utilruntime.Must(freqtradev1beta1.AddToScheme(scheme))
+	// Registering the type is inert without the CRD - only watches and API
+	// calls against it fail (G0-2, GATEWAY-API-PLAN.md). Gating this on
+	// whether the cluster actually has Gateway API installed would
+	// needlessly complicate shared.Apply, which resolves GVK via
+	// apiutil.GVKForObject(obj, c.Scheme()).
+	utilruntime.Must(gatewayv1.Install(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
