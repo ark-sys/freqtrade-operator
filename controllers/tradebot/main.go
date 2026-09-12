@@ -3,7 +3,6 @@ package tradebot
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -88,20 +87,7 @@ func collectCORSHostsForTradeBot(
 		for _, ref := range frequi.Spec.TradeBotRefs {
 			if ref.Name == tradeBot.Name {
 				if frequi.Spec.Host != "" {
-					host := frequi.Spec.Host
-					scheme := "https"
-					hostname := host
-
-					if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
-						u, err := url.Parse(host)
-						if err == nil && u.Host != "" {
-							scheme = u.Scheme
-							hostname = u.Host
-						}
-					} else if strings.HasPrefix(host, "localhost") {
-						scheme = "http"
-					}
-
+					scheme, hostname := shared.InferHostScheme(frequi.Spec.Host, "https")
 					baseURL := fmt.Sprintf("%s://%s", scheme, hostname)
 					if _, exists := corsSet[baseURL]; !exists {
 						corsHosts = append(corsHosts, baseURL)

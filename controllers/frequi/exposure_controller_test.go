@@ -11,8 +11,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -217,5 +219,51 @@ var _ = Describe("FreqUI spec.exposure reconcile switch (G2-2)", func() {
 			var route gatewayv1.HTTPRoute
 			return k8sClient.Get(ctx, ownerKey, &route)
 		}).Should(Succeed())
+	})
+})
+
+// G4-1's own acceptance case: no real Gateway controller runs in this suite (G6-1's note in
+// GATEWAY-API-PLAN.md - asserting Accepted=True would need one), so every HTTPRoute this suite
+// creates in Gateway mode has an empty status.parents forever. That must surface as
+// ExposureReady=False/RoutePending - not an error, and not something that drags WorkloadReady
+// down with it.
+var _ = Describe("FreqUI ExposureReady when no Gateway controller has claimed the route (G4-1)", func() {
+	It("reports False/RoutePending while WorkloadReady stays True and phase is Degraded", func() {
+		ctx := context.Background()
+		frequi := &freqtradev1beta1.FreqUI{
+			ObjectMeta: metav1.ObjectMeta{Name: "exposure-route-pending", Namespace: testNamespace},
+			Spec: freqtradev1beta1.FreqUISpec{
+				Exposure: freqtradev1beta1.FUExposureGateway,
+				Gateway:  &freqtradev1beta1.FUGatewaySpec{ParentRefs: []gatewayv1.ParentReference{{Name: "my-gateway"}}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
+		key := types.NamespacedName{Name: frequi.Name, Namespace: testNamespace}
+
+		var deployment appsv1.Deployment
+		Eventually(func() error {
+			return k8sClient.Get(ctx, key, &deployment)
+		}).Should(Succeed())
+		deployment.Status.Replicas = 1
+		deployment.Status.ReadyReplicas = 1
+		deployment.Status.AvailableReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, &deployment)).To(Succeed())
+
+		_, err := testReconciler.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+		Expect(err).NotTo(HaveOccurred())
+
+		var latest freqtradev1beta1.FreqUI
+		Expect(k8sClient.Get(ctx, key, &latest)).To(Succeed())
+
+		workloadCond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionWorkloadReady)
+		Expect(workloadCond).NotTo(BeNil())
+		Expect(workloadCond.Status).To(Equal(metav1.ConditionTrue))
+
+		exposureCond := meta.FindStatusCondition(latest.Status.Conditions, freqtradev1alpha1.ConditionExposureReady)
+		Expect(exposureCond).NotTo(BeNil())
+		Expect(exposureCond.Status).To(Equal(metav1.ConditionFalse))
+		Expect(exposureCond.Reason).To(Equal(freqtradev1alpha1.ReasonRoutePending))
+
+		Expect(latest.Status.Phase).To(Equal("Degraded"))
 	})
 })

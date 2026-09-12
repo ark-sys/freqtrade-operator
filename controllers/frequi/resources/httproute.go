@@ -37,7 +37,7 @@ func BuildFreqUIHTTPRoutes(
 	frequi freqtradev1beta1.FreqUI, tradeBotAPIRoutes []TradeBotAPIRoute,
 ) (routes []gatewayv1.HTTPRoute, skippedRoutes []string) {
 	spec := frequi.Spec
-	mainHost := resolveMainHost(frequi)
+	mainHost := ResolveMainHost(frequi)
 
 	parentRefs := []gatewayv1.ParentReference{}
 	labels := map[string]string{}

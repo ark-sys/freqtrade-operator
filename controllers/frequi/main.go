@@ -40,9 +40,10 @@ type Reconciler struct {
 	// GatewayAPIAvailable reports whether this cluster serves
 	// gateway.networking.k8s.io/v1 HTTPRoute (G3-1, shared.GatewayAPIAvailable),
 	// checked once at operator startup - installing Gateway API afterwards
-	// needs an operator restart to be noticed. Reconciling a Gateway-mode
-	// FreqUI while this is false is G2-2's job (not yet implemented);
-	// Ingress-mode FreqUIs are unaffected either way.
+	// needs an operator restart to be noticed. A Gateway-mode FreqUI
+	// reconciled while this is false skips route creation and reports why
+	// via ExposureReady (G2-2); Ingress-mode FreqUIs are unaffected either
+	// way.
 	GatewayAPIAvailable bool
 }
 
@@ -93,7 +94,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	url := ""
 	if ready {
 		message = "FreqUI deployed successfully"
-		url = fmt.Sprintf("http://%s.%s.svc.cluster.local", frequi.Name, frequi.Namespace)
+		url = deriveFreqUIURL(&frequi)
 		requeueAfter = 5 * time.Minute
 	}
 
@@ -107,13 +108,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			condition.Status, condition.Reason = metav1.ConditionFalse, freqtradev1alpha1.ReasonWorkloadProgressing
 		}
 		meta.SetStatusCondition(&frequi.Status.Conditions, condition)
-		meta.SetStatusCondition(&frequi.Status.Conditions, metav1.Condition{
-			Type: freqtradev1alpha1.ConditionReady, Status: condition.Status, Reason: condition.Reason, Message: message,
-		})
 		meta.SetStatusCondition(&frequi.Status.Conditions, tradeBotRefsResolvedCondition(unresolvedRefs))
 		if exposureCond != nil {
 			meta.SetStatusCondition(&frequi.Status.Conditions, *exposureCond)
 		}
+		meta.SetStatusCondition(&frequi.Status.Conditions, aggregateReadyCondition(frequi.Status.Conditions, message))
 		frequi.Status.Phase = deriveFreqUIPhase(frequi.Status.Conditions)
 		frequi.Status.Message = message
 		frequi.Status.URL = url
@@ -131,7 +130,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // deriveFreqUIPhase computes the human-facing Phase from Conditions - it is
-// never itself the source of truth.
+// never itself the source of truth. ExposureReady (G4-1) only ever demotes
+// an otherwise-healthy workload to Degraded - a FreqUI that's up but
+// unreachable is a distinct, worth-naming state, not the same as Running.
 func deriveFreqUIPhase(conditions []metav1.Condition) string {
 	c := meta.FindStatusCondition(conditions, freqtradev1alpha1.ConditionWorkloadReady)
 	if c == nil {
@@ -139,12 +140,72 @@ func deriveFreqUIPhase(conditions []metav1.Condition) string {
 	}
 	switch c.Reason {
 	case freqtradev1alpha1.ReasonWorkloadHealthy:
+		if meta.IsStatusConditionFalse(conditions, freqtradev1alpha1.ConditionExposureReady) {
+			return "Degraded"
+		}
 		return "Running"
 	case freqtradev1alpha1.ReasonReconcileError:
 		return "ResourceError"
 	default:
 		return "Pending"
 	}
+}
+
+// aggregateReadyCondition folds WorkloadReady and ExposureReady into the
+// top-level Ready condition (G4-1) - True only when both are, unlike
+// before G4-1 when Ready simply mirrored WorkloadReady alone.
+// ExposureReady's absence from conditions (nil on the first-ever reconcile,
+// before reconcileAllResources has run once) is treated as not-yet-known,
+// not as a failure - it doesn't hold Ready back from also being unset,
+// which IsStatusConditionTrue's own false-on-absent semantics already
+// gets right for both inputs.
+func aggregateReadyCondition(conditions []metav1.Condition, message string) metav1.Condition {
+	workloadReady := meta.IsStatusConditionTrue(conditions, freqtradev1alpha1.ConditionWorkloadReady)
+	exposureReady := meta.IsStatusConditionTrue(conditions, freqtradev1alpha1.ConditionExposureReady)
+
+	if workloadReady && exposureReady {
+		return metav1.Condition{
+			Type: freqtradev1alpha1.ConditionReady, Status: metav1.ConditionTrue,
+			Reason: freqtradev1alpha1.ReasonAsExpected, Message: message,
+		}
+	}
+
+	reason := freqtradev1alpha1.ReasonWorkloadProgressing
+	switch {
+	case !workloadReady:
+		if wc := meta.FindStatusCondition(conditions, freqtradev1alpha1.ConditionWorkloadReady); wc != nil {
+			reason = wc.Reason
+		}
+	default: // workloadReady is true, so exposureReady must be the false one
+		if ec := meta.FindStatusCondition(conditions, freqtradev1alpha1.ConditionExposureReady); ec != nil {
+			reason = ec.Reason
+		}
+	}
+	return metav1.Condition{
+		Type: freqtradev1alpha1.ConditionReady, Status: metav1.ConditionFalse, Reason: reason, Message: message,
+	}
+}
+
+// deriveFreqUIURL fixes the pre-G4-1 bug where status.url hardcoded a
+// cluster-local address and ignored spec.host entirely, even in Ingress
+// mode with a real public hostname configured. None mode is the one
+// exception: nothing routes to spec.host at all in that mode, so the
+// cluster-local Service DNS name (reachable via kubectl port-forward) is
+// honestly the only URL that means anything.
+func deriveFreqUIURL(frequi *freqtradev1beta1.FreqUI) string {
+	if frequi.Spec.Exposure == freqtradev1beta1.FUExposureNone {
+		return fmt.Sprintf("http://%s.%s.svc.cluster.local", frequi.Name, frequi.Namespace)
+	}
+
+	mainHost := resources.ResolveMainHost(*frequi)
+	// TLS is meaningless (and CEL-forbidden, G1-1) in Gateway mode - there's no listener
+	// info available to this operator, so default to http rather than guess.
+	defaultScheme := "http"
+	if frequi.Spec.Exposure != freqtradev1beta1.FUExposureGateway && len(frequi.Spec.TLS) > 0 {
+		defaultScheme = "https"
+	}
+	scheme, hostname := shared.InferHostScheme(mainHost, defaultScheme)
+	return fmt.Sprintf("%s://%s", scheme, hostname)
 }
 
 // tradeBotRefsResolvedCondition builds the TradeBotRefsResolved condition
@@ -299,6 +360,7 @@ func (r *Reconciler) reconcileExposure(
 		routes, skippedRoutes := resources.BuildFreqUIHTTPRoutes(*frequi, apiRoutes)
 		desired := make(map[string]bool, len(routes))
 		var conflictNames []string
+		var appliedRoutes []gatewayv1.HTTPRoute
 		for i := range routes {
 			route := routes[i]
 			if err := shared.Apply(ctx, r.Client, frequi, &route); err != nil {
@@ -311,6 +373,7 @@ func (r *Reconciler) reconcileExposure(
 				return nil, fmt.Errorf("failed to apply HTTPRoute %s: %w", route.Name, err)
 			}
 			desired[route.Name] = true
+			appliedRoutes = append(appliedRoutes, route)
 			logger.V(2).Info("HTTPRoute reconciled", "name", route.Name)
 		}
 
@@ -329,7 +392,7 @@ func (r *Reconciler) reconcileExposure(
 					conflictNames, skippedRoutes),
 			}, nil
 		}
-		return nil, nil
+		return deriveGatewayExposureCondition(appliedRoutes), nil
 
 	case freqtradev1beta1.FUExposureNone:
 		if err := r.pruneHTTPRoutes(ctx, frequi, nil); err != nil {
@@ -338,7 +401,10 @@ func (r *Reconciler) reconcileExposure(
 		if err := r.deleteOwnedIngress(ctx, frequi); err != nil {
 			return nil, err
 		}
-		return nil, nil
+		return &metav1.Condition{
+			Type: freqtradev1alpha1.ConditionExposureReady, Status: metav1.ConditionTrue,
+			Reason: freqtradev1alpha1.ReasonExposureNone, Message: "no external exposure requested",
+		}, nil
 
 	default: // "" and FUExposureIngress - today's behaviour, unchanged.
 		ingress := resources.BuildFreqUIIngress(*frequi, apiRoutes)
@@ -359,7 +425,93 @@ func (r *Reconciler) reconcileExposure(
 		if err := r.pruneHTTPRoutes(ctx, frequi, nil); err != nil {
 			return nil, err
 		}
-		return nil, nil
+		// Deliberately not interpreting Ingress.status.loadBalancer (G4-1) - it's
+		// inconsistent across ingress controllers, and applying successfully is as far as
+		// this operator can vouch for.
+		return &metav1.Condition{
+			Type: freqtradev1alpha1.ConditionExposureReady, Status: metav1.ConditionTrue,
+			Reason: freqtradev1alpha1.ReasonAsExpected, Message: "Ingress applied",
+		}, nil
+	}
+}
+
+// deriveGatewayExposureCondition reads each applied HTTPRoute's own
+// status.parents[] (populated by whatever Gateway controller claimed it,
+// not by this operator) and folds them into one ExposureReady condition
+// (G4-1). True only if every route has at least one parent reporting both
+// Accepted=True and ResolvedRefs=True. A route with an empty status.parents
+// hasn't been claimed by any controller yet - RoutePending, not an error.
+// A route whose every parent explicitly rejected it - RouteNotAccepted,
+// with the first failing reason named in the message alongside every
+// affected route.
+func deriveGatewayExposureCondition(routes []gatewayv1.HTTPRoute) *metav1.Condition {
+	type failure struct {
+		routeName string
+		pending   bool
+		reason    string
+	}
+	var failures []failure
+
+	for _, route := range routes {
+		if len(route.Status.Parents) == 0 {
+			failures = append(failures, failure{routeName: route.Name, pending: true})
+			continue
+		}
+
+		accepted := false
+		firstReason := ""
+		for _, parent := range route.Status.Parents {
+			acceptedCond := meta.FindStatusCondition(parent.Conditions, string(gatewayv1.RouteConditionAccepted))
+			resolvedCond := meta.FindStatusCondition(parent.Conditions, string(gatewayv1.RouteConditionResolvedRefs))
+			if acceptedCond != nil && acceptedCond.Status == metav1.ConditionTrue &&
+				resolvedCond != nil && resolvedCond.Status == metav1.ConditionTrue {
+				accepted = true
+				break
+			}
+			if firstReason == "" {
+				switch {
+				case acceptedCond != nil && acceptedCond.Status != metav1.ConditionTrue:
+					firstReason = acceptedCond.Reason
+				case resolvedCond != nil && resolvedCond.Status != metav1.ConditionTrue:
+					firstReason = resolvedCond.Reason
+				}
+			}
+		}
+		if !accepted {
+			if firstReason == "" {
+				firstReason = "Unknown"
+			}
+			failures = append(failures, failure{routeName: route.Name, reason: firstReason})
+		}
+	}
+
+	if len(failures) == 0 {
+		return &metav1.Condition{
+			Type: freqtradev1alpha1.ConditionExposureReady, Status: metav1.ConditionTrue,
+			Reason: freqtradev1alpha1.ReasonAsExpected, Message: "every HTTPRoute was accepted by its Gateway",
+		}
+	}
+
+	reason := freqtradev1alpha1.ReasonRouteNotAccepted
+	for _, f := range failures {
+		if f.pending {
+			reason = freqtradev1alpha1.ReasonRoutePending
+			break
+		}
+	}
+
+	names := make([]string, len(failures))
+	for i, f := range failures {
+		if f.pending {
+			names[i] = fmt.Sprintf("%s (pending)", f.routeName)
+		} else {
+			names[i] = fmt.Sprintf("%s (%s)", f.routeName, f.reason)
+		}
+	}
+	return &metav1.Condition{
+		Type: freqtradev1alpha1.ConditionExposureReady, Status: metav1.ConditionFalse,
+		Reason:  reason,
+		Message: fmt.Sprintf("not every HTTPRoute has been accepted: %s", strings.Join(names, ", ")),
 	}
 }
 

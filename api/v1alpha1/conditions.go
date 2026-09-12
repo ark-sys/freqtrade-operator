@@ -157,11 +157,25 @@ const (
 	// from shared.Apply) - surfaced as a condition instead of a generic
 	// reconcile error that requeues forever.
 	ReasonRouteNameConflict = "RouteNameConflict"
+	// ReasonRoutePending is an ExposureReady=False reason (G4-1): every
+	// generated HTTPRoute applied cleanly, but at least one has an empty
+	// status.parents - no Gateway controller has claimed it yet. Not an
+	// error; just not ready yet.
+	ReasonRoutePending = "RoutePending"
+	// ReasonRouteNotAccepted is an ExposureReady=False reason (G4-1): at
+	// least one generated HTTPRoute's status.parents reports Accepted=False
+	// or ResolvedRefs=False for every parent - the Gateway explicitly
+	// rejected it, rather than merely not having claimed it yet.
+	ReasonRouteNotAccepted = "RouteNotAccepted"
 
 	// ReasonAsExpected is the positive-case reason for a condition type when
 	// nothing more specific applies - e.g. ConfigResolved=True. Kubernetes
 	// Conditions require a non-empty Reason even when Status is True.
 	ReasonAsExpected = "AsExpected"
+	// ReasonExposureNone is the ExposureReady=True reason when
+	// spec.exposure is None (G4-1): nothing was meant to be created, so
+	// there's nothing to be not-ready.
+	ReasonExposureNone = "ExposureNone"
 	// ReasonWorkloadHealthy is the positive-case reason for WorkloadReady.
 	ReasonWorkloadHealthy = "WorkloadHealthy"
 	// ReasonSpecMatchesWorkload is the positive-case reason for

@@ -13,11 +13,11 @@ type TradeBotAPIRoute struct {
 	PathPrefix  string
 }
 
-// resolveMainHost is the host both BuildFreqUIIngress and
+// ResolveMainHost is the host both BuildFreqUIIngress and
 // BuildFreqUIHTTPRoutes (G2-1) resolve the FreqUI's own hostname from -
 // spec.Host, falling back to a cluster-local default so the two builders
 // can never disagree on what "the main host" means.
-func resolveMainHost(frequi freqtradev1beta1.FreqUI) string {
+func ResolveMainHost(frequi freqtradev1beta1.FreqUI) string {
 	if frequi.Spec.Host != "" {
 		return frequi.Spec.Host
 	}
@@ -29,7 +29,7 @@ func BuildFreqUIIngress(frequi freqtradev1beta1.FreqUI, tradeBotAPIRoutes []Trad
 	spec := frequi.Spec
 	pathType := networkingv1.PathTypePrefix
 
-	mainHost := resolveMainHost(frequi)
+	mainHost := ResolveMainHost(frequi)
 
 	rules := make([]networkingv1.IngressRule, 0, 1+len(tradeBotAPIRoutes))
 
