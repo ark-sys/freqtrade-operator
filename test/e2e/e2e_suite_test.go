@@ -42,6 +42,12 @@ var (
 	// isCertManagerAlreadyInstalled will be set true when CertManager CRDs be found on the cluster
 	isCertManagerAlreadyInstalled = false
 
+	// GATEWAY_API_INSTALL_SKIP=true: Skips Gateway API CRD installation during test setup (G6-2,
+	// GATEWAY-API-PLAN.md) - same idempotence pattern as CERT_MANAGER_INSTALL_SKIP above.
+	skipGatewayAPIInstall = os.Getenv("GATEWAY_API_INSTALL_SKIP") == "true"
+	// isGatewayAPIAlreadyInstalled will be set true when the Gateway API CRDs are found on the cluster
+	isGatewayAPIAlreadyInstalled = false
+
 	// projectImage is the name of the image which will be build and loaded
 	// with the code source changes to be tested.
 	projectImage = "example.com/freqtrade-operator:v0.0.1"
@@ -97,6 +103,17 @@ var _ = BeforeSuite(func() {
 			_, _ = fmt.Fprintf(GinkgoWriter, "WARNING: CertManager is already installed. Skipping installation...\n")
 		}
 	}
+
+	if !skipGatewayAPIInstall {
+		By("checking if the Gateway API CRDs are installed already")
+		isGatewayAPIAlreadyInstalled = utils.IsGatewayAPICRDsInstalled()
+		if !isGatewayAPIAlreadyInstalled {
+			_, _ = fmt.Fprintf(GinkgoWriter, "Installing Gateway API standard CRDs...\n")
+			Expect(utils.InstallGatewayAPI()).To(Succeed(), "Failed to install the Gateway API CRDs")
+		} else {
+			_, _ = fmt.Fprintf(GinkgoWriter, "WARNING: Gateway API CRDs are already installed. Skipping installation...\n")
+		}
+	}
 })
 
 var _ = AfterSuite(func() {
@@ -104,5 +121,10 @@ var _ = AfterSuite(func() {
 	if !skipCertManagerInstall && !isCertManagerAlreadyInstalled {
 		_, _ = fmt.Fprintf(GinkgoWriter, "Uninstalling CertManager...\n")
 		utils.UninstallCertManager()
+	}
+
+	if !skipGatewayAPIInstall && !isGatewayAPIAlreadyInstalled {
+		_, _ = fmt.Fprintf(GinkgoWriter, "Uninstalling Gateway API CRDs...\n")
+		utils.UninstallGatewayAPI()
 	}
 })

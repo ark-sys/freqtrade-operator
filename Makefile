@@ -147,6 +147,8 @@ test-integration: manifests generate fmt vet setup-envtest ## Run only the envte
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
+# The Gateway API standard CRDs (G6-2) are installed by default too; skip with:
+# - GATEWAY_API_INSTALL_SKIP=true
 KIND_CLUSTER ?= freqtrade-operator-test-e2e
 
 .PHONY: setup-test-e2e

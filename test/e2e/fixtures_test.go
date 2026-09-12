@@ -189,9 +189,9 @@ func newStrategy(name string) *freqtradev1alpha1.Strategy {
 // first reports Ready (verified directly: a real run's first poll hit a transient 502 during that
 // window, then backed off) - at the 60s default, one unlucky first poll can push the next retry out
 // past what a 3-minute Eventually budget can wait for, even though the bot is healthy moments later.
-func newTradeBot(name, namespace, configRef, strategyRef string) *freqtradev1alpha1.TradeBot {
+func newTradeBot(name, configRef, strategyRef string) *freqtradev1alpha1.TradeBot {
 	return &freqtradev1alpha1.TradeBot{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tradingNamespace},
 		Spec: freqtradev1alpha1.TradeBotSpec{
 			Config:   configRef,
 			Strategy: strategyRef,

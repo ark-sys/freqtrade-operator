@@ -301,6 +301,7 @@ var _ = Describe("Manager", Ordered, func() {
 	backtestContext()
 	webhookRejectionContext()
 	upgradeContext()
+	frequiGatewayContext()
 })
 
 // serviceAccountToken returns a token for the specified service account in the given namespace.

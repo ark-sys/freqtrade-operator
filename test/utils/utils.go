@@ -192,6 +192,78 @@ func IsCertManagerCRDsInstalled() bool {
 	return false
 }
 
+// IsGatewayAPICRDsInstalled checks whether the Gateway API standard CRDs (G6-2,
+// GATEWAY-API-PLAN.md) are already present on the cluster.
+func IsGatewayAPICRDsInstalled() bool {
+	gatewayAPICRDs := []string{
+		"gatewayclasses.gateway.networking.k8s.io",
+		"gateways.gateway.networking.k8s.io",
+		"httproutes.gateway.networking.k8s.io",
+	}
+
+	cmd := exec.Command("kubectl", "get", "crds")
+	output, err := Run(cmd)
+	if err != nil {
+		return false
+	}
+
+	crdList := GetNonEmptyLines(output)
+	for _, crd := range gatewayAPICRDs {
+		for _, line := range crdList {
+			if strings.Contains(line, crd) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// gatewayAPIStandardCRDDir resolves sigs.k8s.io/gateway-api's own standard CRD YAMLs from the
+// module cache - not vendored into the repo, and not a hardcoded GOMODCACHE path, matching
+// controllers/frequi/suite_test.go's own resolution for the same CRDs (G2-2).
+func gatewayAPIStandardCRDDir() (string, error) {
+	cmd := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "sigs.k8s.io/gateway-api")
+	dir, err := Run(cmd)
+	if err != nil {
+		return "", fmt.Errorf("resolving sigs.k8s.io/gateway-api module dir: %w", err)
+	}
+	return strings.TrimSpace(dir) + "/config/crd/standard", nil
+}
+
+// InstallGatewayAPI installs the Gateway API standard CRDs (GatewayClass, Gateway, HTTPRoute,
+// GRPCRoute, ReferenceGrant). No Gateway controller is installed alongside them - this project's
+// e2e suite only asserts what's verifiable without a data plane (G6-2).
+func InstallGatewayAPI() error {
+	crdDir, err := gatewayAPIStandardCRDDir()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command("kubectl", "apply", "-f", crdDir)
+	if _, err := Run(cmd); err != nil {
+		return err
+	}
+	cmd = exec.Command("kubectl", "wait", "--for", "condition=Established",
+		"--timeout", "60s",
+		"crd/httproutes.gateway.networking.k8s.io",
+	)
+	_, err = Run(cmd)
+	return err
+}
+
+// UninstallGatewayAPI uninstalls the Gateway API standard CRDs.
+func UninstallGatewayAPI() {
+	crdDir, err := gatewayAPIStandardCRDDir()
+	if err != nil {
+		warnError(err)
+		return
+	}
+	cmd := exec.Command("kubectl", "delete", "-f", crdDir)
+	if _, err := Run(cmd); err != nil {
+		warnError(err)
+	}
+}
+
 // LoadImageToKindClusterWithName loads a local docker image to the kind cluster
 func LoadImageToKindClusterWithName(name string) error {
 	cluster := "kind"

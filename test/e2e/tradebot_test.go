@@ -67,7 +67,7 @@ func tradeBotDryRunContext() {
 			Expect(k8sClient.Create(ctx, newExchangeSecret(exchangeSA))).To(Succeed())
 			Expect(k8sClient.Create(ctx, newStrategy(strategy))).To(Succeed())
 			Expect(k8sClient.Create(ctx, newDryRunTradeBotConfig(config, exchangeSA))).To(Succeed())
-			Expect(k8sClient.Create(ctx, newTradeBot(botName, tradingNamespace, config, strategy))).To(Succeed())
+			Expect(k8sClient.Create(ctx, newTradeBot(botName, config, strategy))).To(Succeed())
 			Expect(k8sClient.Create(ctx, newFreqUI(frequiName, tradingNamespace, []string{botName}))).To(Succeed())
 		})
 

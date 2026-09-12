@@ -66,7 +66,7 @@ func upgradeContext() {
 			Expect(k8sClient.Create(ctx, newExchangeSecret(exchangeSA))).To(Succeed())
 			Expect(k8sClient.Create(ctx, newStrategy(strategy))).To(Succeed())
 			Expect(k8sClient.Create(ctx, newDryRunTradeBotConfig(config, exchangeSA))).To(Succeed())
-			Expect(k8sClient.Create(ctx, newTradeBot(botName, tradingNamespace, config, strategy))).To(Succeed())
+			Expect(k8sClient.Create(ctx, newTradeBot(botName, config, strategy))).To(Succeed())
 
 			By("creating a v1alpha1 FreqUI referencing that TradeBot (B3: typed TradeBotRefs in v1beta1)")
 			Expect(k8sClient.Create(ctx, newFreqUI(frequi, tradingNamespace, []string{botName}))).To(Succeed())
