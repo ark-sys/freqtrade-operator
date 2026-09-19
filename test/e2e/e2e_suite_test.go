@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 var (
@@ -73,6 +74,10 @@ var _ = BeforeSuite(func() {
 	By("building a typed client against the current kubeconfig context")
 	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(freqtradev1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+	// frequi_gateway_test.go reads HTTPRoutes through this same client; without this every Get on
+	// one fails with "no kind is registered for the type v1.HTTPRoute" - which is exactly what
+	// those specs did the first time they were ever able to run (they were skipped in CI before).
+	Expect(gatewayv1.Install(scheme.Scheme)).To(Succeed())
 	restCfg, err := config.GetConfig()
 	Expect(err).NotTo(HaveOccurred(), "Failed to load kubeconfig")
 	k8sClient, err = client.New(restCfg, client.Options{Scheme: scheme.Scheme})

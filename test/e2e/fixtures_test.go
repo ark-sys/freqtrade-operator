@@ -17,13 +17,19 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Fixture builders shared by every e2e spec file that needs a real TradeBot/
@@ -266,4 +272,19 @@ func newBacktest(name, namespace, configRef, strategyRef, cachePVCName string) *
 			StakeAmount: "100",
 		},
 	}
+}
+
+// createRetrying creates obj, retrying for up to a minute on any error other than AlreadyExists
+// (treated as success, so a retry after a create that actually landed but whose response was lost
+// to a webhook timeout doesn't fail the spec). For Creates made right after the manager has been
+// redeployed, when the webhook Service can briefly still route to the old pod.
+func createRetrying(ctx context.Context, obj client.Object) {
+	GinkgoHelper()
+	Eventually(func(g Gomega) {
+		err := k8sClient.Create(ctx, obj)
+		if apierrors.IsAlreadyExists(err) {
+			return
+		}
+		g.Expect(err).NotTo(HaveOccurred())
+	}, "1m", "3s").Should(Succeed())
 }

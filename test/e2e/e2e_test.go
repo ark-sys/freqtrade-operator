@@ -33,6 +33,9 @@ import (
 // namespace where the project is deployed in
 const namespace = "freqtrade-operator-system"
 
+// deploymentName is the manager's Deployment, addressed by name in diagnostics.
+const deploymentName = "freqtrade-operator-controller-manager"
+
 // serviceAccountName created for the project
 const serviceAccountName = "freqtrade-operator-controller-manager"
 
@@ -132,7 +135,10 @@ var _ = Describe("Manager", Ordered, ContinueOnFailure, func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
 			By("Fetching controller manager pod logs")
-			cmd := exec.Command("kubectl", "logs", controllerPodName, "-n", namespace)
+			// By Deployment, not controllerPodName: that name is captured once at startup and goes
+			// stale the moment upgrade_test.go redeploys the manager - exactly when a later spec
+			// fails and these logs are wanted.
+			cmd := exec.Command("kubectl", "logs", "deployment/"+deploymentName, "-n", namespace)
 			controllerLogs, err := utils.Run(cmd)
 			if err == nil {
 				_, _ = fmt.Fprintf(GinkgoWriter, "Controller logs:\n %s", controllerLogs)
@@ -159,7 +165,7 @@ var _ = Describe("Manager", Ordered, ContinueOnFailure, func() {
 			}
 
 			By("Fetching controller manager pod description")
-			cmd = exec.Command("kubectl", "describe", "pod", controllerPodName, "-n", namespace)
+			cmd = exec.Command("kubectl", "describe", "pod", "-l", "control-plane=controller-manager", "-n", namespace)
 			podDescription, err := utils.Run(cmd)
 			if err == nil {
 				fmt.Println("Pod description:\n", podDescription)
