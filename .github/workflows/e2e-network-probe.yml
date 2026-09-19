@@ -1,0 +1,107 @@
+# TEMPORARY - delete once the e2e exchange-reachability problem is resolved.
+# Answers, in ~3 minutes instead of a full e2e run, whether the GitHub-hosted runner and/or a kind
+# cluster on it can reach the exchanges the e2e fixtures could use. Runs only for pushes to the
+# investigation branch touching this file.
+name: E2E Network Probe
+
+on:
+  push:
+    branches:
+      - fix/e2e-ci-network
+    paths:
+      - '.github/workflows/e2e-network-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Runner identity
+        run: |
+          echo "--- public IP / geo"
+          curl -s -m 10 https://ipinfo.io/json || true
+          echo; echo "--- resolv.conf"; cat /etc/resolv.conf
+          echo "--- docker0/MTU"; ip -br addr; ip link | grep -i mtu | head
+
+      - name: Host reachability
+        run: |
+          probe() { printf '%-55s ' "$1"; curl -s -o /dev/null -m 10 -w 'http=%{http_code} dns=%{time_namelookup}s total=%{time_total}s\n' "$1" || echo "FAILED rc=$?"; }
+          for u in \
+            https://example.com \
+            https://api-testnet.bybit.com/v5/market/time \
+            https://testnet.binance.vision/api/v3/time \
+            https://api.binance.com/api/v3/time \
+            https://api.kraken.com/0/public/Time \
+            https://www.okx.com/api/v5/public/time \
+            https://api.kucoin.com/api/v1/timestamp \
+            https://api.gateio.ws/api/v4/spot/time \
+            https://api.coinbase.com/v2/time \
+            https://api.bitget.com/api/v2/public/time \
+            https://api.hyperliquid.xyz/info; do probe "$u"; done
+
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
+          chmod +x ./kind && sudo mv ./kind /usr/local/bin/kind
+          kind create cluster --name probe
+
+      - name: Cluster DNS/egress from a pod
+        run: |
+          kubectl -n kube-system get cm coredns -o jsonpath='{.data.Corefile}'; echo
+          kubectl -n kube-system get pods -o wide
+          cat > /tmp/probe.sh <<'SH'
+          probe() { printf '%-55s ' "$1"; curl -s -o /dev/null -m 10 -w 'http=%{http_code} dns=%{time_namelookup}s total=%{time_total}s\n' "$1" || echo "FAILED rc=$?"; }
+          echo "--- pod resolv.conf"; cat /etc/resolv.conf
+          for u in \
+            https://example.com \
+            https://api-testnet.bybit.com/v5/market/time \
+            https://testnet.binance.vision/api/v3/time \
+            https://api.binance.com/api/v3/time \
+            https://api.kraken.com/0/public/Time \
+            https://www.okx.com/api/v5/public/time \
+            https://api.kucoin.com/api/v1/timestamp \
+            https://api.gateio.ws/api/v4/spot/time \
+            https://api.coinbase.com/v2/time \
+            https://api.bitget.com/api/v2/public/time \
+            https://api.hyperliquid.xyz/info; do probe "$u"; done
+          SH
+          kubectl create configmap probe --from-file=probe.sh=/tmp/probe.sh
+          kubectl apply -f - <<'YAML'
+          apiVersion: v1
+          kind: Pod
+          metadata: {name: probe}
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: c
+              image: curlimages/curl:latest
+              command: ["sh", "/p/probe.sh"]
+              volumeMounts: [{name: p, mountPath: /p}]
+            volumes: [{name: p, configMap: {name: probe}}]
+          YAML
+          kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/probe --timeout=180s || true
+          kubectl logs probe || true
+
+      - name: Same probe with hostNetwork (isolates pod networking from runner egress)
+        run: |
+          kubectl delete pod probe --ignore-not-found
+          kubectl apply -f - <<'YAML'
+          apiVersion: v1
+          kind: Pod
+          metadata: {name: probe}
+          spec:
+            hostNetwork: true
+            restartPolicy: Never
+            containers:
+            - name: c
+              image: curlimages/curl:latest
+              command: ["sh", "/p/probe.sh"]
+              volumeMounts: [{name: p, mountPath: /p}]
+            volumes: [{name: p, configMap: {name: probe}}]
+          YAML
+          kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/probe --timeout=180s || true
+          kubectl logs probe || true
