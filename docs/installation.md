@@ -48,6 +48,19 @@ cosign verify ghcr.io/ark-sys/freqtrade-operator:<tag> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
+## Image tags
+
+The image is public: `ghcr.io/ark-sys/freqtrade-operator` pulls anonymously. GHCR reports a tag that doesn't exist
+as `denied` to anonymous clients, so a "denied" pull almost always means a wrong tag, not missing credentials.
+
+| Tag | Published by | Use for |
+|---|---|---|
+| `vX.Y.Z` | pushing a `vX.Y.Z` git tag | deployments - pin this |
+| `latest` | the same tag push (moves to the newest release) | quick trials only |
+| `vYYYYMMDD-<sha>` | every push to `main` | testing an unreleased commit |
+
+`latest` and `vX.Y.Z` do not exist until a release is tagged. See [CONTRIBUTING.md](../CONTRIBUTING.md#releasing).
+
 ## Using OLM
 
 Every tagged release also publishes an [OLM](https://olm.operatorframework.io/) bundle image

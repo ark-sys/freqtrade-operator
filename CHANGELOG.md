@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows
-[Semantic Versioning](https://semver.org/) once the first release is tagged.
+[Semantic Versioning](https://semver.org/).
 
 For this project specifically: a **major** bump means an existing CRD's
 served version drops support for something it previously accepted (e.g. the
@@ -12,13 +12,18 @@ version is removed outright. A **minor** bump means a new CRD, a new served
 API version, or a new backward-compatible field or capability. A **patch**
 bump is a bug or security fix with no API surface change.
 
-No version has been tagged yet - everything below is still `[Unreleased]`.
-`make changelog-draft` lists commits since the last tag (or, before any tag
-exists, the full history) grouped by a best-effort read of each commit's
-leading verb, as a starting point to edit into shape here - it's a draft
-aid, not a substitute for actually reading what changed.
+Tagging `vX.Y.Z` on `main` is what publishes a release: `.github/workflows/release.yml` pushes
+`ghcr.io/ark-sys/freqtrade-operator:vX.Y.Z` **and moves `:latest`**, signs the image, and attaches
+`install.yaml`, the CRD tarball and the SBOM to the GitHub Release; `helm-release.yml` publishes the
+matching chart. Pushes to `main` without a tag only produce a `vYYYYMMDD-<sha>` dev image and never
+move `:latest`. Pin deployments to a release tag. `make changelog-draft` lists commits since the last
+tag as a starting point for the next section - a draft aid, not a substitute for reading what changed.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-09-19
+
+First tagged release.
 
 ### Added
 - `TradeBot.spec.app.networkPolicy.extraPeers`: an opt-in, off-by-default list of extra
@@ -162,3 +167,6 @@ aid, not a substitute for actually reading what changed.
   every reconciler branch that handled it were deleted outright once `Backtest` existed as its replacement, not
   left in place as unreachable code.
 - Debug-oriented banner logging, full spec dumps, and stray `fmt.Println` calls from the reconcilers.
+
+[Unreleased]: https://github.com/ark-sys/freqtrade-operator/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ark-sys/freqtrade-operator/releases/tag/v0.1.0
