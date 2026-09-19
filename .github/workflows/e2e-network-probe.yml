@@ -69,6 +69,7 @@ jobs:
             https://api.bitget.com/api/v2/public/time \
             https://api.hyperliquid.xyz/info; do probe "$u"; done
           SH
+          until kubectl get sa default >/dev/null 2>&1; do sleep 2; done
           kubectl create configmap probe --from-file=probe.sh=/tmp/probe.sh
           kubectl apply -f - <<'YAML'
           apiVersion: v1
