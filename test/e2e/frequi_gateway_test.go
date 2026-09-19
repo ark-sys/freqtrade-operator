@@ -44,10 +44,9 @@ import (
 // status.conditions[ExposureReady]/Accepted=True is never asserted here; controllers/frequi's
 // own envtest suite (G2-2/G4-1) already covers that condition's derivation logic directly. Free
 // of any network dependency beyond the kind cluster and the CRD installs done in
-// e2e_suite_test.go's BeforeSuite - see the project_e2e_tradebot_ci_network_failure note this
-// plan itself points at for why that matters: the TradeBot dry-run e2e spec is CI-flaky
-// specifically because it needs a real exchange testnet over the network, and this spec must
-// not repeat that mistake.
+// e2e_suite_test.go's BeforeSuite - that matters: the TradeBot dry-run e2e spec depends on a real
+// exchange over the network (some, like Binance and Bybit, block CI runners; see e2eExchange in
+// fixtures_test.go), and this spec must not repeat that mistake.
 func frequiGatewayContext() {
 	Context("FreqUI spec.exposure: Gateway (G6-2)", Ordered, func() {
 		const (

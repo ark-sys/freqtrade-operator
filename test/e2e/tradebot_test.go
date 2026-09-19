@@ -43,7 +43,7 @@ const tradingNamespace = "freqtrade-e2e-trading"
 // stronger check than a redundant manual ping, since it exercises the real production poll path),
 // and FreqUI reaching the bot through the NetworkPolicy.
 func tradeBotDryRunContext() {
-	Context("TradeBot dry-run against a sandboxed exchange", Ordered, func() {
+	Context("TradeBot dry-run against a live exchange", Ordered, func() {
 		const (
 			botName    = "e2e-dryrun-bot"
 			strategy   = "e2e-dryrun-strategy"
@@ -53,7 +53,20 @@ func tradeBotDryRunContext() {
 		)
 		ctx := context.Background()
 
+		// The 2nd and 3rd specs below only make sense once the 1st has a Ready pod. The outer
+		// Describe is ContinueOnFailure (so unrelated Contexts still run after a failure here), which
+		// also means these would otherwise run against a pod that never came up and each burn their
+		// full timeout to say nothing new.
+		botReady := false
+		skipUnlessBotReady := func() {
+			if !botReady {
+				Skip("bot pod never reached Ready - see the first spec in this Context")
+			}
+		}
+
 		BeforeAll(func() {
+			skipUnlessExchangeReachable()
+
 			By("creating the trading namespace, labeled restricted PSA")
 			cmd := exec.Command("kubectl", "create", "ns", tradingNamespace)
 			_, err := utils.Run(cmd)
@@ -91,6 +104,26 @@ func tradeBotDryRunContext() {
 				_, _ = fmt.Fprintf(GinkgoWriter, "Failed to describe bot pod: %s", err)
 			}
 
+			// freqtrade's own log is the only place the real reason a bot never becomes Ready shows
+			// up: on a failed market load it logs "Could not load markets, therefore cannot start"
+			// and then stays alive with its API port closed, so describe/events alone just show
+			// failing probes. It logs to stdout as well as --logfile, so kubectl logs has it;
+			// --previous covers the container the kubelet already killed and restarted.
+			for _, prev := range []bool{false, true} {
+				args := []string{"logs", botName + "-0", "-n", tradingNamespace, "-c", "freqtrade", "--tail=200"}
+				label := "current"
+				if prev {
+					args = append(args, "--previous")
+					label = "previous (killed) container"
+				}
+				By("Fetching the bot's freqtrade logs: " + label)
+				if out, err := utils.Run(exec.Command("kubectl", args...)); err == nil {
+					_, _ = fmt.Fprintf(GinkgoWriter, "freqtrade logs (%s):\n%s\n", label, out)
+				} else {
+					_, _ = fmt.Fprintf(GinkgoWriter, "Failed to get freqtrade logs (%s): %s\n", label, err)
+				}
+			}
+
 			By("Fetching events in the trading namespace")
 			cmd = exec.Command("kubectl", "get", "events", "-n", tradingNamespace, "--sort-by=.lastTimestamp")
 			if out, err := utils.Run(cmd); err == nil {
@@ -109,15 +142,17 @@ func tradeBotDryRunContext() {
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(output).To(Equal("true"), "bot pod not Ready yet")
 			}
-			// 3m wasn't enough in CI: the bot's readiness probe (30s initial delay,
-			// 30s period) only turns green once freqtrade's own startup - including
-			// a real network round-trip to the sandboxed exchange for market data,
-			// not just container/image readiness - completes, which is inherently
-			// more variable on shared CI infra than anything purely in-cluster.
+			// The bot's readiness probe (30s initial delay, 30s period) only turns green once
+			// freqtrade's own startup - including a real network round-trip to the exchange for
+			// market data, not just container/image readiness - completes. If the exchange is
+			// unreachable this never happens (see e2eExchange), which is why
+			// exchangeReachabilityContext runs first; 6m is just headroom for a slow CI runner.
 			Eventually(verifyPodReady, "6m").Should(Succeed())
+			botReady = true
 		})
 
 		It("introspects the bot successfully (proves live REST API connectivity)", func() {
+			skipUnlessBotReady()
 			By("waiting for TradeBot.status.bot to populate and BotReachable=True")
 			var tb freqtradev1alpha1.TradeBot
 			verifyIntrospected := func(g Gomega) {
@@ -134,6 +169,7 @@ func tradeBotDryRunContext() {
 		})
 
 		It("lets a referencing FreqUI reach the bot through the NetworkPolicy", func() {
+			skipUnlessBotReady()
 			By("waiting for the FreqUI Deployment to be available")
 			cmd := exec.Command("kubectl", "wait", "--for=condition=available", "--timeout=2m",
 				"deployment/"+frequiName, "-n", tradingNamespace)

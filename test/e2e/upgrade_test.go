@@ -51,6 +51,8 @@ func upgradeContext() {
 		var podUID string
 
 		BeforeAll(func() {
+			skipUnlessExchangeReachable()
+
 			cmd := exec.Command("kubectl", "get", "ns", tradingNamespace)
 			if _, err := utils.Run(cmd); err != nil {
 				cmd = exec.Command("kubectl", "create", "ns", tradingNamespace)

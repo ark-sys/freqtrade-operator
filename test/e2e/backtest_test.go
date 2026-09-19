@@ -49,6 +49,8 @@ func backtestContext() {
 		ctx := context.Background()
 
 		BeforeAll(func() {
+			skipUnlessExchangeReachable()
+
 			// Reuses tradingNamespace (created by tradeBotDryRunContext's own BeforeAll) if that
 			// Context already ran; creates it otherwise - Ordered containers at the top level are
 			// not ordered relative to each other, so this Context cannot assume it ran second.

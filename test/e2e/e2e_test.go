@@ -42,7 +42,13 @@ const metricsServiceName = "freqtrade-operator-controller-manager-metrics-servic
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
 const metricsRoleBindingName = "freqtrade-operator-metrics-binding"
 
-var _ = Describe("Manager", Ordered, func() {
+// ContinueOnFailure: without it, Ginkgo skips every remaining spec in an Ordered container once one
+// fails, and this whole Describe is one Ordered container (its BeforeAll deploys the operator for
+// everything nested below). One failing spec - historically the exchange-dependent TradeBot one -
+// silently turned 11 of 14 specs into "Skipped", so they never ran in CI at all. The specs that
+// genuinely depend on an earlier one guard themselves explicitly (see tradebot_test.go's botReady
+// and skipUnlessExchangeReachable), and every top-level Context here brings its own BeforeAll.
+var _ = Describe("Manager", Ordered, ContinueOnFailure, func() {
 	var controllerPodName string
 
 	// Before running the tests, set up the environment by creating the namespace,
@@ -297,6 +303,7 @@ var _ = Describe("Manager", Ordered, func() {
 	// P5-3: real trading-resource scenarios, sharing this Describe's already-deployed operator.
 	// Each lives in its own file (test/e2e/{tradebot,backtest,webhook,upgrade}_test.go) and
 	// contributes its own nested Ordered Context, rather than growing this file indefinitely.
+	exchangeReachabilityContext()
 	tradeBotDryRunContext()
 	backtestContext()
 	webhookRejectionContext()
