@@ -33,6 +33,9 @@ import (
 // namespace where the project is deployed in
 const namespace = "freqtrade-operator-system"
 
+// deploymentName is the manager's Deployment, addressed by name in diagnostics.
+const deploymentName = "freqtrade-operator-controller-manager"
+
 // serviceAccountName created for the project
 const serviceAccountName = "freqtrade-operator-controller-manager"
 
@@ -42,7 +45,13 @@ const metricsServiceName = "freqtrade-operator-controller-manager-metrics-servic
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
 const metricsRoleBindingName = "freqtrade-operator-metrics-binding"
 
-var _ = Describe("Manager", Ordered, func() {
+// ContinueOnFailure: without it, Ginkgo skips every remaining spec in an Ordered container once one
+// fails, and this whole Describe is one Ordered container (its BeforeAll deploys the operator for
+// everything nested below). One failing spec - historically the exchange-dependent TradeBot one -
+// silently turned 11 of 14 specs into "Skipped", so they never ran in CI at all. The specs that
+// genuinely depend on an earlier one guard themselves explicitly (see tradebot_test.go's botReady
+// and skipUnlessExchangeReachable), and every top-level Context here brings its own BeforeAll.
+var _ = Describe("Manager", Ordered, ContinueOnFailure, func() {
 	var controllerPodName string
 
 	// Before running the tests, set up the environment by creating the namespace,
@@ -126,7 +135,10 @@ var _ = Describe("Manager", Ordered, func() {
 		specReport := CurrentSpecReport()
 		if specReport.Failed() {
 			By("Fetching controller manager pod logs")
-			cmd := exec.Command("kubectl", "logs", controllerPodName, "-n", namespace)
+			// By Deployment, not controllerPodName: that name is captured once at startup and goes
+			// stale the moment upgrade_test.go redeploys the manager - exactly when a later spec
+			// fails and these logs are wanted.
+			cmd := exec.Command("kubectl", "logs", "deployment/"+deploymentName, "-n", namespace)
 			controllerLogs, err := utils.Run(cmd)
 			if err == nil {
 				_, _ = fmt.Fprintf(GinkgoWriter, "Controller logs:\n %s", controllerLogs)
@@ -153,7 +165,7 @@ var _ = Describe("Manager", Ordered, func() {
 			}
 
 			By("Fetching controller manager pod description")
-			cmd = exec.Command("kubectl", "describe", "pod", controllerPodName, "-n", namespace)
+			cmd = exec.Command("kubectl", "describe", "pod", "-l", "control-plane=controller-manager", "-n", namespace)
 			podDescription, err := utils.Run(cmd)
 			if err == nil {
 				fmt.Println("Pod description:\n", podDescription)
@@ -297,6 +309,7 @@ var _ = Describe("Manager", Ordered, func() {
 	// P5-3: real trading-resource scenarios, sharing this Describe's already-deployed operator.
 	// Each lives in its own file (test/e2e/{tradebot,backtest,webhook,upgrade}_test.go) and
 	// contributes its own nested Ordered Context, rather than growing this file indefinitely.
+	exchangeReachabilityContext()
 	tradeBotDryRunContext()
 	backtestContext()
 	webhookRejectionContext()

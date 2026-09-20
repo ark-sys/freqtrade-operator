@@ -48,8 +48,18 @@ func webhookRejectionContext() {
 				},
 			}
 			err := k8sClient.Create(ctx, cfg)
-			Expect(err).To(HaveOccurred(), "expected the admission webhook to reject plaintext credentials")
-			Expect(err.Error()).To(ContainSubstring("allow-plaintext-credentials"))
+			Expect(err).To(HaveOccurred(), "expected plaintext credentials to be rejected")
+			// Which webhook answers first is not this spec's business: a v1alpha1 request is also
+			// matched by the v1beta1 validating webhook (equivalent-version matching), so the
+			// apiserver converts the object to v1beta1 first, and v1beta1 has no field a
+			// plaintext credential could land in - the conversion webhook rejects it before the
+			// v1alpha1 admission webhook's annotation message can ever surface. Either rejection
+			// satisfies "plaintext credentials cannot be created without opting out"; what would
+			// be a real regression is the create succeeding, or failing for an unrelated reason.
+			Expect(err.Error()).To(SatisfyAny(
+				ContainSubstring("allow-plaintext-credentials"),
+				ContainSubstring("has no field for these at all"),
+			))
 		})
 
 		It("rejects a v1alpha1 TradeBot with a Job-mode freqtrade_command (v1beta1 is trade-only)", func() {

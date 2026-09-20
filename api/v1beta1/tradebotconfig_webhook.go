@@ -33,7 +33,10 @@ var knownCredentialSecretKeys = []string{
 //
 // +kubebuilder:object:generate=false
 type TradeBotConfigCustomValidator struct {
-	Client client.Client
+	// Client is read-only and, in production, uncached (mgr.GetAPIReader()) - see
+	// api/v1alpha1.TradeBotCustomValidator.Client: the same stale-cache "not found" applies to a
+	// referenced Secret created in the same apply as the TradeBotConfig that names it.
+	Client client.Reader
 }
 
 // SetupWebhookWithManager registers the v1beta1 TradeBotConfig validating webhook.
@@ -41,7 +44,7 @@ func (c *TradeBotConfig) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(c).
 		WithValidator(&TradeBotConfigCustomValidator{
-			Client: mgr.GetClient(),
+			Client: mgr.GetAPIReader(),
 		}).
 		Complete()
 }

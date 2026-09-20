@@ -47,14 +47,19 @@ var shellMetacharacters = regexp.MustCompile("[;&|`$(){}<>\\\\\n]")
 //
 // +kubebuilder:object:generate=false
 type TradeBotCustomValidator struct {
-	Client client.Client
+	// Client is read-only and, in production, uncached (mgr.GetAPIReader()): this validator checks
+	// that the referenced Strategy and TradeBotConfig exist, and a cache-backed client can still be
+	// missing an object created a moment ago - so `kubectl apply -f` of a config and a bot together
+	// (or any GitOps tool doing the same) was denied with "not found" for an object that had just
+	// been created. Admission traffic is low-volume enough that going to the API server is fine.
+	Client client.Reader
 }
 
 // SetupWebhookWithManager registers the TradeBot validating webhook.
 func (t *TradeBot) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(t).
-		WithValidator(&TradeBotCustomValidator{Client: mgr.GetClient()}).
+		WithValidator(&TradeBotCustomValidator{Client: mgr.GetAPIReader()}).
 		Complete()
 }
 

@@ -44,10 +44,9 @@ import (
 // status.conditions[ExposureReady]/Accepted=True is never asserted here; controllers/frequi's
 // own envtest suite (G2-2/G4-1) already covers that condition's derivation logic directly. Free
 // of any network dependency beyond the kind cluster and the CRD installs done in
-// e2e_suite_test.go's BeforeSuite - see the project_e2e_tradebot_ci_network_failure note this
-// plan itself points at for why that matters: the TradeBot dry-run e2e spec is CI-flaky
-// specifically because it needs a real exchange testnet over the network, and this spec must
-// not repeat that mistake.
+// e2e_suite_test.go's BeforeSuite - that matters: the TradeBot dry-run e2e spec depends on a real
+// exchange over the network (some, like Binance and Bybit, block CI runners; see e2eExchange in
+// fixtures_test.go), and this spec must not repeat that mistake.
 func frequiGatewayContext() {
 	Context("FreqUI spec.exposure: Gateway (G6-2)", Ordered, func() {
 		const (
@@ -79,12 +78,18 @@ func frequiGatewayContext() {
 				Expect(err).NotTo(HaveOccurred(), "Failed to label trading namespace")
 			}
 
+			// createRetrying rather than a bare Create: the Context before this one
+			// (upgrade_test.go) redeploys the manager, and right after a rollout the webhook
+			// Service's endpoints can still route to the old, terminating pod - the validating
+			// webhooks then time out ("context deadline exceeded") rather than refuse the
+			// connection, for a few seconds. Verified directly: a bare Create here failed on
+			// vstrategy.kb.io with exactly that, 10s in, on a healthy cluster.
 			By("creating the exchange Secret, Strategy, TradeBotConfig, and two TradeBots")
-			Expect(k8sClient.Create(ctx, newExchangeSecret(exchangeSA))).To(Succeed())
-			Expect(k8sClient.Create(ctx, newStrategy(strategy))).To(Succeed())
-			Expect(k8sClient.Create(ctx, newDryRunTradeBotConfig(config, exchangeSA))).To(Succeed())
-			Expect(k8sClient.Create(ctx, newTradeBot(bot1Name, config, strategy))).To(Succeed())
-			Expect(k8sClient.Create(ctx, newTradeBot(bot2Name, config, strategy))).To(Succeed())
+			createRetrying(ctx, newExchangeSecret(exchangeSA))
+			createRetrying(ctx, newStrategy(strategy))
+			createRetrying(ctx, newDryRunTradeBotConfig(config, exchangeSA))
+			createRetrying(ctx, newTradeBot(bot1Name, config, strategy))
+			createRetrying(ctx, newTradeBot(bot2Name, config, strategy))
 
 			// Only TradeBotConfig's own validation needs to complete here - reaching Valid needs
 			// no live network call, unlike the bots' own pods actually starting (which this spec
@@ -109,7 +114,7 @@ func frequiGatewayContext() {
 					TradeBotRefs: []corev1.LocalObjectReference{{Name: bot1Name}, {Name: bot2Name}},
 				},
 			}
-			Expect(k8sClient.Create(ctx, frequi)).To(Succeed())
+			createRetrying(ctx, frequi)
 		})
 
 		AfterAll(func() {

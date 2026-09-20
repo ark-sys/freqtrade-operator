@@ -17,14 +17,19 @@ limitations under the License.
 package e2e
 
 import (
+	"context"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	freqtradev1alpha1 "github.com/ark-sys/freqtrade-operator/api/v1alpha1"
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Fixture builders shared by every e2e spec file that needs a real TradeBot/
@@ -37,27 +42,31 @@ import (
 func ptrBool(b bool) *bool { return &b }
 func ptrInt(i int) *int    { return &i }
 
-// sandboxCcxtConfig puts the exchange in ccxt's generic sandbox/testnet mode
-// instead of hitting production. Verified directly (real freqtrade image,
-// `trade --dry-run`, no other changes): without this, freqtrade's own
-// market-data load fails at startup and its REST API server never starts
-// listening at all ("connection reset by peer", not just an auth failure) -
-// dry_run:true alone does not avoid needing a real, reachable exchange. The
-// sandbox is exactly what "never a real exchange" (P5-3) means in practice:
-// no real funds, no real credentials, but a real, freqtrade-supported
-// market-data source, since freqtrade cannot start against nothing at all.
+// e2eExchange is the exchange every e2e fixture points freqtrade at, and e2eExchangeProbeURL a
+// public, unauthenticated endpoint on it used to check it is reachable at all (see
+// exchange_test.go). freqtrade will not start its REST API server until it has loaded the
+// exchange's market metadata, and it does so over the real network even with dry_run: true, so
+// this suite has a genuine external dependency - which exchange is a real decision, not a detail:
 //
-// The exchange itself is Bybit (api-testnet.bybit.com), not Binance
-// (testnet.binance.vision) - this spec passed locally against Binance's
-// testnet every time but failed in every CI run so far with the freqtrade
-// container's API port never opening, consistent with Binance's
-// well-documented blocking/rate-limiting of API access from major cloud
-// provider IP ranges (AWS/GCP/Azure) - GitHub Actions runners are Azure VMs.
-// Not yet independently confirmed against the real image the way the
-// sandbox-vs-no-sandbox finding above was; if CI still fails identically
-// against Bybit, that points at CI egress/DNS in general rather than at
-// Binance specifically.
-var sandboxCcxtConfig = apiextensionsv1.JSON{Raw: []byte(`{"sandbox":true}`)}
+// It must not be Binance or Bybit. Verified directly from a GitHub-hosted runner (a US Azure
+// datacenter IP) both from the host and from a pod inside the kind cluster (HTTP status of a
+// public time endpoint): api.binance.com and testnet.binance.vision return 451, api-testnet.bybit.com
+// returns 403 - both geo/provider blocks, while example.com and every other exchange tried
+// (OKX, Kraken, KuCoin, Gate, Coinbase, Bitget) return 200. That is the whole reason this spec passed
+// locally and failed on every CI run for weeks: freqtrade logs "Could not load markets, therefore
+// cannot start" and then stays alive with its API port closed, which from outside looks exactly
+// like a slow start. Cluster DNS/egress was never the problem.
+//
+// OKX is used, on its real (not sandbox/testnet) public market-data API - nothing here ever
+// places an order (dry_run: true, blank credentials, a strategy that never has open funds), so no
+// sandbox is needed, and OKX's production candle history is a normal rolling window. Kraken was the
+// other candidate and does not work: freqtrade's `download-data` refuses it without --dl-trades.
+// If OKX ever starts blocking CI too, the reachability spec in exchange_test.go fails first and
+// says so, instead of every exchange-dependent spec timing out after several minutes.
+const (
+	e2eExchange         = "okx"
+	e2eExchangeProbeURL = "https://www.okx.com/api/v5/public/time"
+)
 
 // sampleStrategyClassName must match sampleStrategySource's actual `class ...(IStrategy):` name -
 // Strategy.spec.name isn't a free-form label, the admission webhook requires it to be a valid
@@ -98,7 +107,7 @@ class E2EProbeStrategy(IStrategy):
 `
 
 // newExchangeSecret is reused as both TradeBotConfig.Spec.Exchange.SecretRef and
-// Spec.APIServer.SecretRef in these fixtures. api-key/secret are blank - the sandbox's public
+// Spec.APIServer.SecretRef in these fixtures. api-key/secret are blank - the exchange's public
 // market-data endpoints (all a dry-run bot ever calls) need no real credentials, verified
 // directly against the real image. user/password are real (if trivial) values instead of also
 // leaving those blank: unlike the exchange side, this wasn't independently verified against a
@@ -116,7 +125,7 @@ func newExchangeSecret(name string) *corev1.Secret {
 	}
 }
 
-// newDryRunTradeBotConfig builds a complete, dry-run, testnet-sandboxed TradeBotConfig.
+// newDryRunTradeBotConfig builds a complete, dry-run TradeBotConfig against e2eExchange.
 func newDryRunTradeBotConfig(name, exchangeSecretRef string) *freqtradev1alpha1.TradeBotConfig {
 	return &freqtradev1alpha1.TradeBotConfig{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: tradingNamespace},
@@ -137,11 +146,9 @@ func newDryRunTradeBotConfig(name, exchangeSecretRef string) *freqtradev1alpha1.
 			// "unexpected HTTP status" actually turned out to mean, not a network/proxy problem.
 			Advanced: &freqtradev1alpha1.AdvancedConfig{InitialState: "running"},
 			Exchange: &freqtradev1alpha1.ExchangeSpec{
-				Name:            "bybit",
-				SecretRef:       exchangeSecretRef,
-				CcxtConfig:      sandboxCcxtConfig,
-				CcxtAsyncConfig: sandboxCcxtConfig,
-				Whitelist:       &freqtradev1alpha1.PairListSpec{Pairs: []string{"BTC/USDT"}},
+				Name:      e2eExchange,
+				SecretRef: exchangeSecretRef,
+				Whitelist: &freqtradev1alpha1.PairListSpec{Pairs: []string{"BTC/USDT"}},
 			},
 			PairlistMethod: &freqtradev1alpha1.PairlistMethodsSpec{
 				Methods: []freqtradev1alpha1.PairlistConfig{{Method: freqtradev1alpha1.StaticPairList}},
@@ -209,21 +216,17 @@ func newFreqUI(name, namespace string, tradeBotRefs []string) *freqtradev1alpha1
 	}
 }
 
-// recentTimerange returns a "YYYYMMDD-" open-ended window starting today (UTC), computed at
-// call time. testnet.binance.vision's own candle history does not behave like a simple rolling
-// window relative to "now" - confirmed directly, twice (curl against its own /api/v3/klines with
-// startTime=0, and freqtrade's own exchange adapter logging the identical timestamp): its
-// BTC/USDT 5m history began at a fixed point earlier the same day (an apparent testnet data
-// reset), with nothing at all before it. A closed window computed relative to "yesterday" (this
-// function's first version) can therefore land entirely before wherever the testnet's history
-// actually starts on any given day, and fail with "No data found" through no fault of the
-// operator's own download-data init container - which is exactly what happened. "Today,
-// open-ended" is the narrowest window expressible by Timerange's own day-granularity validation
-// (`^\d{8}-(\d{8})?$` - no time-of-day component) that's still guaranteed not to ask for
-// anything before a same-day reset.
+// recentTimerange returns a "YYYYMMDD-" open-ended window starting yesterday (UTC), computed at
+// call time. Yesterday, not today: an open window starting at today's 00:00 UTC has almost no
+// candles in it for the first hour or two of every UTC day, and freqtrade fails with "No data
+// found" if there are fewer than startup_candle_count (20 x 5m = 100 minutes) - i.e. any CI run
+// in that slice would fail through no fault of the operator's download-data init container.
+// (An earlier version used "today, open-ended" as a workaround for Binance's testnet resetting its
+// history at an arbitrary point each day; that exchange is no longer used, see e2eExchange.)
+// Day granularity is all Timerange's own validation allows (`^\d{8}-(\d{8})?$`).
 func recentTimerange() string {
 	const dateFmt = "20060102"
-	return time.Now().UTC().Format(dateFmt) + "-"
+	return time.Now().UTC().AddDate(0, 0, -1).Format(dateFmt) + "-"
 }
 
 // newDataCachePVC is the pre-existing PVC newBacktest's spec.data.pvcName points at. Verified
@@ -247,7 +250,7 @@ func newDataCachePVC(name, namespace string) *corev1.PersistentVolumeClaim {
 }
 
 // newBacktest builds a v1beta1 Backtest against an already-created TradeBotConfig/Strategy and
-// cache PVC (see newDataCachePVC) - same sandbox exchange requirement as a live TradeBot
+// cache PVC (see newDataCachePVC) - same reachable-exchange requirement as a live TradeBot
 // (verified: backtesting also loads market metadata from the exchange at startup, before ever
 // touching historical OHLCV data). DownloadPolicy is spelled out as "always" even though that's
 // also RunSpec.Data's own default - explicit here since it's the whole reason this test's cache
@@ -269,4 +272,19 @@ func newBacktest(name, namespace, configRef, strategyRef, cachePVCName string) *
 			StakeAmount: "100",
 		},
 	}
+}
+
+// createRetrying creates obj, retrying for up to a minute on any error other than AlreadyExists
+// (treated as success, so a retry after a create that actually landed but whose response was lost
+// to a webhook timeout doesn't fail the spec). For Creates made right after the manager has been
+// redeployed, when the webhook Service can briefly still route to the old pod.
+func createRetrying(ctx context.Context, obj client.Object) {
+	GinkgoHelper()
+	Eventually(func(g Gomega) {
+		err := k8sClient.Create(ctx, obj)
+		if apierrors.IsAlreadyExists(err) {
+			return
+		}
+		g.Expect(err).NotTo(HaveOccurred())
+	}, "1m", "3s").Should(Succeed())
 }

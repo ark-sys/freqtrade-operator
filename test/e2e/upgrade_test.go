@@ -51,6 +51,8 @@ func upgradeContext() {
 		var podUID string
 
 		BeforeAll(func() {
+			skipUnlessExchangeReachable()
+
 			cmd := exec.Command("kubectl", "get", "ns", tradingNamespace)
 			if _, err := utils.Run(cmd); err != nil {
 				cmd = exec.Command("kubectl", "create", "ns", tradingNamespace)
@@ -184,6 +186,9 @@ func upgradeContext() {
 					Annotations: map[string]string{"freqtrade.io/allow-plaintext-credentials": "true"},
 				},
 				Spec: freqtradev1alpha1.TradeBotConfigSpec{
+					// spec.bot is required by the CRD schema, which is checked before conversion -
+					// omitting it fails on that instead of on the plaintext credential this It is about.
+					Bot: &freqtradev1alpha1.BotConfig{StakeCurrency: "USDT", StakeAmount: "100"},
 					Exchange: &freqtradev1alpha1.ExchangeSpec{
 						Name: "binance",
 						Key:  "plaintext-key-should-still-be-rejected",
