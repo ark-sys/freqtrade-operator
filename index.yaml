@@ -5,11 +5,11 @@ entries:
       category: Trading
       licenses: Apache-2.0
     apiVersion: v2
-    appVersion: v20260920-1b098d7
-    created: "2026-09-20T09:05:43.630599219Z"
+    appVersion: v20260920-d25f706
+    created: "2026-09-20T09:09:53.417605405Z"
     description: A Helm chart for deploying the Freqtrade Operator and its Custom
       Resource Definitions
-    digest: 2d2bbc45772f8ea2b3a30aa09c21eaa8b68fc4b739512e01f4c9c0be4222d138
+    digest: c9b3611644caac36775ce041819f7f4b93bc437963d6c2ff9ca4f123fcf116ba
     home: https://github.com/ark-sys/freqtrade-operator
     keywords:
     - freqtrade
@@ -27,6 +27,6 @@ entries:
     - https://github.com/ark-sys/freqtrade-operator
     type: application
     urls:
-    - https://ark-sys.github.io/freqtrade-operator/freqtrade-operator-0.1.0-dev.20260920.1b098d7.tgz
-    version: 0.1.0-dev.20260920.1b098d7
-generated: "2026-09-20T09:05:43.622015331Z"
+    - https://ark-sys.github.io/freqtrade-operator/freqtrade-operator-0.1.0-dev.20260920.d25f706.tgz
+    version: 0.1.0-dev.20260920.d25f706
+generated: "2026-09-20T09:09:53.409157639Z"
