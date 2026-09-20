@@ -7,7 +7,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,47 +40,38 @@ type TradeBotConfigCustomValidator struct {
 
 // SetupWebhookWithManager registers the v1beta1 TradeBotConfig validating webhook.
 func (c *TradeBotConfig) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(c).
+	return ctrl.NewWebhookManagedBy(mgr, c).
 		WithValidator(&TradeBotConfigCustomValidator{
 			Client: mgr.GetAPIReader(),
 		}).
 		Complete()
 }
 
-// ValidateCreate implements admission.CustomValidator.
+// ValidateCreate implements admission.Validator.
 func (v *TradeBotConfigCustomValidator) ValidateCreate(
-	ctx context.Context, obj runtime.Object,
+	ctx context.Context, cfg *TradeBotConfig,
 ) (admission.Warnings, error) {
-	cfg, ok := obj.(*TradeBotConfig)
-	if !ok {
-		return nil, fmt.Errorf("expected a TradeBotConfig but got %T", obj)
-	}
 	return nil, v.validate(ctx, cfg)
 }
 
-// ValidateUpdate implements admission.CustomValidator. Skips validation once DeletionTimestamp
+// ValidateUpdate implements admission.Validator. Skips validation once DeletionTimestamp
 // is set - same deadlock risk, and same fix, as TradeBotCustomValidator.ValidateUpdate (see its
 // doc comment): the referenced exchange Secret can already be gone by the time something needs
 // to update this object (e.g. to strip its finalizer, if it has one) during a namespace-wide
 // delete, and re-validating the Secret's existence at that point can only block cleanup, never
 // help it.
 func (v *TradeBotConfigCustomValidator) ValidateUpdate(
-	ctx context.Context, _, newObj runtime.Object,
+	ctx context.Context, _, cfg *TradeBotConfig,
 ) (admission.Warnings, error) {
-	cfg, ok := newObj.(*TradeBotConfig)
-	if !ok {
-		return nil, fmt.Errorf("expected a TradeBotConfig but got %T", newObj)
-	}
 	if cfg.DeletionTimestamp != nil {
 		return nil, nil
 	}
 	return nil, v.validate(ctx, cfg)
 }
 
-// ValidateDelete implements admission.CustomValidator. Deletion is never
+// ValidateDelete implements admission.Validator. Deletion is never
 // rejected.
-func (v *TradeBotConfigCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
+func (v *TradeBotConfigCustomValidator) ValidateDelete(context.Context, *TradeBotConfig) (admission.Warnings, error) {
 	return nil, nil
 }
 

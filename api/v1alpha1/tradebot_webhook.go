@@ -8,7 +8,6 @@ import (
 
 	"github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,18 +56,13 @@ type TradeBotCustomValidator struct {
 
 // SetupWebhookWithManager registers the TradeBot validating webhook.
 func (t *TradeBot) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(t).
+	return ctrl.NewWebhookManagedBy(mgr, t).
 		WithValidator(&TradeBotCustomValidator{Client: mgr.GetAPIReader()}).
 		Complete()
 }
 
-// ValidateCreate implements admission.CustomValidator.
-func (v *TradeBotCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	tradeBot, ok := obj.(*TradeBot)
-	if !ok {
-		return nil, fmt.Errorf("expected a TradeBot but got %T", obj)
-	}
+// ValidateCreate implements admission.Validator.
+func (v *TradeBotCustomValidator) ValidateCreate(ctx context.Context, tradeBot *TradeBot) (admission.Warnings, error) {
 	return nil, v.validate(ctx, tradeBot)
 }
 
@@ -83,22 +77,18 @@ func (v *TradeBotCustomValidator) ValidateCreate(ctx context.Context, obj runtim
 // whole namespace - can never finish terminating. Verified directly: a real e2e run hit exactly
 // this on a `kubectl delete ns`, wedged for 10+ minutes until the test process was killed.
 func (v *TradeBotCustomValidator) ValidateUpdate(
-	ctx context.Context, _, newObj runtime.Object,
+	ctx context.Context, _, tradeBot *TradeBot,
 ) (admission.Warnings, error) {
-	tradeBot, ok := newObj.(*TradeBot)
-	if !ok {
-		return nil, fmt.Errorf("expected a TradeBot but got %T", newObj)
-	}
 	if tradeBot.DeletionTimestamp != nil {
 		return nil, nil
 	}
 	return nil, v.validate(ctx, tradeBot)
 }
 
-// ValidateDelete implements admission.CustomValidator. Deletion is never
+// ValidateDelete implements admission.Validator. Deletion is never
 // rejected: there is nothing about deleting a TradeBot that this operator
 // needs to guard against.
-func (v *TradeBotCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
+func (v *TradeBotCustomValidator) ValidateDelete(context.Context, *TradeBot) (admission.Warnings, error) {
 	return nil, nil
 }
 

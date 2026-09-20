@@ -392,7 +392,7 @@ _Appears in:_
 | `selector` _object (keys:string, values:string)_ | Selector defines the labels to select the pods for this service |  |  |
 | `annotations` _object (keys:string, values:string)_ | Annotations defines additional annotations for the service |  |  |
 | `loadBalancerSourceRanges` _string array_ | LoadBalancerSourceRanges defines source ranges for load balancer |  |  |
-| `externalTrafficPolicy` _[ServiceExternalTrafficPolicyType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicytype-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
+| `externalTrafficPolicy` _[ServiceExternalTrafficPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicy-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
 | `sessionAffinity` _[ServiceAffinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceaffinity-v1-core)_ | SessionAffinity defines session affinity |  |  |
 
 
@@ -799,7 +799,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `method` _[PairlistMethod](#pairlistmethod)_ | Method is the pairlist method to use |  |  |
 | `number_assets` _integer_ | Common configuration options |  |  |
-| `refresh_period` _integer_ |  |  |  |
+| `refresh_period` _[int64](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#int64-v1-core)_ |  |  |  |
 | `allow_inactive` _boolean_ | StaticPairList specific options |  |  |
 | `sort_key` _string_ | VolumePairList specific options |  |  |
 | `lookback_timeframe` _string_ | PercentChangePairList specific options |  |  |
@@ -1931,7 +1931,7 @@ _Appears in:_
 | `selector` _object (keys:string, values:string)_ | Selector defines the labels to select the pods for this service |  |  |
 | `annotations` _object (keys:string, values:string)_ | Annotations defines additional annotations for the service |  |  |
 | `loadBalancerSourceRanges` _string array_ | LoadBalancerSourceRanges defines source ranges for load balancer |  |  |
-| `externalTrafficPolicy` _[ServiceExternalTrafficPolicyType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicytype-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
+| `externalTrafficPolicy` _[ServiceExternalTrafficPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceexternaltrafficpolicy-v1-core)_ | ExternalTrafficPolicy defines the external traffic policy |  |  |
 | `sessionAffinity` _[ServiceAffinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#serviceaffinity-v1-core)_ | SessionAffinity defines session affinity |  |  |
 
 
@@ -2341,7 +2341,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `method` _[PairlistMethod](#pairlistmethod)_ |  |  |  |
 | `number_assets` _integer_ |  |  |  |
-| `refresh_period` _integer_ |  |  |  |
+| `refresh_period` _[int64](https://kubernetes.io/docs/reference/generated/kubernetes-api/v/#int64-v1-core)_ |  |  |  |
 | `allow_inactive` _boolean_ |  |  |  |
 | `sort_key` _string_ |  |  |  |
 | `lookback_timeframe` _string_ |  |  |  |

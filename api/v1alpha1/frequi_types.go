@@ -153,7 +153,7 @@ type FUServiceSpec struct {
 	// LoadBalancerSourceRanges defines source ranges for load balancer
 	LoadBalancerSourceRanges []string `json:"loadBalancerSourceRanges,omitempty"`
 	// ExternalTrafficPolicy defines the external traffic policy
-	ExternalTrafficPolicy corev1.ServiceExternalTrafficPolicyType `json:"externalTrafficPolicy,omitempty"`
+	ExternalTrafficPolicy corev1.ServiceExternalTrafficPolicy `json:"externalTrafficPolicy,omitempty"`
 	// SessionAffinity defines session affinity
 	SessionAffinity corev1.ServiceAffinity `json:"sessionAffinity,omitempty"`
 }

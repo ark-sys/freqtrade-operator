@@ -12,7 +12,6 @@ import (
 // v1alpha1<->v1beta1 conversion requests for (B3). See
 // api/v1alpha1/frequi_conversion.go.
 func (f *FreqUI) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(f).
+	return ctrl.NewWebhookManagedBy(mgr, f).
 		Complete()
 }

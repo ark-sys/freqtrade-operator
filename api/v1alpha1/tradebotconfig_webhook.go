@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -41,44 +40,35 @@ type TradeBotConfigCustomValidator struct {
 
 // SetupWebhookWithManager registers the v1alpha1 TradeBotConfig validating webhook.
 func (c *TradeBotConfig) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(c).
+	return ctrl.NewWebhookManagedBy(mgr, c).
 		WithValidator(&TradeBotConfigCustomValidator{
 			Recorder: mgr.GetEventRecorderFor("tradebotconfig-webhook"),
 		}).
 		Complete()
 }
 
-// ValidateCreate implements admission.CustomValidator.
+// ValidateCreate implements admission.Validator.
 func (v *TradeBotConfigCustomValidator) ValidateCreate(
-	_ context.Context, obj runtime.Object,
+	_ context.Context, cfg *TradeBotConfig,
 ) (admission.Warnings, error) {
-	cfg, ok := obj.(*TradeBotConfig)
-	if !ok {
-		return nil, fmt.Errorf("expected a TradeBotConfig but got %T", obj)
-	}
 	return nil, v.validate(cfg)
 }
 
-// ValidateUpdate implements admission.CustomValidator. Skips validation once DeletionTimestamp
+// ValidateUpdate implements admission.Validator. Skips validation once DeletionTimestamp
 // is set - same deadlock risk, and same fix, as TradeBotCustomValidator.ValidateUpdate (see its
 // doc comment).
 func (v *TradeBotConfigCustomValidator) ValidateUpdate(
-	_ context.Context, _, newObj runtime.Object,
+	_ context.Context, _, cfg *TradeBotConfig,
 ) (admission.Warnings, error) {
-	cfg, ok := newObj.(*TradeBotConfig)
-	if !ok {
-		return nil, fmt.Errorf("expected a TradeBotConfig but got %T", newObj)
-	}
 	if cfg.DeletionTimestamp != nil {
 		return nil, nil
 	}
 	return nil, v.validate(cfg)
 }
 
-// ValidateDelete implements admission.CustomValidator. Deletion is never
+// ValidateDelete implements admission.Validator. Deletion is never
 // rejected.
-func (v *TradeBotConfigCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
+func (v *TradeBotConfigCustomValidator) ValidateDelete(context.Context, *TradeBotConfig) (admission.Warnings, error) {
 	return nil, nil
 }
 

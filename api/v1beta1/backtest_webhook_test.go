@@ -183,8 +183,7 @@ func TestBacktestCustomValidator_ValidateCreateAndUpdate(t *testing.T) {
 	if _, err := v.ValidateCreate(ctx, invalid); err == nil {
 		t.Error("ValidateCreate: expected an error for a missing configRef.name")
 	}
-
-	if _, err := v.ValidateCreate(ctx, &corev1.Pod{}); err == nil {
-		t.Error("ValidateCreate: expected an error for the wrong object type")
-	}
+	// No "wrong object type" case: BacktestCustomValidator now implements the typed
+	// admission.Validator[*Backtest] (controller-runtime 0.25's WithValidator), so a
+	// mismatched type is a compile error, not a runtime one - there's nothing left to test here.
 }
