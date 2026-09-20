@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
@@ -40,38 +39,29 @@ type BacktestCustomValidator struct{}
 
 // SetupWebhookWithManager registers the Backtest validating webhook.
 func (b *Backtest) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(b).
+	return ctrl.NewWebhookManagedBy(mgr, b).
 		WithValidator(&BacktestCustomValidator{}).
 		Complete()
 }
 
-// ValidateCreate implements admission.CustomValidator.
-func (v *BacktestCustomValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	backtest, ok := obj.(*Backtest)
-	if !ok {
-		return nil, fmt.Errorf("expected a Backtest but got %T", obj)
-	}
+// ValidateCreate implements admission.Validator.
+func (v *BacktestCustomValidator) ValidateCreate(_ context.Context, backtest *Backtest) (admission.Warnings, error) {
 	return nil, validateBacktestSpec(backtest)
 }
 
-// ValidateUpdate implements admission.CustomValidator. Spec is immutable
+// ValidateUpdate implements admission.Validator. Spec is immutable
 // (CEL self == oldSelf on BacktestSpec already rejects any spec change), so
 // this only ever re-validates a spec that was already accepted at create -
 // kept for defense in depth rather than assuming CEL alone is enough.
 func (v *BacktestCustomValidator) ValidateUpdate(
-	_ context.Context, _, newObj runtime.Object,
+	_ context.Context, _, backtest *Backtest,
 ) (admission.Warnings, error) {
-	backtest, ok := newObj.(*Backtest)
-	if !ok {
-		return nil, fmt.Errorf("expected a Backtest but got %T", newObj)
-	}
 	return nil, validateBacktestSpec(backtest)
 }
 
-// ValidateDelete implements admission.CustomValidator. Deletion is never
+// ValidateDelete implements admission.Validator. Deletion is never
 // rejected.
-func (v *BacktestCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
+func (v *BacktestCustomValidator) ValidateDelete(context.Context, *Backtest) (admission.Warnings, error) {
 	return nil, nil
 }
 

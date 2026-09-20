@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
@@ -19,35 +18,26 @@ type StrategyCustomValidator struct{}
 
 // SetupWebhookWithManager registers the Strategy validating webhook.
 func (s *Strategy) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(s).
+	return ctrl.NewWebhookManagedBy(mgr, s).
 		WithValidator(&StrategyCustomValidator{}).
 		Complete()
 }
 
-// ValidateCreate implements admission.CustomValidator.
-func (v *StrategyCustomValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
-	strategy, ok := obj.(*Strategy)
-	if !ok {
-		return nil, fmt.Errorf("expected a Strategy but got %T", obj)
-	}
+// ValidateCreate implements admission.Validator.
+func (v *StrategyCustomValidator) ValidateCreate(_ context.Context, strategy *Strategy) (admission.Warnings, error) {
 	return nil, validateStrategySpec(strategy)
 }
 
-// ValidateUpdate implements admission.CustomValidator.
+// ValidateUpdate implements admission.Validator.
 func (v *StrategyCustomValidator) ValidateUpdate(
-	_ context.Context, _, newObj runtime.Object,
+	_ context.Context, _, strategy *Strategy,
 ) (admission.Warnings, error) {
-	strategy, ok := newObj.(*Strategy)
-	if !ok {
-		return nil, fmt.Errorf("expected a Strategy but got %T", newObj)
-	}
 	return nil, validateStrategySpec(strategy)
 }
 
-// ValidateDelete implements admission.CustomValidator. Deletion is never
+// ValidateDelete implements admission.Validator. Deletion is never
 // rejected.
-func (v *StrategyCustomValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
+func (v *StrategyCustomValidator) ValidateDelete(context.Context, *Strategy) (admission.Warnings, error) {
 	return nil, nil
 }
 

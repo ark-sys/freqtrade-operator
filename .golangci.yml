@@ -111,6 +111,47 @@ linters:
       - linters:
           - dupl
         path: controllers/tradebot/status.go
+      # controller-runtime 0.25 deprecated GetEventRecorderFor in favor of
+      # GetEventRecorder, but the replacement returns a different interface
+      # (recorder.EventRecorder, backed by the events.k8s.io/v1 API) whose
+      # Eventf signature and RBAC requirements differ from the legacy
+      # client-go record.EventRecorder every controller's Recorder field
+      # (and every controller's test fakes) is typed as. That's a real,
+      # separate migration - not a rename - deliberately deferred here so
+      # the controller-runtime version bump itself stays a mechanical,
+      # behavior-preserving change. Tracked, not swept under the rug.
+      - linters:
+          - staticcheck
+        path: cmd/main.go
+        text: "GetEventRecorderFor is deprecated"
+      # Same deferred migration as cmd/main.go above - this validator's Recorder field is also
+      # typed as the legacy client-go record.EventRecorder.
+      - linters:
+          - staticcheck
+        path: api/v1alpha1/tradebotconfig_webhook.go
+        text: "GetEventRecorderFor is deprecated"
+      # scheme.Builder is deprecated in favor of api packages calling runtime.NewSchemeBuilder
+      # directly (to drop the controller-runtime dependency from api packages) - but our
+      # per-type files each call SchemeBuilder.Register(&X{}, &XList{}) independently (9 call
+      # sites across both API versions), relying on Builder.Register's automatic
+      # metav1.AddToGroupVersion; runtime.SchemeBuilder's own Register takes scheme-mutating
+      # funcs, not objects, so switching would mean re-deriving that per-call-site or writing an
+      # equivalent shim - not worth it for kubebuilder-scaffolded boilerplate with no behavior
+      # change on offer, and kubebuilder itself still generates this exact pattern.
+      - linters:
+          - staticcheck
+        path: api/v1(alpha1|beta1)/groupversion_info\.go
+        text: "scheme.Builder is deprecated"
+      # controller-runtime 0.25 deprecated the client.Apply patch type in
+      # favor of client.Client.Apply()/SubResource().Apply(), which take a
+      # generated ApplyConfiguration rather than a plain object - a real API
+      # change to this operator's one shared server-side-apply helper
+      # (P2-1), not a drop-in swap. Deliberately deferred, same reasoning as
+      # the GetEventRecorderFor exclusion above.
+      - linters:
+          - staticcheck
+        path: controllers/shared/utils.go
+        text: "client.Apply is deprecated"
     paths:
       - third_party$
       - builtin$
