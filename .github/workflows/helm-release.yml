@@ -95,7 +95,7 @@ jobs:
 
       - name: Create GitHub Release for Helm Chart
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             .helm-releases/freqtrade-operator-${{ steps.get_version.outputs.CHART_VERSION }}.tgz
