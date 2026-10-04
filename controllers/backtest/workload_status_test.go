@@ -70,6 +70,62 @@ func TestComputeWorkloadStatus(t *testing.T) {
 	}
 }
 
+// TestComputeWorkloadStatus_JobReaped covers a Job that is gone: after a
+// recorded terminal outcome that's spec.ttlSecondsAfterFinished having
+// reaped it, so the recorded outcome stands; before one, it's still an error.
+func TestComputeWorkloadStatus_JobReaped(t *testing.T) {
+	tests := []struct {
+		name          string
+		reason        string
+		wantErr       bool
+		wantSucceeded bool
+		wantFailed    bool
+	}{
+		{name: "after success", reason: freqtradev1beta1.ReasonWorkloadSucceeded, wantSucceeded: true},
+		{name: "after failure", reason: freqtradev1beta1.ReasonWorkloadFailed, wantFailed: true},
+		{name: "while progressing", reason: freqtradev1beta1.ReasonWorkloadProgressing, wantErr: true},
+		{name: "with no recorded outcome", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := fake.NewClientBuilder().WithScheme(newWorkloadStatusScheme(t)).Build()
+			r := &Reconciler{Client: c}
+
+			completed := metav1.Now()
+			backtest := &freqtradev1beta1.Backtest{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-run", Namespace: "trading"},
+				Status:     freqtradev1beta1.BacktestStatus{CompletionTime: &completed},
+			}
+			if tt.reason != "" {
+				backtest.Status.Conditions = []metav1.Condition{{
+					Type: freqtradev1beta1.ConditionWorkloadReady, Reason: tt.reason, Status: metav1.ConditionTrue,
+				}}
+			}
+
+			got, err := r.computeWorkloadStatus(context.Background(), backtest)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected an error, got %+v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.succeeded != tt.wantSucceeded || got.failed != tt.wantFailed || got.running {
+				t.Errorf("got %+v, want succeeded=%v failed=%v", got, tt.wantSucceeded, tt.wantFailed)
+			}
+			if got.completionTime != &completed {
+				t.Errorf("completionTime = %v, want the recorded %v", got.completionTime, &completed)
+			}
+			if got.requeueAfter != 0 {
+				t.Errorf("requeueAfter = %v, want 0", got.requeueAfter)
+			}
+		})
+	}
+}
+
 func TestDeriveBacktestPhase(t *testing.T) {
 	tests := []struct {
 		name     string
