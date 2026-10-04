@@ -150,6 +150,12 @@ test-integration: manifests generate fmt vet setup-envtest ## Run only the envte
 # The Gateway API standard CRDs (G6-2) are installed by default too; skip with:
 # - GATEWAY_API_INSTALL_SKIP=true
 KIND_CLUSTER ?= freqtrade-operator-test-e2e
+# The e2e suite installs and deletes cluster-wide things (CertManager, the Gateway API CRDs), so it
+# only ever sees the kind cluster, through a kubeconfig of its own - never the caller's
+# ~/.kube/config, whose current context may be a real cluster (it was: running the suite against
+# one deleted that cluster's CertManager and Gateway API CRDs). test/e2e/e2e_suite_test.go refuses
+# to run unless KUBECONFIG is set and its current context is kind-$(KIND_CLUSTER).
+E2E_KUBECONFIG ?= $(LOCALBIN)/kubeconfig-e2e
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
@@ -157,12 +163,14 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 		echo "Kind is not installed. Please install Kind manually."; \
 		exit 1; \
 	}
+	@mkdir -p $(dir $(E2E_KUBECONFIG))
 	@case "$$($(KIND) get clusters)" in \
 		*"$(KIND_CLUSTER)"*) \
-			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
+			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation."; \
+			$(KIND) export kubeconfig --name $(KIND_CLUSTER) --kubeconfig $(E2E_KUBECONFIG) ;; \
 		*) \
 			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
+			$(KIND) create cluster --name $(KIND_CLUSTER) --kubeconfig $(E2E_KUBECONFIG) ;; \
 	esac
 
 .PHONY: test-e2e
@@ -172,12 +180,13 @@ test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expect
 	# pod reaching Ready, introspection, a Backtest actually downloading and running against real
 	# market data) - go test's default killed a real, still-progressing run at 10m regardless of
 	# any individual Eventually's own (shorter) budget.
-	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -timeout 20m
+	# -tags e2e: the suite is behind that build tag so a plain go test ./... never runs it.
+	KUBECONFIG=$(E2E_KUBECONFIG) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags e2e ./test/e2e/ -v -ginkgo.v -timeout 20m
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
-	@$(KIND) delete cluster --name $(KIND_CLUSTER)
+	@$(KIND) delete cluster --name $(KIND_CLUSTER) --kubeconfig $(E2E_KUBECONFIG)
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

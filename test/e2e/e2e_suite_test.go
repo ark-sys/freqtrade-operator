@@ -1,3 +1,5 @@
+//go:build e2e
+
 /*
 Copyright 2025.
 
@@ -29,6 +31,7 @@ import (
 	freqtradev1beta1 "github.com/ark-sys/freqtrade-operator/api/v1beta1"
 	"github.com/ark-sys/freqtrade-operator/test/utils"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -40,14 +43,21 @@ var (
 	// These variables are useful if CertManager is already installed, avoiding
 	// re-installation and conflicts.
 	skipCertManagerInstall = os.Getenv("CERT_MANAGER_INSTALL_SKIP") == "true"
-	// isCertManagerAlreadyInstalled will be set true when CertManager CRDs be found on the cluster
-	isCertManagerAlreadyInstalled = false
+	// installedCertManager is set only once this suite itself has successfully installed
+	// CertManager - AfterSuite uninstalls it only then. Never inverted to an "already installed"
+	// flag defaulting to false: a BeforeSuite that fails before ever checking would then read as
+	// "we installed it" and AfterSuite would delete someone else's CertManager.
+	installedCertManager = false
 
 	// GATEWAY_API_INSTALL_SKIP=true: Skips Gateway API CRD installation during test setup (G6-2,
 	// GATEWAY-API-PLAN.md) - same idempotence pattern as CERT_MANAGER_INSTALL_SKIP above.
 	skipGatewayAPIInstall = os.Getenv("GATEWAY_API_INSTALL_SKIP") == "true"
-	// isGatewayAPIAlreadyInstalled will be set true when the Gateway API CRDs are found on the cluster
-	isGatewayAPIAlreadyInstalled = false
+	// installedGatewayAPI: same contract as installedCertManager, for the Gateway API CRDs.
+	installedGatewayAPI = false
+
+	// clusterVerified is set once verifyIsolatedKindCluster has passed. AfterSuite runs even when
+	// BeforeSuite fails, so it must never act on a cluster this was not set for.
+	clusterVerified = false
 
 	// projectImage is the name of the image which will be build and loaded
 	// with the code source changes to be tested.
@@ -70,7 +80,46 @@ func TestE2E(t *testing.T) {
 	RunSpecs(t, "e2e suite")
 }
 
+// verifyIsolatedKindCluster refuses to let this suite touch any cluster but the throwaway kind
+// cluster make test-e2e creates. The suite installs and deletes cluster-wide things (CertManager,
+// the Gateway API CRDs, CRDs and namespaces of its own) through whatever kubeconfig is in effect,
+// so on a workstation whose ~/.kube/config points at a real cluster, running it there deletes
+// that cluster's CertManager and Gateway API CRDs. Two checks, both required:
+//   - KUBECONFIG is set explicitly (make test-e2e points it at a kubeconfig holding only the kind
+//     cluster), so the default ~/.kube/config - and any context switch made in it mid-run - is
+//     never used;
+//   - its current context is kind-$KIND_CLUSTER (KIND_CLUSTER defaults to "kind", as in
+//     utils.LoadImageToKindClusterWithName).
+func verifyIsolatedKindCluster() error {
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		return fmt.Errorf("KUBECONFIG is not set: the e2e suite only runs against a dedicated kind " +
+			"kubeconfig, never the default ~/.kube/config - run it via make test-e2e")
+	}
+	cluster := "kind"
+	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
+		cluster = v
+	}
+	want := "kind-" + cluster
+
+	raw, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{},
+	).RawConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load kubeconfig %s: %w", kubeconfig, err)
+	}
+	if raw.CurrentContext != want {
+		return fmt.Errorf("current kubeconfig context is %q, want %q: refusing to run the e2e suite "+
+			"against anything but its own kind cluster (KUBECONFIG=%s)", raw.CurrentContext, want, kubeconfig)
+	}
+	return nil
+}
+
 var _ = BeforeSuite(func() {
+	By("verifying the current kubeconfig context is the e2e kind cluster, and nothing else")
+	Expect(verifyIsolatedKindCluster()).To(Succeed())
+	clusterVerified = true
+
 	By("building a typed client against the current kubeconfig context")
 	Expect(freqtradev1alpha1.AddToScheme(scheme.Scheme)).To(Succeed())
 	Expect(freqtradev1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
@@ -100,10 +149,10 @@ var _ = BeforeSuite(func() {
 	// Setup CertManager before the suite if not skipped and if not already installed
 	if !skipCertManagerInstall {
 		By("checking if cert manager is installed already")
-		isCertManagerAlreadyInstalled = utils.IsCertManagerCRDsInstalled()
-		if !isCertManagerAlreadyInstalled {
+		if !utils.IsCertManagerCRDsInstalled() {
 			_, _ = fmt.Fprintf(GinkgoWriter, "Installing CertManager...\n")
 			Expect(utils.InstallCertManager()).To(Succeed(), "Failed to install CertManager")
+			installedCertManager = true
 		} else {
 			_, _ = fmt.Fprintf(GinkgoWriter, "WARNING: CertManager is already installed. Skipping installation...\n")
 		}
@@ -111,10 +160,10 @@ var _ = BeforeSuite(func() {
 
 	if !skipGatewayAPIInstall {
 		By("checking if the Gateway API CRDs are installed already")
-		isGatewayAPIAlreadyInstalled = utils.IsGatewayAPICRDsInstalled()
-		if !isGatewayAPIAlreadyInstalled {
+		if !utils.IsGatewayAPICRDsInstalled() {
 			_, _ = fmt.Fprintf(GinkgoWriter, "Installing Gateway API standard CRDs...\n")
 			Expect(utils.InstallGatewayAPI()).To(Succeed(), "Failed to install the Gateway API CRDs")
+			installedGatewayAPI = true
 		} else {
 			_, _ = fmt.Fprintf(GinkgoWriter, "WARNING: Gateway API CRDs are already installed. Skipping installation...\n")
 		}
@@ -122,13 +171,23 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	// Teardown CertManager after the suite if not skipped and if it was not already installed
-	if !skipCertManagerInstall && !isCertManagerAlreadyInstalled {
+	if !clusterVerified {
+		_, _ = fmt.Fprintf(GinkgoWriter, "Cluster was never verified as the e2e kind cluster; skipping teardown.\n")
+		return
+	}
+	// Re-checked, not just remembered: nothing may be deleted if the context changed mid-run.
+	if err := verifyIsolatedKindCluster(); err != nil {
+		_, _ = fmt.Fprintf(GinkgoWriter, "Skipping teardown: %v\n", err)
+		return
+	}
+
+	// Teardown only what this suite itself installed.
+	if installedCertManager {
 		_, _ = fmt.Fprintf(GinkgoWriter, "Uninstalling CertManager...\n")
 		utils.UninstallCertManager()
 	}
 
-	if !skipGatewayAPIInstall && !isGatewayAPIAlreadyInstalled {
+	if installedGatewayAPI {
 		_, _ = fmt.Fprintf(GinkgoWriter, "Uninstalling Gateway API CRDs...\n")
 		utils.UninstallGatewayAPI()
 	}
