@@ -28,6 +28,10 @@ tag as a starting point for the next section - a draft aid, not a substitute for
   Succeeded or Failed, the Job being reaped by the TTL controller is treated as expected and the
   Job is not recreated. Previously each reap triggered a fresh Job, re-running the whole backtest
   roughly once a day for as long as the `Backtest` existed.
+- `config/manager` pins the controller image to `ghcr.io/ark-sys/freqtrade-operator` again. #15
+  accidentally committed it as `example.com/freqtrade-operator:v0.0.1` (the e2e image), so a
+  kustomize install of `config/default` that overrides `ghcr.io/ark-sys/freqtrade-operator` (e.g. an
+  Argo CD `kustomize.images` pin) no longer matched, and the manager image was unpullable.
 
 ### Changed
 - Dependency updates since 0.1.0, no API surface change: controller-runtime 0.21.0 -> 0.25.1,
