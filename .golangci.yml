@@ -1,6 +1,9 @@
 version: "2"
 run:
   allow-parallel-runners: true
+  # test/e2e is behind the e2e build tag (so go test ./... never runs it); lint it anyway.
+  build-tags:
+    - e2e
 linters:
   default: none
   enable:
