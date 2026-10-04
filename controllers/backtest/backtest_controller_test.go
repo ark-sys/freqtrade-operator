@@ -192,6 +192,56 @@ var _ = Describe("Backtest controller", func() {
 			Expect(adoptedCM.OwnerReferences[0].Name).To(Equal(backtest.Name))
 		})
 
+		It("does not recreate the Job once spec.ttlSecondsAfterFinished reaps it", func() {
+			ctx := context.Background()
+			strategy := newTestStrategy("strategy-bt-reaped")
+			config := newTestTradeBotConfig("config-bt-reaped")
+			Expect(k8sClient.Create(ctx, strategy)).To(Succeed())
+			Expect(k8sClient.Create(ctx, config)).To(Succeed())
+
+			backtest := newTestBacktest("run-bt-reaped", strategy.Name, config.Name)
+			Expect(k8sClient.Create(ctx, backtest)).To(Succeed())
+			key := types.NamespacedName{Name: backtest.Name, Namespace: testNamespace}
+
+			var job batchv1.Job
+			Eventually(func() error {
+				return k8sClient.Get(ctx, key, &job)
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+			originalUID := job.UID
+
+			job.Status.Succeeded = 1
+			Expect(k8sClient.Status().Update(ctx, &job)).To(Succeed())
+			Eventually(func(g Gomega) {
+				var got freqtradev1beta1.Backtest
+				g.Expect(k8sClient.Get(ctx, key, &got)).To(Succeed())
+				g.Expect(got.Status.Phase).To(Equal("Succeeded"))
+			}, eventuallyTimeout, eventuallyPoll).Should(Succeed())
+
+			// envtest runs no TTL controller either - delete the Job the way
+			// it would. Background propagation, since batch/v1's default
+			// (orphan) leaves a finalizer that nothing in envtest clears.
+			Expect(k8sClient.Delete(ctx, &job, client.PropagationPolicy(metav1.DeletePropagationBackground))).
+				To(Succeed())
+
+			Consistently(func(g Gomega) {
+				var recreated batchv1.Job
+				err := k8sClient.Get(ctx, key, &recreated)
+				if err == nil {
+					// The original may still be draining; anything with a new UID is a re-run.
+					g.Expect(recreated.UID).To(Equal(originalUID))
+				} else {
+					g.Expect(errors.IsNotFound(err)).To(BeTrue())
+				}
+
+				var got freqtradev1beta1.Backtest
+				g.Expect(k8sClient.Get(ctx, key, &got)).To(Succeed())
+				g.Expect(got.Status.Phase).To(Equal("Succeeded"))
+				cond := findStatusCondition(got.Status.Conditions, freqtradev1beta1.ConditionWorkloadReady)
+				g.Expect(cond).NotTo(BeNil())
+				g.Expect(cond.Reason).To(Equal(freqtradev1beta1.ReasonWorkloadSucceeded))
+			}, "3s", eventuallyPoll).Should(Succeed())
+		})
+
 		It("provisions the sidecar's ServiceAccount/Role/RoleBinding and wires the Job's sidecar container", func() {
 			ctx := context.Background()
 			strategy := newTestStrategy("strategy-bt-sidecar")

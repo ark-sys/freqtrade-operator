@@ -21,6 +21,12 @@ tag as a starting point for the next section - a draft aid, not a substitute for
 
 ## [Unreleased]
 
+### Fixed
+- A finished `Backtest` no longer re-runs every `ttlSecondsAfterFinished`: once its Job reaches
+  Succeeded or Failed, the Job being reaped by the TTL controller is treated as expected and the
+  Job is not recreated. Previously each reap triggered a fresh Job, re-running the whole backtest
+  roughly once a day for as long as the `Backtest` existed.
+
 ## [0.1.0] - 2026-09-19
 
 First tagged release.

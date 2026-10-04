@@ -201,12 +201,18 @@ func (w workloadStatus) conditionStatusAndReason() (metav1.ConditionStatus, stri
 	}
 }
 
-// computeWorkloadStatus inspects the Job this Backtest owns.
+// computeWorkloadStatus inspects the Job this Backtest owns. Once the run
+// has finished, the Job is expected to disappear (spec.ttlSecondsAfterFinished
+// reaps it) - its absence then reports the outcome already recorded in
+// status rather than an error.
 func (r *Reconciler) computeWorkloadStatus(
 	ctx context.Context, backtest *freqtradev1beta1.Backtest,
 ) (workloadStatus, error) {
 	var job batchv1.Job
 	if err := r.Get(ctx, client.ObjectKeyFromObject(backtest), &job); err != nil {
+		if ws, finished := recordedOutcome(backtest); finished && errors.IsNotFound(err) {
+			return ws, nil
+		}
 		return workloadStatus{}, fmt.Errorf("failed to get Job: %w", err)
 	}
 	ws := workloadStatus{startTime: job.Status.StartTime, completionTime: job.Status.CompletionTime}
@@ -225,6 +231,34 @@ func (r *Reconciler) computeWorkloadStatus(
 		ws.requeueAfter = 15 * time.Second
 	}
 	return ws, nil
+}
+
+// recordedOutcome reports whether a previous reconcile already saw this
+// Backtest's Job reach a terminal state (WorkloadReady's reason is
+// WorkloadSucceeded or WorkloadFailed), and if so the workloadStatus that
+// recorded it. A run is one-shot: once this is true, the Job's later
+// absence means the TTL controller reaped it, never that it still needs
+// creating - recreating it would silently re-run the whole backtest every
+// ttlSecondsAfterFinished.
+func recordedOutcome(backtest *freqtradev1beta1.Backtest) (workloadStatus, bool) {
+	cond := meta.FindStatusCondition(backtest.Status.Conditions, freqtradev1beta1.ConditionWorkloadReady)
+	if cond == nil {
+		return workloadStatus{}, false
+	}
+	ws := workloadStatus{
+		message:        backtest.Status.Message,
+		startTime:      backtest.Status.StartTime,
+		completionTime: backtest.Status.CompletionTime,
+	}
+	switch cond.Reason {
+	case freqtradev1beta1.ReasonWorkloadSucceeded:
+		ws.succeeded = true
+	case freqtradev1beta1.ReasonWorkloadFailed:
+		ws.failed = true
+	default:
+		return workloadStatus{}, false
+	}
+	return ws, true
 }
 
 // deriveBacktestPhase computes the human-facing Phase from workload - it is

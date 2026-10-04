@@ -53,7 +53,9 @@ func (r *Reconciler) defaultImage() string {
 // long after a run finished must never turn a long-done Backtest's routine
 // reconcile (triggered by, say, a manager restart's resync) into a
 // ReconcileError - the run already happened, and there is nothing further
-// to apply.
+// to apply. The same holds after the Job is gone again: once status records
+// a terminal outcome (see recordedOutcome), a missing Job was reaped by
+// spec.ttlSecondsAfterFinished and is never recreated.
 func (r *Reconciler) reconcileResources(
 	ctx context.Context, backtest *freqtradev1beta1.Backtest,
 ) (jobName string, err error) {
@@ -67,6 +69,9 @@ func (r *Reconciler) reconcileResources(
 		return jobName, nil
 	case !errors.IsNotFound(getErr):
 		return "", fmt.Errorf("failed to check for an existing Job: %w", getErr)
+	}
+	if _, finished := recordedOutcome(backtest); finished {
+		return jobName, nil
 	}
 
 	strategy, tradeBotConfig, err := r.fetchReferencedObjects(ctx, backtest)
