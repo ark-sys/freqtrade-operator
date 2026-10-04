@@ -33,6 +33,10 @@ tag as a starting point for the next section - a draft aid, not a substitute for
   kustomize install of `config/default` that overrides `ghcr.io/ark-sys/freqtrade-operator` (e.g. an
   Argo CD `kustomize.images` pin) no longer matched, and the manager image was unpullable.
 
+### Security
+- go.opentelemetry.io/otel/exporters/otlp/otlptrace (and otlptracegrpc) 1.44.0 -> 1.45.0 for
+  GO-2026-6505, which govulncheck reports as reachable from the manager.
+
 ### Changed
 - Dependency updates since 0.1.0, no API surface change: controller-runtime 0.21.0 -> 0.25.1,
   prometheus/client_golang 1.24.0 -> 1.24.1, ginkgo 2.32.2, gomega 1.43.0, and CI action bumps.
